@@ -371,7 +371,7 @@ async function sget(k){
   if(API_BASE && !apiDown){
     try{
       const r=await fetch(API_BASE+'?key='+encodeURIComponent(k));
-      if(r.status===404||r.status===400) return null;   /* never written, or not a key we store */
+      if(r.status===404) return null;
       if(!r.ok) throw new Error('HTTP '+r.status);
       const j=await r.json();
       return j.value??null;
@@ -1764,7 +1764,7 @@ $('#reset-btn').onclick=e=>arm(e.currentTarget,'Really reset?',async()=>{
   let meta  = await sget(S.meta)      || null;
 
   /* one-time lift from the old single-blob store into the split stores */
-  if(!meta && !API_BASE){
+  if(!meta){
     const legacy=await sget(LEGACY);
     if(Array.isArray(legacy)&&legacy.length){
       const ids=new Set(seed().map(s=>s.id));
