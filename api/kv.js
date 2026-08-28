@@ -28,7 +28,7 @@ export default async function handler(req, res) {
         return res.status(200).json(out);
       }
       const key = String(req.query.key || '');
-      if (!ALLOWED.test(key)) return res.status(400).json({ error: 'bad key' });
+      if (!ALLOWED.test(key)) return res.status(404).json({ error: 'not found' });
       const rows = await sql`SELECT value FROM store WHERE key = ${key}`;
       if (!rows.length) return res.status(404).json({ error: 'not found' });
       return res.status(200).json({ key, value: rows[0].value });
