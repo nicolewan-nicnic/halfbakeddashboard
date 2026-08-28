@@ -145,6 +145,22 @@ button{cursor:pointer}
 .tick-sm[aria-pressed="true"] .box::after{content:"";position:absolute;left:3px;top:4px;width:8px;height:4px;border-left:2.5px solid var(--ivory);border-bottom:2.5px solid var(--ivory);transform:rotate(-45deg)}
 .todo-text{flex:1;line-height:1.45;outline:none;border-radius:5px;padding:1px 3px;margin:-1px -3px}
 .todo-text:focus{background:var(--ivory);box-shadow:0 0 0 2px var(--sage)}
+.split{margin-top:20px;background:var(--beige);border-radius:var(--wob2);padding:14px 16px}
+.split-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+.split-head .ball{min-width:0;padding:6px 12px;font-size:12.5px;border-radius:var(--wob3)}
+.split-head .ball[aria-pressed="true"]{background:var(--sage);border-color:var(--sage);color:var(--ivory)}
+.orders{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:12px}
+.order{background:var(--ivory);border:2.5px solid var(--taupe);border-radius:var(--wob3);padding:12px 14px}
+.order.ok{border-color:var(--sage)}
+.order.under{border-color:var(--orange)}
+.order h5{margin:0 0 8px;font-family:var(--display);font-weight:600;font-size:14.5px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.order h5 b{font-family:var(--mono);font-size:16px;font-weight:500}
+.order ul{list-style:none;margin:0;padding:0}
+.order li{display:flex;gap:8px;justify-content:space-between;padding:4px 0;font-size:13.5px;border-bottom:1px dotted var(--taupe)}
+.order li:last-child{border-bottom:0}
+.order-tops{margin-top:9px;display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+.order-tops .ball{min-width:0;padding:5px 10px;font-size:12px;border-radius:var(--wob3);text-align:left}
+.order-tops .n{font-family:var(--mono);font-size:11px;color:var(--rye)}
 .shop-stores{display:flex;gap:6px;flex-wrap:wrap;margin:18px 0 6px}
 .shop-stores .ball{border-radius:var(--wob3);min-width:0;padding:7px 12px;font-size:12.5px}
 .shop-stores .ball.fav{border-width:2.5px}
@@ -705,7 +721,7 @@ let mode='home', cookOff=false, editItem=null, putAway=null, pickDay=null;
 let formDate='', photoReview=null, photoBusy=false, armed=null, pasteBusy=false, pasteText='';
 let calcCoco=null, refocus=null, searchQ='', todoText='';
 let shopStore='waitrose-barnet', shopCat=null, shopQ='', shopBusy=false, shopErr='';
-let basket={}, shopHist={};
+let basket={}, shopHist={}, shopSplit=null;
 const STORES=[
   ['waitrose-barnet','Waitrose Barnet',1],['longdan','Longdan',1],['morrisons','Morrisons',1],
   ['waitrose-kentish-town','Waitrose Kentish Town',0],['sainsbury-s-local',"Sainsbury's Local",0],
@@ -1689,16 +1705,56 @@ async function loadCatalogue(slug){
   shopBusy=false; render();
 }
 /* what to add so the basket lands on or just over the minimum, with least waste */
-function topUps(){
-  const short=MIN_ORDER-basketTotal();
+function topUps(total,exclude){
+  const short=MIN_ORDER-total;
   if(short<=0||!shopCat) return [];
   const h=histFor(shopStore);
-  const inBasket=new Set(bask().map(i=>i.name));
+  const skip=new Set(exclude||[]);
   return shopCat.items
-    .filter(i=>i.price>=short-0.001&&i.price<=short+2.5&&!inBasket.has(i.name))
+    .filter(i=>i.price>=short-0.001&&i.price<=short+2.5&&!skip.has(i.name))
     .map(i=>({...i,over:i.price-short,seen:(h[i.name]?h[i.name].a+h[i.name].b:0)}))
     .sort((a,b)=>(b.seen>0)-(a.seen>0)||a.over-b.over)
-    .slice(0,8);
+    .slice(0,6);
+}
+/* Spread the plan across orders, each aiming to land on or just over the minimum.
+   Biggest items placed first, each into whichever order is furthest behind. */
+function planOrders(k){
+  const units=[];
+  bask().forEach(i=>{ for(let n=0;n<i.qty;n++) units.push({name:i.name,price:i.price,size:i.size}); });
+  units.sort((a,b)=>b.price-a.price);
+  const g=Array.from({length:k},()=>({items:[],total:0}));
+  units.forEach(u=>{ const t=g.reduce((m,x)=>x.total<m.total?x:m); t.items.push(u); t.total+=u.price; });
+  return g;
+}
+function maxOrders(){ return Math.max(1, bask().reduce((a,i)=>a+i.qty,0)); }
+function autoSplit(){ return Math.max(1, Math.floor(basketTotal()/MIN_ORDER)); }
+
+function splitCount(){ return Math.min(shopSplit||autoSplit(), maxOrders()); }
+function renderSplit(){
+  const k=splitCount(), orders=planOrders(k), mx=Math.min(4,maxOrders());
+  const choices=[]; for(let n=1;n<=mx;n++) choices.push(n);
+  return `<div class="split">
+    <div class="split-head">
+      <span class="batch-label">Split into</span>
+      <div class="calc-presets">${choices.map(n=>`
+        <button class="ball" data-split="${n}" aria-pressed="${k===n}">${n} order${n===1?'':'s'}</button>`).join('')}</div>
+      ${shopSplit?`<button class="link-btn" id="split-auto">back to automatic</button>`:`<span class="calc-sync">automatic — ${autoSplit()} order${autoSplit()===1?'':'s'} clears the minimum</span>`}
+    </div>
+    ${k>1?`<div class="orders">${orders.map((o,n)=>{
+      const short=MIN_ORDER-o.total, tops=topUps(o.total,o.items.map(x=>x.name));
+      return `<div class="order ${o.total>=MIN_ORDER?'ok':'under'}">
+        <h5>Order ${n+1} <b>£${o.total.toFixed(2)}</b>
+          ${o.total>=MIN_ORDER?`<span class="chip">over by £${(o.total-MIN_ORDER).toFixed(2)}</span>`
+            :`<span class="chip soon">£${short.toFixed(2)} to go</span>`}</h5>
+        <ul>${o.items.map(i=>`<li><span>${esc(i.name)}</span><span class="b-price">£${i.price.toFixed(2)}</span></li>`).join('')}</ul>
+        ${short>0?(tops.length?`<div class="order-tops"><span class="picker-label" style="margin:0 0 4px">Add one of these</span>
+          ${tops.slice(0,3).map(t=>`<button class="ball" data-top="${esc(t.name)}|${t.price}|${esc(t.size||'')}">
+            ${esc(t.name.length>30?t.name.slice(0,28)+'…':t.name)} <span class="n">£${t.price.toFixed(2)}</span></button>`).join('')}</div>`
+          :`<p class="hint" style="margin:6px 0 0">Nothing in this shop lands neatly on the gap — add something by hand.</p>`)
+        :`<button class="link-btn" data-placed="${n}">Order placed — remember these</button>`}
+      </div>`;}).join('')}</div>`
+    :''}
+  </div>`;
 }
 function renderShop(){
   const items=bask(), total=basketTotal(), short=MIN_ORDER-total;
@@ -1707,12 +1763,12 @@ function renderShop(){
   const q=shopQ.trim().toLowerCase();
   const results=(q.length>1&&shopCat)
     ? shopCat.items.filter(i=>i.name.toLowerCase().includes(q)).slice(0,40) : [];
-  const tops=topUps();
+  const tops=topUps(total);
 
   pane.innerHTML=`<article class="card">
     <div class="card-head">
       <div style="flex:1;min-width:180px"><h2>Deliveroo basket</h2>
-        <p class="blurb">Build to £${MIN_ORDER.toFixed(2)} or just over. What you add and what you order gets remembered, so your usuals rise to the top.</p></div>
+        <p class="blurb">Everything you mean to buy from here. Split it into orders that each land on £${MIN_ORDER.toFixed(2)} or just over — two £12 things are better as two orders than one.</p></div>
       <div class="head-actions"><button class="pill back-only" id="back">← Home</button></div>
     </div>
 
@@ -1734,13 +1790,15 @@ function renderShop(){
         <span class="b-price">£${(i.price*i.qty).toFixed(2)}</span>
         <button class="row-x" data-bx="${n}" aria-label="Remove">×</button></li>`).join('')}</ul>
       <div class="cook-actions" style="margin-top:12px">
-        <button class="pill solid" id="shop-done">Order placed — remember these</button>
+        <button class="pill solid" id="shop-done">${splitCount()>1?'All ordered':'Order placed'} — remember these</button>
         <button class="link-btn" id="shop-clear">Empty the basket</button>
         <button class="link-btn" id="shop-tolist">Copy to grocery list</button>
       </div>`
     :`<p class="home-none" style="margin:14px 0">Basket is empty. Search below, or pick from your usuals.</p>`}
 
-    ${short>0&&tops.length?`<div class="useup" style="margin-top:20px"><h4>Tips it over £${MIN_ORDER}</h4>
+    ${items.length?renderSplit():''}
+
+    ${short>0&&tops.length&&splitCount()===1?`<div class="useup" style="margin-top:20px"><h4>Tips it over £${MIN_ORDER}</h4>
       <ul class="topups">${tops.map(t=>`
         <li><button data-top="${esc(t.name)}|${t.price}|${esc(t.size||'')}">
           <span class="t-name">${esc(t.name)}</span>
@@ -1773,7 +1831,7 @@ function renderShop(){
 
   const back=$('#back'); if(back) back.onclick=()=>{ mode='home'; render(); };
   pane.querySelectorAll('[data-store]').forEach(b=>b.onclick=()=>{
-    shopStore=b.dataset.store; shopQ=''; loadCatalogue(shopStore); });
+    shopStore=b.dataset.store; shopQ=''; shopSplit=null; loadCatalogue(shopStore); });
   const sq=$('#shop-q');
   if(sq){ sq.oninput=()=>{ shopQ=sq.value; refocus='shop-q'; render(); }; }
   const addItem=async(name,price,size)=>{
@@ -1802,6 +1860,20 @@ function renderShop(){
   };
   const mn=$('#man-name'); if(mn) mn.onkeydown=e=>{ if(e.key==='Enter') $('#man-price').focus(); };
   const mp=$('#man-price'); if(mp) mp.onkeydown=e=>{ if(e.key==='Enter') ma.click(); };
+  pane.querySelectorAll('[data-split]').forEach(b=>b.onclick=()=>{ shopSplit=Number(b.dataset.split); render(); });
+  const sa=$('#split-auto'); if(sa) sa.onclick=()=>{ shopSplit=null; render(); };
+  pane.querySelectorAll('[data-placed]').forEach(b=>b.onclick=async()=>{
+    const o=planOrders(splitCount())[+b.dataset.placed];
+    snapshot();
+    o.items.forEach(u=>{
+      bump(shopStore,u.name,'b');
+      const line=bask().find(i=>i.name===u.name);
+      if(line){ line.qty--; if(line.qty<1) bask().splice(bask().indexOf(line),1); }
+    });
+    if(shopSplit) shopSplit=Math.max(1,shopSplit-1);
+    await saveBasket(); await saveHist(); render();
+    toast('Order noted — '+o.items.length+' item'+(o.items.length===1?'':'s')+' remembered', true);
+  });
   const sd=$('#shop-done'); if(sd) sd.onclick=async()=>{
     const n=bask().length;
     bask().forEach(i=>{ for(let k=0;k<i.qty;k++) bump(shopStore,i.name,'b'); });
