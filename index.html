@@ -161,6 +161,27 @@ button{cursor:pointer}
 .order-tops{margin-top:9px;display:flex;flex-direction:column;gap:5px;align-items:flex-start}
 .order-tops .ball{min-width:0;padding:5px 10px;font-size:12px;border-radius:var(--wob3);text-align:left}
 .order-tops .n{font-family:var(--mono);font-size:11px;color:var(--rye)}
+.fam-filter{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 4px}
+.fam-filter .ball{min-width:0;padding:5px 10px;font-size:11.5px;border-radius:var(--wob3);display:flex;align-items:center;gap:6px}
+.fam-filter .ball[aria-pressed="true"]{background:var(--beige);border-color:var(--crumb)}
+.fam-filter .n{font-family:var(--mono);font-size:10px;color:var(--rye)}
+.dot{width:9px;height:9px;border-radius:50% 45% 55% 50%/50% 55% 45% 50%;flex:none;border:1.5px solid currentColor}
+.fam-sage{color:var(--sage)} .fam-orange{color:var(--orange)}
+.fam-rye{color:var(--rye)} .fam-crumb{color:var(--crumb)} .fam-taupe{color:#B9AE9F}
+.solid .dot{background:currentColor}
+.hollow .dot{background:transparent}
+.results li{border-bottom:1px dotted var(--taupe);border-left:3px solid transparent}
+.results li.fam-sage{border-left-color:var(--sage)}
+.results li.fam-orange{border-left-color:var(--orange)}
+.results li.fam-rye{border-left-color:var(--rye)}
+.results li.fam-crumb{border-left-color:var(--crumb)}
+.results li.fam-taupe{border-left-color:#B9AE9F}
+.results li.hollow{border-left-style:dashed}
+.res-head{display:flex;align-items:center;gap:8px;padding:9px 0 5px 9px;margin-top:6px;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;
+  background:var(--beige);border-bottom:0}
+.results li button{padding-left:9px}
+.r-cat{font-family:var(--mono);font-size:10px;color:var(--rye);opacity:.8;white-space:nowrap}
 .shop-stores{display:flex;gap:6px;flex-wrap:wrap;margin:18px 0 6px}
 .shop-stores .ball{border-radius:var(--wob3);min-width:0;padding:7px 12px;font-size:12.5px}
 .shop-stores .ball.fav{border-width:2.5px}
@@ -403,7 +424,7 @@ window.addEventListener('error',function(e){
    it did not touch. Set API_BASE to '/api/kv' after deploying to Vercel and
    everything below moves to the database with no other change.            */
 const API_BASE = '/api/kv';                    /* '' = this device · '/api/kv' = server */
-const APP_VERSION = 3;                  /* bump when shipping new seed recipes  */
+const APP_VERSION = 5;                  /* bump when shipping new seed recipes  */
 
 const S = {
   mine:      'hbs:recipes.mine',        /* recipes you created                  */
@@ -562,6 +583,90 @@ function shelfFor(name){ const f=foodInfo(name); return f?f.shelf:'Fridge'; }
 
 /* ============ seed recipes ============ */
 function seed(){return [
+{id:'mayak-eggs',name:'Mayak Eggs',icon:'jar',kcal:600,
+ prep:'The eggs want at least 6 hours in the marinade, and are better overnight. Make them the day before.',
+ blurb:'Korean marinated eggs — jammy yolks sitting in a sweet, garlicky soy. Called mayak because you cannot stop eating them.',
+ makesQty:6,makesUnit:'eggs',
+ ingredients:[{qty:6,unit:'',name:'Eggs, fridge cold'},
+  {qty:null,unit:'',name:'For the marinade:'},
+  {qty:0.25,unit:'cup',name:'Gompyo fried rice soy sauce'},{qty:0.25,unit:'cup',name:'Water'},
+  {qty:2,unit:'Tbsp',name:'Sugar, or rice syrup'},{qty:3,unit:'',name:'Chillies, sliced'},
+  {qty:0.25,unit:'',name:'Onion, diced'},{qty:1,unit:'',name:'Green onion, sliced'},
+  {qty:2,unit:'cloves',name:'Garlic, minced'},{qty:0.5,unit:'Tbsp',name:'Sesame seeds'}],
+ method:['Air fry the eggs straight from the fridge at 120°C for 12 minutes. No preheat, single layer, a little space between them.',
+  'Drop them straight into a bowl of ice water for 5 minutes. This stops the cooking dead and makes them peel cleanly — dry heat gives a better peel than boiling.',
+  'Peel carefully. The whites are set but the yolks are still soft, so be gentle.',
+  'Stir the soy sauce, water and sugar together until the sugar dissolves, then add the chilli, onion, green onion, garlic and sesame seeds.',
+  'Sit the peeled eggs in the marinade, pressing a piece of kitchen paper over the surface so the exposed tops stay submerged.',
+  'Refrigerate at least 6 hours, ideally overnight. They keep about 4 days, getting saltier and firmer as they sit.',
+  'Serve over hot rice with a spoonful of the marinade.']},
+{id:'onsen-eggs',name:'Onsen Eggs',icon:'eggtart',kcal:300,
+ calc:{kind:'egg',air:70},
+ blurb:'The reverse of a soft-boiled egg: silky, barely-set white around a thick custardy yolk. Your air fryer going down to 70°C is exactly what this needs.',
+ makesQty:4,makesUnit:'eggs',
+ ingredients:[{qty:4,unit:'',name:'Eggs'},
+  {qty:null,unit:'',name:'To serve, optional:'},
+  {qty:2,unit:'Tbsp',name:'Dashi'},{qty:1,unit:'tsp',name:'Soy sauce'},
+  {qty:1,unit:'tsp',name:'Mirin'},{qty:null,unit:'',name:'Spring onion, sliced fine'}],
+ method:['Set the air fryer to 70°C and give it five minutes to settle before the eggs go in — the thermostat overshoots at first.',
+  'Put the eggs in whole and in their shells, in one layer.',
+  'Use the timer above for the exact time. From the fridge at 70°C that is about 33 minutes; from room temperature about 29.',
+  'Lift them out and either eat them warm or drop them in ice water if you are saving them.',
+  'Crack into a small bowl — the white should slide out barely set, the yolk thick and glossy.',
+  'Warm the dashi, soy and mirin together and pour it around, then scatter the spring onion.']},
+{id:'maeuntang',name:'Lazy Girl Maeuntang',icon:'noodlebowl',kcal:1350,
+ blurb:'Spicy Korean fish stew, made by putting everything in one pot. 150 kcal, 2g fibre and 20g protein a serving.',
+ makesQty:9,makesUnit:'servings',
+ ingredients:[{qty:3,unit:'lb',name:'Cod'},{qty:1,unit:'',name:'Daikon radish, cut into rounds'},
+  {qty:10,unit:'cloves',name:'Garlic'},{qty:0.33,unit:'cup',name:'Gochugaru'},
+  {qty:1,unit:'Tbsp',name:'Doenjang'},{qty:1,unit:'Tbsp',name:'Gochujang'},
+  {qty:1,unit:'Tbsp',name:'Soy sauce'},{qty:2,unit:'Tbsp',name:'Fish sauce'},
+  {qty:2,unit:'Tbsp',name:'Mirin'},{qty:null,unit:'',name:'Black pepper, a great deal of it'},
+  {qty:null,unit:'',name:'To garnish:'},
+  {qty:null,unit:'',name:'Chrysanthemum greens, chopped'},{qty:null,unit:'',name:'Green onions, chopped'},
+  {qty:null,unit:'',name:'Green and red peppers, if you want it hotter'}],
+ method:['Put the cod, daikon, garlic, gochugaru, doenjang, gochujang, soy, fish sauce, mirin and a heavy hand of black pepper into a pot together.',
+  'Bring to a boil and cook until the fish is done through.',
+  'Serve topped with chopped chrysanthemum greens and green onions, adding sliced green and red peppers if you want more heat.']},
+{id:'kkaenip-jeon',name:'Kkaenip Jeon',icon:'eggtart',kcal:1400,
+ blurb:'Perilla leaves stuffed with seasoned beef, floured, egged and fried. 350 kcal, 5g fibre and 22g protein a serving.',
+ makesQty:4,makesUnit:'servings',
+ ingredients:[{qty:20,unit:'',name:'Perilla leaves, small to medium'},
+  {qty:null,unit:'',name:'For the filling:'},
+  {qty:8,unit:'oz',name:'Ground beef'},{qty:0.25,unit:'pack',name:'Sprouted tofu, optional'},
+  {qty:2,unit:'cloves',name:'Garlic'},{qty:2,unit:'',name:'Green onions'},
+  {qty:1,unit:'',name:'Onion, diced'},{qty:1,unit:'Tbsp',name:'Soy sauce'},
+  {qty:0.5,unit:'tsp',name:'Sugar'},{qty:1,unit:'tsp',name:'Sesame oil'},
+  {qty:null,unit:'',name:'Black pepper'},
+  {qty:null,unit:'',name:'To coat and fry:'},
+  {qty:null,unit:'',name:'Flour'},{qty:null,unit:'',name:'Egg, beaten'},{qty:null,unit:'',name:'Oil, for frying'}],
+ method:['Mix the beef with the tofu if you are using it, along with the garlic, green onions, diced onion, soy sauce, sugar, sesame oil and black pepper.',
+  'Stuff each perilla leaf with a spoonful of the mixture — you should get about 20.',
+  'Coat each one in flour, then in beaten egg.',
+  'Fry both sides in oil until golden.']},
+{id:'collagen-congee',name:'Collagen Chicken Congee',icon:'chickenrice',kcal:800,
+ blurb:'A restorative pot of congee with ginseng and jujube. 200 kcal, 2g fibre and 15g protein a serving.',
+ makesQty:4,makesUnit:'servings',
+ ingredients:[{qty:4,unit:'',name:'Chicken breasts'},{qty:2,unit:'',name:'Ginseng roots'},
+  {qty:4,unit:'',name:'Jujubes'},{qty:15,unit:'cloves',name:'Garlic'},
+  {qty:4,unit:'',name:'Green onions'},{qty:1,unit:'',name:'White onion'},
+  {qty:1,unit:'cup',name:'Carrots, julienned'},{qty:1,unit:'',name:'Celery stick, chopped'},
+  {qty:4,unit:'cups',name:'Chicken bone broth'}],
+ method:['Steam the chicken breasts, then shred them.',
+  'Put the shredded chicken into a pot with the ginseng, jujubes, garlic, green onions, white onion, carrots, celery and the broth.',
+  'Simmer until everything is soft and the broth has thickened. Shop-bought broth is fine here.']},
+{id:'gochujang-hummus',name:'Gochujang Hummus',icon:'jar',kcal:2000,
+ blurb:'Hummus with gochujang stirred through at the end. 250 kcal, 7g fibre and 13g protein a serving.',
+ makesQty:8,makesUnit:'servings',
+ ingredients:[{qty:1,unit:'cup',name:'Chickpeas, canned and rinsed'},
+  {qty:null,unit:'',name:'Baking powder, for the boiling water'},
+  {qty:1,unit:'Tbsp',name:'Olive oil'},{qty:1,unit:'',name:'Lemon, juiced'},
+  {qty:2,unit:'cloves',name:'Garlic'},{qty:4,unit:'',name:'Ice cubes, small'},
+  {qty:2,unit:'Tbsp',name:'Gochujang'}],
+ method:['Boil the rinsed chickpeas with baking powder for about 10 minutes.',
+  'Move them to the freezer for 10 minutes to cool, then peel off as many skins as your patience allows.',
+  'Blend the chickpeas with the olive oil, lemon juice, garlic and ice cubes until smooth.',
+  'Stir the gochujang through at the end.']},
 {id:'banh-xeo',name:'Bánh Xèo',icon:'croissant',kcal:4000,
  calc:{kind:'batter',ratio:2,dry:250,waterParts:5,dryPerCrepe:36},
  prep:'Soak the mung beans in cold water for at least 4 hours, or overnight. Drain and steam them soft before you start the batter.',
@@ -720,8 +825,9 @@ let currentId=null, scale=1, editing=false, draft=null;
 let mode='home', cookOff=false, editItem=null, putAway=null, pickDay=null;
 let formDate='', photoReview=null, photoBusy=false, armed=null, pasteBusy=false, pasteText='';
 let calcCoco=null, refocus=null, searchQ='', todoText='';
+let eggAir=null, eggStart=4, eggTarget=65, eggSize=57;
 let shopStore='waitrose-barnet', shopCat=null, shopQ='', shopBusy=false, shopErr='';
-let basket={}, shopHist={}, shopSplit=null;
+let basket={}, shopHist={}, shopSplit=null, shopFam='';
 const STORES=[
   ['waitrose-barnet','Waitrose Barnet',1],['longdan','Longdan',1],['morrisons','Morrisons',1],
   ['waitrose-kentish-town','Waitrose Kentish Town',0],['sainsbury-s-local',"Sainsbury's Local",0],
@@ -1072,6 +1178,7 @@ function renderRecipe(){
 
 /* ============ batter calculator ============ */
 function calcHTML(r){
+  if(r.calc.kind==='egg') return eggHTML(r);
   const c=r.calc, per=c.dryPerCrepe||36;
   const dry=Math.round(c.dry*scale);
   const parts=calcCoco!==null?calcCoco:c.waterParts;
@@ -1106,6 +1213,7 @@ function calcHTML(r){
 }
 function wireCalc(r){
   if(!r.calc) return;
+  if(r.calc.kind==='egg') return wireEgg(r);
   const c=r.calc, per=c.dryPerCrepe||36;
   const d=$('#c-dry');
   if(d){
@@ -1117,6 +1225,72 @@ function wireCalc(r){
   pane.querySelectorAll('[data-crepes]').forEach(b=>b.onclick=()=>{
     scale=(Math.round(Number(b.dataset.crepes)*per/5)*5)/c.dry; render(); });
   pane.querySelectorAll('[data-coco]').forEach(b=>b.onclick=()=>{ calcCoco=Number(b.dataset.coco); render(); });
+}
+
+/* ---- egg timer ------------------------------------------------------------
+   Centre temperature follows T = Tair + (Tstart - Tair)·A·e^(-t/tau).
+   tau and A were fitted to two well-attested air-fryer results (12 min at
+   120C and 11 min at 132C, both from the fridge). The same fit then predicts
+   33 min at 70C and 38 min at 68C — inside the published 30-45 min window for
+   onsen eggs, which is a decent sign the curve is honest.                  */
+const EGG_TAU=671, EGG_A=1.401;
+function eggMinutes(air,start,target,grams){
+  const th=(target-air)/(start-air);
+  if(!(th>0)||th>=EGG_A) return null;                 /* air too cool to ever get there */
+  const size=Math.pow((grams||57)/57, 2/3);           /* time scales with radius squared */
+  return -EGG_TAU*size*Math.log(th/EGG_A)/60;
+}
+function eggHTML(r){
+  const air=eggAir!==null?eggAir:(r.calc.air||70);
+  const mins=eggMinutes(air,eggStart,eggTarget,eggSize);
+  const TARGETS=[[63,'barely set'],[65,'classic onsen'],[68,'firmer yolk']];
+  const SIZES=[[50,'medium'],[57,'large'],[64,'x-large'],[71,'jumbo']];
+  return `<div class="calc">
+    <div class="calc-head"><span class="batch-label">Egg timer</span>
+      <span class="calc-rule">works out when the yolk centre reaches your target</span></div>
+    <div class="calc-row">
+      <span class="picker-label" style="margin:0;min-width:92px">Straight from</span>
+      <div class="calc-presets">
+        <button class="ball" data-estart="4" aria-pressed="${eggStart===4}">the fridge · 4°C</button>
+        <button class="ball" data-estart="20" aria-pressed="${eggStart!==4}">room temperature</button>
+        ${eggStart!==4?`<span class="unitrow"><input id="e-start" type="number" min="5" max="35" step="1" value="${eggStart}"><span class="calc-unit">°C</span></span>`:''}
+      </div>
+    </div>
+    <div class="calc-row">
+      <label class="calc-in"><span class="picker-label">Air fryer set to</span>
+        <div class="unitrow"><input id="e-air" type="number" min="50" max="200" step="5" value="${air}"><span class="calc-unit">°C</span></div></label>
+      <div class="calc-presets">${[70,75,80,120].map(v=>`<button class="ball" data-eair="${v}" aria-pressed="${air===v}">${v}°</button>`).join('')}</div>
+    </div>
+    <div class="calc-row">
+      <span class="picker-label" style="margin:0;min-width:92px">Yolk centre</span>
+      <div class="calc-presets">${TARGETS.map(([v,lab])=>`
+        <button class="ball" data-etarget="${v}" aria-pressed="${eggTarget===v}">${v}°C <span class="n">${lab}</span></button>`).join('')}</div>
+    </div>
+    <div class="calc-row">
+      <span class="picker-label" style="margin:0;min-width:92px">Egg size</span>
+      <div class="calc-presets">${SIZES.map(([g,lab])=>`
+        <button class="ball" data-esize="${g}" aria-pressed="${eggSize===g}">${lab}</button>`).join('')}</div>
+    </div>
+    <div class="calc-out">
+      ${mins?`<div class="co total"><b>${mins<60?Math.round(mins)+' min':Math.floor(mins/60)+'h '+Math.round(mins%60)+'m'}</b><span>in the air fryer</span></div>
+        <div class="co"><b>${eggTarget}</b><span>°C in the middle</span></div>
+        <div class="co"><b>${air}</b><span>°C air, and the egg can never pass it</span></div>`
+      :`<div class="co" style="grid-column:1/-1"><b>—</b><span>${air<=eggTarget?`The air is at ${air}°C, so the egg can never reach ${eggTarget}°C. Set the fryer higher than your target.`:'Out of range for this model.'}</span></div>`}
+    </div>
+    <p class="hint" style="margin-top:8px">Below about 80°C the white never fully sets, which is the whole point — silky white, custardy yolk. Above 100°C the outside races ahead of the middle and you get a normal jammy egg instead. Ice bath the moment they come out.</p>
+  </div>`;
+}
+function wireEgg(r){
+  const re=()=>{ const el=pane.querySelector('.calc'); if(!el) return;
+    const keep=document.activeElement&&document.activeElement.id;
+    el.outerHTML=eggHTML(r); wireEgg(r);
+    if(keep){ const n=$('#'+keep); if(n){ n.focus(); if(n.setSelectionRange) n.setSelectionRange(n.value.length,n.value.length); } } };
+  pane.querySelectorAll('[data-estart]').forEach(b=>b.onclick=()=>{ eggStart=Number(b.dataset.estart); re(); });
+  pane.querySelectorAll('[data-eair]').forEach(b=>b.onclick=()=>{ eggAir=Number(b.dataset.eair); re(); });
+  pane.querySelectorAll('[data-etarget]').forEach(b=>b.onclick=()=>{ eggTarget=Number(b.dataset.etarget); re(); });
+  pane.querySelectorAll('[data-esize]').forEach(b=>b.onclick=()=>{ eggSize=Number(b.dataset.esize); re(); });
+  const a=$('#e-air'); if(a) a.oninput=()=>{ const v=Number(a.value); if(v>0){ eggAir=v; re(); } };
+  const s=$('#e-start'); if(s) s.oninput=()=>{ const v=Number(s.value); if(v>0){ eggStart=v; re(); } };
 }
 
 /* ============ editor ============ */
@@ -1684,6 +1858,22 @@ function renderHome(){
 }
 
 /* ============ Deliveroo basket builder ============ */
+/* The stores name their aisles differently — Longdan especially — so map the
+   86 raw category names onto a handful of families. Four palette colours,
+   filled or hollow, gives ten legible groups without inventing new colours. */
+const FAMS=[
+ ['drinks','Drinks',/drink|water|juice|smoothie|\btea\b|coffee|mixer/i,'crumb',1],
+ ['fresh','Fresh produce',/\bfruit\b|\bveg\b|vegetable|salad|herb/i,'sage',1],
+ ['frozen','Frozen',/frozen|ice cream|dumpling|gyoza/i,'sage',0],
+ ['meat','Meat & fish',/meat|poultry|\bfish\b|seafood|charcuterie|pork roll/i,'orange',1],
+ ['bakery','Bakery',/baker|bread|pastr|cake|cookie|muffin/i,'orange',0],
+ ['dairy','Dairy & chilled',/dairy|cheese|yoghurt|yogurt|milk|\begg/i,'rye',1],
+ ['cupboard','Cupboard',/rice|pasta|pulse|noodle|\btin|\bcan\b|can&|cooking sauce|condiment|table sauce|\boil|stock|\bpaste|flour|sugar|baking|\bjam|honey|spread|store cupboard|nut & bean|coconut|preserved|dried|cereal/i,'rye',0],
+ ['snacks','Snacks & sweets',/crisp|snack|biscuit|chocolate|sweet|confection|dessert/i,'crumb',0],
+ ['deli','Deli & ready',/deli|\bdip|food to go|ready|pizza|brunch|breakfast|italian|weekend|dinner|bbq|picnic|platter|plantbase/i,'taupe',1],
+ ['other','Everything else',/./,'taupe',0]];
+function famOf(cat){ const c=String(cat||''); return FAMS.find(f=>f[2].test(c))||FAMS[FAMS.length-1]; }
+
 function bask(){ return basket[shopStore]||(basket[shopStore]=[]); }
 function basketTotal(){ return bask().reduce((a,i)=>a+i.price*i.qty,0); }
 function histFor(slug){ return shopHist[slug]||(shopHist[slug]={}); }
@@ -1762,7 +1952,7 @@ function renderShop(){
   const usuals=Object.entries(h).sort((a,b)=>(b[1].b*2+b[1].a)-(a[1].b*2+a[1].a)).slice(0,8);
   const q=shopQ.trim().toLowerCase();
   const results=(q.length>1&&shopCat)
-    ? shopCat.items.filter(i=>i.name.toLowerCase().includes(q)).slice(0,40) : [];
+    ? shopCat.items.filter(i=>i.name.toLowerCase().includes(q)).slice(0,60) : [];
   const tops=topUps(total);
 
   pane.innerHTML=`<article class="card">
@@ -1810,11 +2000,27 @@ function renderShop(){
     ${shopBusy?`<p class="home-none">Loading the price list…</p>`:''}
     ${shopErr?`<div class="banner" style="margin-bottom:14px">${esc(shopErr)}</div>`:''}
     <input class="search" id="shop-q" type="search" placeholder="lime, tofu, noodles…" autocomplete="off" value="${esc(shopQ)}">
-    ${results.length?`<ul class="results">${results.map(i=>`
-      <li><button data-add="${esc(i.name)}|${i.price}|${esc(i.size||'')}">
-        <span class="r-name">${esc(i.name)}</span>
-        <span class="r-size">${esc(i.size||'')}</span>
-        <span class="r-price">£${i.price.toFixed(2)}</span></button></li>`).join('')}</ul>`
+    ${results.length?(()=>{
+      const groups=new Map();
+      results.forEach(i=>{ const f=famOf(i.cat);
+        if(!groups.has(f[0])) groups.set(f[0],{fam:f,items:[]});
+        groups.get(f[0]).items.push(i); });
+      const order=FAMS.filter(f=>groups.has(f[0]));
+      return `<div class="fam-filter">
+          <button class="ball ${shopFam?'':'on'}" data-fam="" aria-pressed="${!shopFam}">all ${results.length}</button>
+          ${order.map(f=>`<button class="ball fam-${f[3]} ${f[4]?'solid':'hollow'}" data-fam="${f[0]}" aria-pressed="${shopFam===f[0]}">
+            <span class="dot"></span>${esc(f[1])} <span class="n">${groups.get(f[0]).items.length}</span></button>`).join('')}
+        </div>
+        <ul class="results">${order.filter(f=>!shopFam||shopFam===f[0]).map(f=>{
+          const g=groups.get(f[0]);
+          return `<li class="res-head fam-${f[3]} ${f[4]?'solid':'hollow'}"><span class="dot"></span>${esc(f[1])}</li>`+
+            g.items.map(i=>`<li class="fam-${f[3]} ${f[4]?'solid':'hollow'}">
+              <button data-add="${esc(i.name)}|${i.price}|${esc(i.size||'')}">
+                <span class="r-name">${esc(i.name)}</span>
+                <span class="r-cat">${esc(i.cat)}</span>
+                <span class="r-size">${esc(i.size||'')}</span>
+                <span class="r-price">£${i.price.toFixed(2)}</span></button></li>`).join('');
+        }).join('')}</ul>`;})()
       :(q.length>1&&shopCat?`<p class="home-none" style="margin-top:10px">Nothing matching that.</p>`:'')}
 
     <div class="add-item" style="grid-template-columns:1fr 110px auto;margin-top:16px">
@@ -1833,7 +2039,8 @@ function renderShop(){
   pane.querySelectorAll('[data-store]').forEach(b=>b.onclick=()=>{
     shopStore=b.dataset.store; shopQ=''; shopSplit=null; loadCatalogue(shopStore); });
   const sq=$('#shop-q');
-  if(sq){ sq.oninput=()=>{ shopQ=sq.value; refocus='shop-q'; render(); }; }
+  if(sq){ sq.oninput=()=>{ shopQ=sq.value; shopFam=''; refocus='shop-q'; render(); }; }
+  pane.querySelectorAll('[data-fam]').forEach(b=>b.onclick=()=>{ shopFam=b.dataset.fam; render(); });
   const addItem=async(name,price,size)=>{
     const ex=bask().find(i=>i.name===name);
     if(ex) ex.qty++; else bask().push({name,price:+price,size:size||'',qty:1});
