@@ -161,6 +161,18 @@ button{cursor:pointer}
 .order-tops{margin-top:9px;display:flex;flex-direction:column;gap:5px;align-items:flex-start}
 .order-tops .ball{min-width:0;padding:5px 10px;font-size:12px;border-radius:var(--wob3);text-align:left}
 .order-tops .n{font-family:var(--mono);font-size:11px;color:var(--rye)}
+.scope{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.scope .ball{min-width:0;padding:6px 12px;font-size:12.5px;border-radius:var(--wob3)}
+.scope .ball[aria-pressed="true"]{background:var(--sage);border-color:var(--sage);color:var(--ivory)}
+.results.compare button{display:grid;grid-template-columns:1fr 108px 62px 84px 58px;gap:8px;align-items:baseline}
+.results.compare li.best{background:var(--beige)}
+.r-store{font-family:var(--mono);font-size:11px;color:var(--rye);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r-unit{font-family:var(--mono);font-size:12.5px;color:var(--sage);text-align:right;white-space:nowrap}
+@media (max-width:680px){
+  .results.compare button{grid-template-columns:1fr 66px;row-gap:2px}
+  .results.compare .r-store{grid-column:1}
+  .results.compare .r-size{display:none}
+}
 .fam-filter{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 4px}
 .fam-filter .ball{min-width:0;padding:5px 10px;font-size:11.5px;border-radius:var(--wob3);display:flex;align-items:center;gap:6px}
 .fam-filter .ball[aria-pressed="true"]{background:var(--beige);border-color:var(--crumb)}
@@ -424,7 +436,7 @@ window.addEventListener('error',function(e){
    it did not touch. Set API_BASE to '/api/kv' after deploying to Vercel and
    everything below moves to the database with no other change.            */
 const API_BASE = '/api/kv';                    /* '' = this device · '/api/kv' = server */
-const APP_VERSION = 5;                  /* bump when shipping new seed recipes  */
+const APP_VERSION = 6;                  /* bump when shipping new seed recipes  */
 
 const S = {
   mine:      'hbs:recipes.mine',        /* recipes you created                  */
@@ -583,6 +595,29 @@ function shelfFor(name){ const f=foodInfo(name); return f?f.shelf:'Fridge'; }
 
 /* ============ seed recipes ============ */
 function seed(){return [
+{id:'pistachio-basque',name:'Pistachio Basque Cheesecake',icon:'cakeslice',kcal:7200,
+ calc:{kind:'anchor',name:'Cream cheese',base:1000,unit:'g',tin:22,sharedG:1647,eggG:300,
+   options:[{k:'paste',label:'Pistachio paste',items:[['Pistachio paste',150],['White sugar',300]]},
+            {k:'praline',label:'Pistachio praline',items:[['Pistachio praline',200],['Sugar',200]]}]},
+ prep:'It needs a night in the fridge after baking, so make it the day before you want to eat it.',
+ blurb:'Burnt on the outside, barely set in the middle. Built for a 22 cm ring — use the scaler if your cream cheese tub is a different size.',
+ makesQty:12,makesUnit:'slices',
+ ingredients:[{qty:1000,unit:'g',name:'Cream cheese, at least 32% fat'},
+  {qty:40,unit:'g',name:'Cornflour'},{qty:5,unit:'g',name:'Vanilla paste, or 1 pod scraped'},
+  {qty:2,unit:'g',name:'Salt'},{qty:300,unit:'g',name:'Double cream'},
+  {qty:300,unit:'g',name:'Egg, about 6 large, weighed out of the shell'},
+  {qty:null,unit:'',name:'Then one of these two:'},
+  {qty:150,unit:'g',name:'Pistachio paste — with 300 g white sugar'},
+  {qty:200,unit:'g',name:'Pistachio praline — with 200 g sugar'}],
+ method:['Heat the oven to 240°C, top and bottom heat.',
+  'Line a 22 cm ring with parchment, sides and base.',
+  'Beat the cream cheese with the sugar for whichever option you are making, along with the cornflour, salt and vanilla, until smooth.',
+  'Mix in the pistachio paste or praline.',
+  'Add the egg and cream gradually, mixing to a smooth batter.',
+  'Strain into the tin and bake about 25 minutes at 240°C. If it is browning too fast after ten minutes, drop to 210°C.',
+  'It wants to come out very dark on top and still wobbly in the middle.',
+  'Cool at room temperature, then refrigerate overnight.',
+  'Slice with a hot knife for clean edges.']},
 {id:'mayak-eggs',name:'Mayak Eggs',icon:'jar',kcal:600,
  prep:'The eggs want at least 6 hours in the marinade, and are better overnight. Make them the day before.',
  blurb:'Korean marinated eggs — jammy yolks sitting in a sweet, garlicky soy. Called mayak because you cannot stop eating them.',
@@ -826,8 +861,10 @@ let mode='home', cookOff=false, editItem=null, putAway=null, pickDay=null;
 let formDate='', photoReview=null, photoBusy=false, armed=null, pasteBusy=false, pasteText='';
 let calcCoco=null, refocus=null, searchQ='', todoText='';
 let eggAir=null, eggStart=4, eggTarget=65, eggSize=57;
+let anchorOpt=null;
 let shopStore='waitrose-barnet', shopCat=null, shopQ='', shopBusy=false, shopErr='';
 let basket={}, shopHist={}, shopSplit=null, shopFam='';
+let shopScope='store', allCat=null, allBusy=false, topsOpen=false;
 const STORES=[
   ['waitrose-barnet','Waitrose Barnet',1],['longdan','Longdan',1],['morrisons','Morrisons',1],
   ['waitrose-kentish-town','Waitrose Kentish Town',0],['sainsbury-s-local',"Sainsbury's Local",0],
@@ -915,7 +952,7 @@ function uid(b){let s=slug(b),i=2,t=s;while(recipes.some(r=>r.id===t))t=s+'-'+i+
 function find(id){return recipes.find(r=>r.id===id);}
 function perServing(r){
   if(!r.kcal||!r.makesQty) return null;
-  if(!/serving|portion/i.test(r.makesUnit||'')) return null;
+  if(!/serving|portion|slice|piece|egg|pancake|crêpe|crepe|roll|bun/i.test(r.makesUnit||'')) return null;
   return Math.round(r.kcal/r.makesQty);
 }
 function prettyDay(iso){ const d=new Date(iso+'T00:00:00');
@@ -1179,6 +1216,7 @@ function renderRecipe(){
 /* ============ batter calculator ============ */
 function calcHTML(r){
   if(r.calc.kind==='egg') return eggHTML(r);
+  if(r.calc.kind==='anchor') return anchorHTML(r);
   const c=r.calc, per=c.dryPerCrepe||36;
   const dry=Math.round(c.dry*scale);
   const parts=calcCoco!==null?calcCoco:c.waterParts;
@@ -1214,6 +1252,7 @@ function calcHTML(r){
 function wireCalc(r){
   if(!r.calc) return;
   if(r.calc.kind==='egg') return wireEgg(r);
+  if(r.calc.kind==='anchor') return wireAnchor(r);
   const c=r.calc, per=c.dryPerCrepe||36;
   const d=$('#c-dry');
   if(d){
@@ -1225,6 +1264,52 @@ function wireCalc(r){
   pane.querySelectorAll('[data-crepes]').forEach(b=>b.onclick=()=>{
     scale=(Math.round(Number(b.dataset.crepes)*per/5)*5)/c.dry; render(); });
   pane.querySelectorAll('[data-coco]').forEach(b=>b.onclick=()=>{ calcCoco=Number(b.dataset.coco); render(); });
+}
+
+/* ---- scale from one ingredient -------------------------------------------
+   You rarely have exactly 1 kg of cream cheese. Type what you actually have
+   and everything else follows, including the tin that keeps the same depth
+   (diameter grows with the square root of the batch, so the bake time holds). */
+function anchorHTML(r){
+  const c=r.calc;
+  const have=Math.round(c.base*scale);
+  const opt=c.options.find(o=>o.k===(anchorOpt||c.options[0].k))||c.options[0];
+  const optW=opt.items.reduce((a,[,g])=>a+g,0);
+  const total=Math.round((c.sharedG+optW)*scale);
+  const tin=c.tin*Math.sqrt(scale);
+  const eggG=Math.round(c.eggG*scale), eggN=eggG/50;
+  return `<div class="calc">
+    <div class="calc-head"><span class="batch-label">Scale by ${esc(c.name.toLowerCase())}</span>
+      <span class="calc-rule">everything below follows what you actually have</span></div>
+    <div class="calc-row">
+      <label class="calc-in"><span class="picker-label">${esc(c.name)} in the tub</span>
+        <div class="unitrow"><input id="a-have" type="number" min="50" step="50" value="${have}"><span class="calc-unit">g</span></div></label>
+      <div class="calc-presets">${[500,750,1000,1200,1500].map(v=>`
+        <button class="ball" data-anchor="${v}" aria-pressed="${have===v}">${v>=1000?(v/1000)+'kg':v+'g'}</button>`).join('')}</div>
+    </div>
+    <div class="calc-row">
+      <span class="picker-label" style="margin:0;min-width:84px">Made with</span>
+      <div class="calc-presets">${c.options.map(o=>`
+        <button class="ball" data-aopt="${o.k}" aria-pressed="${o.k===opt.k}">${esc(o.label)}</button>`).join('')}</div>
+    </div>
+    <div class="calc-out">
+      <div class="co total"><b>${tin.toFixed(0)}</b><span>cm tin, to keep the depth</span></div>
+      <div class="co"><b>${eggG}</b><span>g egg · about ${eggN%1<0.15||eggN%1>0.85?Math.round(eggN):Math.floor(eggN)+'–'+Math.ceil(eggN)} large</span></div>
+      ${opt.items.map(([n,g])=>`<div class="co"><b>${Math.round(g*scale)}</b><span>g ${esc(n.toLowerCase())}</span></div>`).join('')}
+      <div class="co"><b>${(total/1000).toFixed(2)}</b><span>kg of batter</span></div>
+    </div>
+    <p class="hint" style="margin-top:8px">Weigh the eggs rather than counting them — six large is about ${c.eggG} g out of the shell, and shell weights vary more than you would think. Bake time stays about the same as long as the depth does.</p>
+  </div>`;
+}
+function wireAnchor(r){
+  const c=r.calc;
+  const set=g=>{ scale=Math.max(0.05,g/c.base); render(); };
+  pane.querySelectorAll('[data-anchor]').forEach(b=>b.onclick=()=>set(Number(b.dataset.anchor)));
+  pane.querySelectorAll('[data-aopt]').forEach(b=>b.onclick=()=>{ anchorOpt=b.dataset.aopt; render(); });
+  const el=$('#a-have');
+  if(el){ el.oninput=()=>{ if(!el.value) return; const v=Number(el.value);
+    if(v>0){ scale=v/c.base; refocus='a-have'; render(); } };
+    el.onblur=()=>{ if(!el.value) render(); }; }
 }
 
 /* ---- egg timer ------------------------------------------------------------
@@ -1292,6 +1377,7 @@ function wireEgg(r){
   const a=$('#e-air'); if(a) a.oninput=()=>{ const v=Number(a.value); if(v>0){ eggAir=v; re(); } };
   const s=$('#e-start'); if(s) s.oninput=()=>{ const v=Number(s.value); if(v>0){ eggStart=v; re(); } };
 }
+
 
 /* ============ editor ============ */
 function renderEditor(){
@@ -1874,11 +1960,62 @@ const FAMS=[
  ['other','Everything else',/./,'taupe',0]];
 function famOf(cat){ const c=String(cat||''); return FAMS.find(f=>f[2].test(c))||FAMS[FAMS.length-1]; }
 
+/* Pack sizes are clean in this data — g, kg, ml, L, cl — so a real
+   per-kilo / per-litre comparison is possible for most items. */
+function unitPrice(price,size){
+  const m=String(size||'').trim().match(/^([\d.]+)\s*(g|kg|ml|l|cl)$/i);
+  if(!m) return null;
+  const n=parseFloat(m[1]); if(!(n>0)) return null;
+  const u=m[2].toLowerCase();
+  if(u==='g')  return {v:price/(n/1000), u:'kg'};
+  if(u==='kg') return {v:price/n,        u:'kg'};
+  if(u==='ml') return {v:price/(n/1000), u:'L'};
+  if(u==='l')  return {v:price/n,        u:'L'};
+  if(u==='cl') return {v:price/(n/100),  u:'L'};
+  return null;
+}
+async function loadAllCatalogues(){
+  if(allCat||allBusy) return;
+  allBusy=true; render();
+  const out={};
+  await Promise.all(STORES.map(async ([slug,name])=>{
+    try{
+      const r=await fetch('data/'+slug+'.json'); if(!r.ok) return;
+      const j=await r.json();
+      out[slug]=j.items.map(a=>({name:a[0],price:a[1],cat:a[2],size:a[3],slug,store:j.store}));
+    }catch(e){}
+  }));
+  allCat=Object.keys(out).length?out:null;
+  if(!allCat) shopErr='Could not load the other shops’ price lists here.';
+  allBusy=false; render();
+}
+function searchEverywhere(q){
+  if(!allCat) return [];
+  const hits=[];
+  for(const slug in allCat)
+    for(const i of allCat[slug]) if(i.name.toLowerCase().includes(q)) hits.push(i);
+  hits.forEach(i=>{ i.up=unitPrice(i.price,i.size); });
+  hits.sort((a,b)=>{
+    if(a.up&&b.up&&a.up.u===b.up.u) return a.up.v-b.up.v;
+    if(a.up&&!b.up) return -1;
+    if(!a.up&&b.up) return 1;
+    return a.price-b.price;
+  });
+  return hits;
+}
+
 function bask(){ return basket[shopStore]||(basket[shopStore]=[]); }
 function basketTotal(){ return bask().reduce((a,i)=>a+i.price*i.qty,0); }
 function histFor(slug){ return shopHist[slug]||(shopHist[slug]={}); }
 function bump(slug,name,field){
   const h=histFor(slug); const e=h[name]||(h[name]={a:0,b:0}); e[field]++; e.last=todayISO();
+}
+/* An add that gets taken straight back out was a misfire, not a preference —
+   so removing something rolls back the interest it recorded. */
+function unbump(slug,name,n){
+  const h=histFor(slug), e=h[name]; if(!e) return;
+  e.a=Math.max(0,(e.a||0)-(n||1));
+  if(!e.a && !e.b) delete h[name];
 }
 async function loadCatalogue(slug){
   if(shopCat&&shopCat.slug===slug) return;
@@ -1895,16 +2032,17 @@ async function loadCatalogue(slug){
   shopBusy=false; render();
 }
 /* what to add so the basket lands on or just over the minimum, with least waste */
-function topUps(total,exclude){
+function topUps(total,exclude,deep){
   const short=MIN_ORDER-total;
   if(short<=0||!shopCat) return [];
   const h=histFor(shopStore);
-  const skip=new Set(exclude||[]);
+  const skip=new Set([...(exclude||[]), ...bask().map(i=>i.name)]);
+  const band=deep?6:2.5;
   return shopCat.items
-    .filter(i=>i.price>=short-0.001&&i.price<=short+2.5&&!skip.has(i.name))
-    .map(i=>({...i,over:i.price-short,seen:(h[i.name]?h[i.name].a+h[i.name].b:0)}))
+    .filter(i=>i.price>=short-0.001&&i.price<=short+band&&!skip.has(i.name))
+    .map(i=>({...i,over:i.price-short,seen:(h[i.name]?h[i.name].b*4+h[i.name].a:0)}))
     .sort((a,b)=>(b.seen>0)-(a.seen>0)||a.over-b.over)
-    .slice(0,6);
+    .slice(0,deep?40:6);
 }
 /* Spread the plan across orders, each aiming to land on or just over the minimum.
    Biggest items placed first, each into whichever order is furthest behind. */
@@ -1931,15 +2069,16 @@ function renderSplit(){
       ${shopSplit?`<button class="link-btn" id="split-auto">back to automatic</button>`:`<span class="calc-sync">automatic — ${autoSplit()} order${autoSplit()===1?'':'s'} clears the minimum</span>`}
     </div>
     ${k>1?`<div class="orders">${orders.map((o,n)=>{
-      const short=MIN_ORDER-o.total, tops=topUps(o.total,o.items.map(x=>x.name));
+      const short=MIN_ORDER-o.total, tops=topUps(o.total,o.items.map(x=>x.name),topsOpen);
       return `<div class="order ${o.total>=MIN_ORDER?'ok':'under'}">
         <h5>Order ${n+1} <b>£${o.total.toFixed(2)}</b>
           ${o.total>=MIN_ORDER?`<span class="chip">over by £${(o.total-MIN_ORDER).toFixed(2)}</span>`
             :`<span class="chip soon">£${short.toFixed(2)} to go</span>`}</h5>
         <ul>${o.items.map(i=>`<li><span>${esc(i.name)}</span><span class="b-price">£${i.price.toFixed(2)}</span></li>`).join('')}</ul>
         ${short>0?(tops.length?`<div class="order-tops"><span class="picker-label" style="margin:0 0 4px">Add one of these</span>
-          ${tops.slice(0,3).map(t=>`<button class="ball" data-top="${esc(t.name)}|${t.price}|${esc(t.size||'')}">
-            ${esc(t.name.length>30?t.name.slice(0,28)+'…':t.name)} <span class="n">£${t.price.toFixed(2)}</span></button>`).join('')}</div>`
+          ${(topsOpen?tops.slice(0,12):tops.slice(0,3)).map(t=>`<button class="ball" data-top="${esc(t.name)}|${t.price}|${esc(t.size||'')}">
+            ${esc(t.name.length>30?t.name.slice(0,28)+'…':t.name)} <span class="n">£${t.price.toFixed(2)}</span></button>`).join('')}
+          ${tops.length>3?`<button class="link-btn" id="tops-more2">${topsOpen?'fewer':'more options'}</button>`:''}</div>`
           :`<p class="hint" style="margin:6px 0 0">Nothing in this shop lands neatly on the gap — add something by hand.</p>`)
         :`<button class="link-btn" data-placed="${n}">Order placed — remember these</button>`}
       </div>`;}).join('')}</div>`
@@ -1949,11 +2088,15 @@ function renderSplit(){
 function renderShop(){
   const items=bask(), total=basketTotal(), short=MIN_ORDER-total;
   const h=histFor(shopStore);
-  const usuals=Object.entries(h).sort((a,b)=>(b[1].b*2+b[1].a)-(a[1].b*2+a[1].a)).slice(0,8);
+  /* one stray add proves nothing — a thing is a usual once you have bought it,
+     or put it on a list more than once */
+  const usuals=Object.entries(h).filter(([,e])=>e.b>0||e.a>1)
+    .sort((a,b)=>(b[1].b*4+b[1].a)-(a[1].b*4+a[1].a)).slice(0,8);
   const q=shopQ.trim().toLowerCase();
-  const results=(q.length>1&&shopCat)
+  const results=(q.length>1&&shopScope==='store'&&shopCat)
     ? shopCat.items.filter(i=>i.name.toLowerCase().includes(q)).slice(0,60) : [];
-  const tops=topUps(total);
+  const gResults=(q.length>1&&shopScope==='all') ? searchEverywhere(q) : [];
+  const tops=topUps(total,[],true);
 
   pane.innerHTML=`<article class="card">
     <div class="card-head">
@@ -1989,14 +2132,21 @@ function renderShop(){
     ${items.length?renderSplit():''}
 
     ${short>0&&tops.length&&splitCount()===1?`<div class="useup" style="margin-top:20px"><h4>Tips it over £${MIN_ORDER}</h4>
-      <ul class="topups">${tops.map(t=>`
+      <ul class="topups">${(topsOpen?tops:tops.slice(0,4)).map(t=>`
         <li><button data-top="${esc(t.name)}|${t.price}|${esc(t.size||'')}">
           <span class="t-name">${esc(t.name)}</span>
           <span class="t-price">£${t.price.toFixed(2)}</span>
-          <span class="t-over">→ £${(total+t.price).toFixed(2)}${t.seen?' · you buy this':''}</span>
-        </button></li>`).join('')}</ul></div>`:''}
+          <span class="t-over">→ £${(total+t.price).toFixed(2)}${t.seen>3?' · you buy this':''}</span>
+        </button></li>`).join('')}</ul>
+      ${tops.length>4?`<button class="link-btn" id="tops-more" style="margin-top:8px">${topsOpen?'Show fewer':'Show all '+tops.length+' options'}</button>`:''}
+      </div>`:''}
 
-    <h3 class="section-title" style="margin-top:26px">Search ${esc(shopCat?shopCat.store:'the shop')}</h3><div class="section-rule"></div>
+    <h3 class="section-title" style="margin-top:26px">Search</h3><div class="section-rule"></div>
+    <div class="scope">
+      <button class="ball" data-scope="store" aria-pressed="${shopScope==='store'}">${esc(shopCat?shopCat.store:'This shop')}</button>
+      <button class="ball" data-scope="all" aria-pressed="${shopScope==='all'}">Compare all shops</button>
+      ${shopScope==='all'?`<span class="calc-sync">${allBusy?'loading every price list…':(allCat?'cheapest per kilo first':'')}</span>`:''}
+    </div>
     ${shopBusy?`<p class="home-none">Loading the price list…</p>`:''}
     ${shopErr?`<div class="banner" style="margin-bottom:14px">${esc(shopErr)}</div>`:''}
     <input class="search" id="shop-q" type="search" placeholder="lime, tofu, noodles…" autocomplete="off" value="${esc(shopQ)}">
@@ -2021,7 +2171,22 @@ function renderShop(){
                 <span class="r-size">${esc(i.size||'')}</span>
                 <span class="r-price">£${i.price.toFixed(2)}</span></button></li>`).join('');
         }).join('')}</ul>`;})()
-      :(q.length>1&&shopCat?`<p class="home-none" style="margin-top:10px">Nothing matching that.</p>`:'')}
+      :(q.length>1&&shopScope==='store'&&shopCat?`<p class="home-none" style="margin-top:10px">Nothing matching that.</p>`:'')}
+
+    ${shopScope==='all'?(gResults.length?(()=>{
+      const shown=gResults.slice(0,60);
+      const best=shown.find(i=>i.up);
+      return `<ul class="results compare">${shown.map(i=>`
+        <li class="${i===best?'best':''}"><button data-gadd="${esc(i.slug)}|${esc(i.name)}|${i.price}|${esc(i.size||'')}">
+          <span class="r-name">${esc(i.name)}${i===best?' <span class="chip">cheapest per '+i.up.u+'</span>':''}</span>
+          <span class="r-store">${esc(i.store)}</span>
+          <span class="r-size">${esc(i.size||'')}</span>
+          <span class="r-unit">${i.up?'£'+i.up.v.toFixed(2)+'/'+i.up.u:'—'}</span>
+          <span class="r-price">£${i.price.toFixed(2)}</span></button></li>`).join('')}</ul>
+        ${gResults.length>60?`<p class="hint">Showing the 60 best value of ${gResults.length} matches.</p>`:''}`;})()
+      :(q.length>1&&allCat?`<p class="home-none" style="margin-top:10px">Nothing matching that in any shop.</p>`
+        :(allBusy?'':`<p class="home-none" style="margin-top:10px">Type at least two letters to compare across all nine shops.</p>`)))
+     :''}
 
     <div class="add-item" style="grid-template-columns:1fr 110px auto;margin-top:16px">
       <label><span class="picker-label">Or add by hand</span><input id="man-name" placeholder="Lime" autocomplete="off"></label>
@@ -2032,7 +2197,7 @@ function renderShop(){
     ${usuals.length?`<div class="shop-usuals"><h4>Your usuals here</h4>
       <div class="usual-chips">${usuals.map(([name,e])=>`
         <button class="ball" data-usual="${esc(name)}">${esc(name.length>34?name.slice(0,32)+'…':name)}
-          <span class="n">${e.b?e.b+'×':'listed'}</span></button>`).join('')}</div></div>`:''}
+          <span class="n">${e.b?'bought '+e.b+'×':'listed '+e.a+'×'}</span></button>`).join('')}</div></div>`:''}
   </article>`;
 
   const back=$('#back'); if(back) back.onclick=()=>{ mode='home'; render(); };
@@ -2041,6 +2206,24 @@ function renderShop(){
   const sq=$('#shop-q');
   if(sq){ sq.oninput=()=>{ shopQ=sq.value; shopFam=''; refocus='shop-q'; render(); }; }
   pane.querySelectorAll('[data-fam]').forEach(b=>b.onclick=()=>{ shopFam=b.dataset.fam; render(); });
+  pane.querySelectorAll('[data-scope]').forEach(b=>b.onclick=()=>{
+    shopScope=b.dataset.scope; shopFam='';
+    if(shopScope==='all') loadAllCatalogues(); else render(); });
+  const tm=$('#tops-more'), tm2=$('#tops-more2');
+  if(tm) tm.onclick=()=>{ topsOpen=!topsOpen; render(); };
+  if(tm2) tm2.onclick=()=>{ topsOpen=!topsOpen; render(); };
+  pane.querySelectorAll('[data-gadd]').forEach(b=>b.onclick=async()=>{
+    const [slug,n,p,s]=b.dataset.gadd.split('|');
+    const prev=shopStore;
+    shopStore=slug;
+    const ex=bask().find(i=>i.name===n);
+    if(ex) ex.qty++; else bask().push({name:n,price:+p,size:s||'',qty:1});
+    bump(slug,n,'a');
+    await saveBasket(); await saveHist();
+    if(prev!==slug){ shopCat=null; shopSplit=null; loadCatalogue(slug); }
+    else render();
+    toast('Added to the '+(STORES.find(x=>x[0]===slug)||[,slug])[1]+' basket');
+  });
   const addItem=async(name,price,size)=>{
     const ex=bask().find(i=>i.name===name);
     if(ex) ex.qty++; else bask().push({name,price:+price,size:size||'',qty:1});
@@ -2057,9 +2240,12 @@ function renderShop(){
   });
   pane.querySelectorAll('[data-inc]').forEach(b=>b.onclick=async()=>{ bask()[+b.dataset.inc].qty++; await saveBasket(); render(); });
   pane.querySelectorAll('[data-dec]').forEach(b=>b.onclick=async()=>{
-    const i=bask()[+b.dataset.dec]; i.qty--; if(i.qty<1) bask().splice(+b.dataset.dec,1);
-    await saveBasket(); render(); });
-  pane.querySelectorAll('[data-bx]').forEach(b=>b.onclick=async()=>{ bask().splice(+b.dataset.bx,1); await saveBasket(); render(); });
+    const i=bask()[+b.dataset.dec]; i.qty--; unbump(shopStore,i.name,1);
+    if(i.qty<1) bask().splice(+b.dataset.dec,1);
+    await saveBasket(); await saveHist(); render(); });
+  pane.querySelectorAll('[data-bx]').forEach(b=>b.onclick=async()=>{
+    const it=bask()[+b.dataset.bx]; unbump(shopStore,it.name,it.qty);
+    bask().splice(+b.dataset.bx,1); await saveBasket(); await saveHist(); render(); });
   const ma=$('#man-add'); if(ma) ma.onclick=()=>{
     const n=$('#man-name').value.trim(), p=parseFloat($('#man-price').value);
     if(!n||!(p>0)){ $('#man-name').focus(); return; }
@@ -2088,7 +2274,9 @@ function renderShop(){
     await saveBasket(); await saveHist(); render();
     toast(n+' item'+(n===1?'':'s')+' remembered', true);
   };
-  const sc=$('#shop-clear'); if(sc) sc.onclick=async()=>{ snapshot(); basket[shopStore]=[]; await saveBasket(); render(); toast('Basket emptied', true); };
+  const sc=$('#shop-clear'); if(sc) sc.onclick=async()=>{ snapshot();
+    bask().forEach(i=>unbump(shopStore,i.name,i.qty));
+    basket[shopStore]=[]; await saveBasket(); await saveHist(); render(); toast('Basket emptied', true); };
   const st=$('#shop-tolist'); if(st) st.onclick=async()=>{
     let n=0;
     bask().forEach(i=>{ if(!grocery.some(g=>norm(g.name)===norm(i.name))){
