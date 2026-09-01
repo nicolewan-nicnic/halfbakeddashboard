@@ -431,14 +431,10 @@ window.addEventListener('error',function(e){
         <button class="fridge-btn" id="grocery-btn"></button>
         <button class="fridge-btn" id="plan-btn"></button>
         <button class="fridge-btn" id="shop-btn"></button>
+        <button class="fridge-btn" id="settings-btn"></button>
       </div>
-      <div class="utility">
-        <button class="link-btn" id="backup-btn">Download backup</button>
-        <button class="link-btn" id="import-btn">Restore from backup</button>
-        <button class="link-btn" id="reset-btn">Reset to starter set</button>
         <input type="file" id="import-file" accept="application/json" hidden>
-      </div>
-    </nav>
+          </nav>
     <main class="pane" id="pane"></main>
   </div>
 </div>
@@ -1080,6 +1076,7 @@ function renderNav(){
   set('#fridge-btn','cabbage','The fridge', fridge.length+' item'+(fridge.length===1?'':'s'));
   set('#grocery-btn','breadbag','Grocery list', gN?gN+' to get':'empty');
   set('#plan-btn','chickenrice','Meal plan', planned?planned+' planned':'nothing yet');
+  set('#settings-btn','jar','Settings', API_BASE?(apiDown?'offline':'synced'):'this device');
   const bt=Object.values(basket).reduce((a,v)=>a+v.reduce((x,i)=>x+i.price*i.qty,0),0);
   set('#shop-btn','bun','Deliveroo', bt?'£'+bt.toFixed(2)+' in the basket':'nothing yet');
   $('#recipes-btn').setAttribute('aria-current', mode==='recipes'||mode==='recipe'||mode==='paste');
@@ -2192,21 +2189,74 @@ function renderShop(){
       <div class="head-actions"><button class="pill back-only" id="back">← Home</button></div>
     </div>
 
-    <input class="search" id="basket-q" type="search" placeholder="Search everything you have in any basket" autocomplete="off" value="${esc(basketQ)}" style="margin-top:16px">
-    ${(()=>{ const q=basketQ.trim().toLowerCase(); if(q.length<2) return '';
+
+    <div class="shop-stores">
+
+    <div class="shop-stores">${STORES.map(([slug,name,fav])=>`
+      <button class="ball ${fav?'fav':''}" data-store="${slug}" aria-pressed="${shopStore===slug}">${esc(name)}</button>`).join('')}</div>
+
+
+    <h3 class="section-title" style="margin-top:20px">Search</h3><div class="section-rule"></div>
+    <div class="scope">
+      <button class="ball" data-scope="all" aria-pressed="${shopScope==='all'}">Every shop</button>
+      <button class="ball" data-scope="store" aria-pressed="${shopScope==='store'}">${esc(shopCat?shopCat.store:'This shop')} only</button>
+      <button class="ball" data-scope="baskets" aria-pressed="${shopScope==='baskets'}">In my baskets</button>
+      ${shopScope==='all'?`<span class="calc-sync">${allBusy?'loading every price list…':(allCat?'all nine shops · cheapest per kilo first':'')}</span>`:''}
+    </div>
+    ${shopBusy?`<p class="home-none">Loading the price list…</p>`:''}
+    ${shopErr?`<div class="banner" style="margin-bottom:14px">${esc(shopErr)}</div>`:''}
+    <input class="search" id="shop-q" type="search" placeholder="${shopScope==='baskets'?'Search your baskets':'Search 29,000 products across every shop'}" autocomplete="off" value="${esc(shopQ)}">
+    ${results.length?(()=>{
+      const groups=new Map();
+      results.forEach(i=>{ const f=famOf(i.cat);
+        if(!groups.has(f[0])) groups.set(f[0],{fam:f,items:[]});
+        groups.get(f[0]).items.push(i); });
+      const order=FAMS.filter(f=>groups.has(f[0]));
+      return `<div class="fam-filter">
+          <button class="ball ${shopFam?'':'on'}" data-fam="" aria-pressed="${!shopFam}">all ${results.length}</button>
+          ${order.map(f=>`<button class="ball fam-${f[3]} ${f[4]?'solid':'hollow'}" data-fam="${f[0]}" aria-pressed="${shopFam===f[0]}">
+            <span class="dot"></span>${esc(f[1])} <span class="n">${groups.get(f[0]).items.length}</span></button>`).join('')}
+        </div>
+        <ul class="results">${order.filter(f=>!shopFam||shopFam===f[0]).map(f=>{
+          const g=groups.get(f[0]);
+          return `<li class="res-head fam-${f[3]} ${f[4]?'solid':'hollow'}"><span class="dot"></span>${esc(f[1])}</li>`+
+            g.items.map(i=>`<li class="fam-${f[3]} ${f[4]?'solid':'hollow'}">
+              <button data-add="${esc(i.name)}|${i.price}|${esc(i.size||'')}">
+                <span class="r-name">${esc(i.name)}</span>
+                <span class="r-cat">${esc(i.cat)}</span>
+                <span class="r-size">${esc(i.size||'')}</span>
+                <span class="r-price">£${i.price.toFixed(2)}</span></button></li>`).join('');
+        }).join('')}</ul>`;})()
+      :(q.length>1&&shopScope==='store'&&shopCat?`<p class="home-none" style="margin-top:10px">Nothing matching that.</p>`:'')}
+
+    ${shopScope==='baskets'?(()=>{
       const hits=[];
-      for(const slug in basket) (basket[slug]||[]).forEach(i=>{ if(i.name.toLowerCase().includes(q))
+      for(const slug in basket) (basket[slug]||[]).forEach(i=>{ if(q.length>1&&i.name.toLowerCase().includes(q))
         hits.push({...i,slug,store:(STORES.find(s=>s[0]===slug)||[,slug])[1]}); });
+      if(q.length<2) return `<p class="home-none" style="margin-top:10px">Type to search what you have already put in a basket.</p>`;
       return hits.length?`<ul class="results" style="margin-top:8px">${hits.map(i=>`
         <li><button data-jump="${esc(i.slug)}">
           <span class="r-name">${esc(i.name)}</span>
           <span class="r-store">${esc(i.store)}</span>
           <span class="r-size">×${i.qty}</span>
           <span class="r-price">£${(i.price*i.qty).toFixed(2)}</span></button></li>`).join('')}</ul>`
-        :`<p class="home-none" style="margin-top:8px">Not in any basket.</p>`;})()}
+        :`<p class="home-none" style="margin-top:10px">Not in any basket.</p>`;})():''}
 
-    <div class="shop-stores">${STORES.map(([slug,name,fav])=>`
-      <button class="ball ${fav?'fav':''}" data-store="${slug}" aria-pressed="${shopStore===slug}">${esc(name)}</button>`).join('')}</div>
+    ${shopScope==='all'?(gResults.length?(()=>{
+      const shown=gResults.slice(0,60);
+      const best=shown.find(i=>i.up);
+      return `<ul class="results compare">${shown.map(i=>`
+        <li class="${i===best?'best':''}"><button data-gadd="${esc(i.slug)}|${esc(i.name)}|${i.price}|${esc(i.size||'')}">
+          <span class="r-name">${esc(i.name)}${i===best?' <span class="chip">cheapest per '+i.up.u+'</span>':''}</span>
+          <span class="r-store">${esc(i.store)}</span>
+          <span class="r-size">${esc(i.size||'')}</span>
+          <span class="r-unit">${i.up?'£'+i.up.v.toFixed(2)+'/'+i.up.u:'—'}</span>
+          <span class="r-price">£${i.price.toFixed(2)}</span></button></li>`).join('')}</ul>
+        ${gResults.length>60?`<p class="hint">Showing the 60 best value of ${gResults.length} matches.</p>`:''}`;})()
+      :(q.length>1&&allCat?`<p class="home-none" style="margin-top:10px">Nothing matching that in any shop.</p>`
+        :(allBusy?'':`<p class="home-none" style="margin-top:10px">Type at least two letters to compare across all nine shops.</p>`)))
+     :''}
+
 
     <div class="meter">
       <div class="meter-bar"><span style="width:${Math.min(100,total/MIN_ORDER*100).toFixed(1)}%" class="${total>=MIN_ORDER?'done':''}"></span></div>
@@ -2255,53 +2305,6 @@ function renderShop(){
       ${tops.length>4?`<button class="link-btn" id="tops-more" style="margin-top:8px">${topsOpen?'Show fewer':'Show all '+tops.length+' options'}</button>`:''}
       </div>`:''}
 
-    <h3 class="section-title" style="margin-top:26px">Search</h3><div class="section-rule"></div>
-    <div class="scope">
-      <button class="ball" data-scope="store" aria-pressed="${shopScope==='store'}">${esc(shopCat?shopCat.store:'This shop')}</button>
-      <button class="ball" data-scope="all" aria-pressed="${shopScope==='all'}">Compare all shops</button>
-      ${shopScope==='all'?`<span class="calc-sync">${allBusy?'loading every price list…':(allCat?'cheapest per kilo first':'')}</span>`:''}
-    </div>
-    ${shopBusy?`<p class="home-none">Loading the price list…</p>`:''}
-    ${shopErr?`<div class="banner" style="margin-bottom:14px">${esc(shopErr)}</div>`:''}
-    <input class="search" id="shop-q" type="search" placeholder="lime, tofu, noodles…" autocomplete="off" value="${esc(shopQ)}">
-    ${results.length?(()=>{
-      const groups=new Map();
-      results.forEach(i=>{ const f=famOf(i.cat);
-        if(!groups.has(f[0])) groups.set(f[0],{fam:f,items:[]});
-        groups.get(f[0]).items.push(i); });
-      const order=FAMS.filter(f=>groups.has(f[0]));
-      return `<div class="fam-filter">
-          <button class="ball ${shopFam?'':'on'}" data-fam="" aria-pressed="${!shopFam}">all ${results.length}</button>
-          ${order.map(f=>`<button class="ball fam-${f[3]} ${f[4]?'solid':'hollow'}" data-fam="${f[0]}" aria-pressed="${shopFam===f[0]}">
-            <span class="dot"></span>${esc(f[1])} <span class="n">${groups.get(f[0]).items.length}</span></button>`).join('')}
-        </div>
-        <ul class="results">${order.filter(f=>!shopFam||shopFam===f[0]).map(f=>{
-          const g=groups.get(f[0]);
-          return `<li class="res-head fam-${f[3]} ${f[4]?'solid':'hollow'}"><span class="dot"></span>${esc(f[1])}</li>`+
-            g.items.map(i=>`<li class="fam-${f[3]} ${f[4]?'solid':'hollow'}">
-              <button data-add="${esc(i.name)}|${i.price}|${esc(i.size||'')}">
-                <span class="r-name">${esc(i.name)}</span>
-                <span class="r-cat">${esc(i.cat)}</span>
-                <span class="r-size">${esc(i.size||'')}</span>
-                <span class="r-price">£${i.price.toFixed(2)}</span></button></li>`).join('');
-        }).join('')}</ul>`;})()
-      :(q.length>1&&shopScope==='store'&&shopCat?`<p class="home-none" style="margin-top:10px">Nothing matching that.</p>`:'')}
-
-    ${shopScope==='all'?(gResults.length?(()=>{
-      const shown=gResults.slice(0,60);
-      const best=shown.find(i=>i.up);
-      return `<ul class="results compare">${shown.map(i=>`
-        <li class="${i===best?'best':''}"><button data-gadd="${esc(i.slug)}|${esc(i.name)}|${i.price}|${esc(i.size||'')}">
-          <span class="r-name">${esc(i.name)}${i===best?' <span class="chip">cheapest per '+i.up.u+'</span>':''}</span>
-          <span class="r-store">${esc(i.store)}</span>
-          <span class="r-size">${esc(i.size||'')}</span>
-          <span class="r-unit">${i.up?'£'+i.up.v.toFixed(2)+'/'+i.up.u:'—'}</span>
-          <span class="r-price">£${i.price.toFixed(2)}</span></button></li>`).join('')}</ul>
-        ${gResults.length>60?`<p class="hint">Showing the 60 best value of ${gResults.length} matches.</p>`:''}`;})()
-      :(q.length>1&&allCat?`<p class="home-none" style="margin-top:10px">Nothing matching that in any shop.</p>`
-        :(allBusy?'':`<p class="home-none" style="margin-top:10px">Type at least two letters to compare across all nine shops.</p>`)))
-     :''}
-
     <div class="add-item" style="grid-template-columns:1fr 110px auto;margin-top:16px">
       <label><span class="picker-label">Or add by hand</span><input id="man-name" placeholder="Lime" autocomplete="off"></label>
       <label><span class="picker-label">Price</span><input id="man-price" type="number" step="0.01" min="0" placeholder="0.30"></label>
@@ -2315,7 +2318,6 @@ function renderShop(){
   </article>`;
 
   const back=$('#back'); if(back) back.onclick=()=>{ mode='home'; render(); };
-  const bq=$('#basket-q'); if(bq) bq.oninput=()=>{ basketQ=bq.value; refocus='basket-q'; render(); };
   pane.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>{
     shopStore=b.dataset.jump; basketQ=''; shopSplit=null; shopCat=null; loadCatalogue(shopStore); });
   pane.querySelectorAll('[data-store]').forEach(b=>b.onclick=()=>{
@@ -2415,8 +2417,39 @@ function renderShop(){
         name:i.name,qty:i.qty>1?i.qty+'×':'',done:false,src:shopCat?shopCat.store:'Deliveroo'}); n++; } });
     await saveGrocery(); render(); toast(n+' copied to the grocery list');
   };
-  if(refocus==='basket-q'){ refocus=null; const n=$('#basket-q'); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } }
   if(refocus==='shop-q'){ refocus=null; const n=$('#shop-q'); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } }
+}
+
+/* ============ settings ============ */
+function renderSettings(){
+  const counts=[['Recipes',recipes.length],['In the fridge',fridge.length],
+    ['On the grocery list',grocery.length],['Planned meals',Object.values(plan).reduce((a,v)=>a+v.length,0)],
+    ['To do',todos.length],['Baskets',Object.values(basket).reduce((a,v)=>a+v.length,0)]];
+  pane.innerHTML=`<article class="card">
+    <div class="card-head">
+      <div style="flex:1;min-width:180px"><h2>Settings</h2>
+        <p class="blurb">Where everything lives, and how to move it.</p></div>
+      <div class="head-actions"><button class="pill back-only" id="back">← Home</button></div>
+    </div>
+
+    <h3 class="section-title" style="margin-top:24px">Your data</h3><div class="section-rule"></div>
+    <div class="calc-out">${counts.map(([k,v])=>`<div class="co"><b>${v}</b><span>${esc(k.toLowerCase())}</span></div>`).join('')}</div>
+    <p class="hint" style="margin-top:10px">Saved ${API_BASE?(apiDown?'on this device — the database is unreachable right now':'to the database, so it follows you between devices'):'on this device only'}. Version ${APP_VERSION}.</p>
+
+    <h3 class="section-title" style="margin-top:26px">Backup</h3><div class="section-rule"></div>
+    <p class="hint" style="margin:0 0 10px">A backup is one file holding everything — recipes, fridge, list, plan, to-dos, baskets and shopping history. Worth taking before you move the app anywhere.</p>
+    <div class="cook-actions">
+      <button class="pill" id="backup-btn">Download a backup</button>
+      <button class="pill" id="import-btn">Restore from a backup</button>
+    </div>
+
+    <h3 class="section-title" style="margin-top:26px">Start again</h3><div class="section-rule"></div>
+    <p class="hint" style="margin:0 0 10px">Puts the recipes back as they shipped. Your own recipes and every edit are removed. The fridge, list and plan are left alone.</p>
+    <button class="pill danger" id="reset-btn">Reset the recipes</button>
+  </article>`;
+  const back=$('#back'); if(back) back.onclick=()=>{ mode='home'; render(); };
+  $('#backup-btn').onclick=doBackup;
+    $('#reset-btn').onclick=e=>arm(e.currentTarget,'Really reset?',doReset);
 }
 
 /* ============ paste importer ============ */
@@ -2480,6 +2513,7 @@ function render(){
   if(mode==='grocery'){ renderGrocery(); return; }
   if(mode==='plan'){ renderPlan(); return; }
   if(mode==='paste'){ renderPaste(); return; }
+  if(mode==='settings'){ renderSettings(); return; }
   if(mode==='shop'){ renderShop(); return; }
   if(mode==='home'){ renderHome(); return; }
   if(mode==='recipes'){ renderRecipes(); return; }
@@ -2498,6 +2532,7 @@ $('#logo').onclick=goMode('home');
 $('#fridge-btn').onclick=goMode('fridge');
 $('#grocery-btn').onclick=goMode('grocery');
 $('#plan-btn').onclick=goMode('plan');
+$('#settings-btn').onclick=goMode('settings');
 $('#shop-btn').onclick=()=>{ mode='shop'; editing=false; draft=null; document.body.dataset.view='detail';
   if(!shopCat) loadCatalogue(shopStore); else render(); };
 $('#photo-file').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(f) handlePhoto(f); };
@@ -2519,13 +2554,12 @@ $('#doodle-file').onchange=e=>{
   img.src=URL.createObjectURL(f);
   e.target.value='';
 };
-$('#backup-btn').onclick=()=>{
+function doBackup(){
   const blob=new Blob([JSON.stringify({v:APP_VERSION,mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,basket,shopHist},null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='half-baked-'+todayISO()+'.json';
   a.click(); URL.revokeObjectURL(a.href);
-};
-$('#import-btn').onclick=()=>$('#import-file').click();
+}
 $('#import-file').onchange=e=>{
   const f=e.target.files[0]; if(!f) return;
   const fr=new FileReader();
@@ -2552,11 +2586,11 @@ $('#import-file').onchange=e=>{
   };
   fr.readAsText(f); e.target.value='';
 };
-$('#reset-btn').onclick=e=>arm(e.currentTarget,'Really reset?',async()=>{
+async function doReset(){
   snapshot(); removed=[]; overrides={}; mine=[]; rebuild();
   currentId=recipes[0]?.id??null; editing=false; mode='recipes';
   await saveRecipeStores(); render(); toast('Everything reset to the shipped recipes', true);
-});
+}
 
 /* ============ boot ============ */
 (async function init(){
