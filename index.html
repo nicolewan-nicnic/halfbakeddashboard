@@ -232,6 +232,23 @@ button{cursor:pointer}
 .usual-chips{display:flex;gap:7px;flex-wrap:wrap}
 .usual-chips .ball{border-radius:var(--wob3);min-width:0;padding:6px 11px;font-size:12.5px;display:flex;gap:7px;align-items:baseline}
 .usual-chips .n{font-family:var(--mono);font-size:10.5px;color:var(--rye)}
+.viewtoggle{display:flex;gap:6px;margin:22px 0 4px}
+.viewtoggle .ball{min-width:0;padding:6px 14px;font-size:12.5px;border-radius:var(--wob3)}
+.viewtoggle .ball[aria-pressed="true"]{background:var(--sage);border-color:var(--sage);color:var(--ivory)}
+.gridwrap{margin-top:16px;overflow-x:auto}
+.rgrid{border-collapse:collapse;width:100%;border:2.5px solid var(--crumb);border-radius:var(--wob3)}
+.rgrid td{border:1.5px solid var(--crumb);padding:7px 10px;vertical-align:middle}
+.rgrid .gi{display:flex;gap:12px;align-items:baseline;font-size:14px;background:var(--ivory)}
+.rgrid .gi .qty{min-width:66px;text-align:right}
+.rgrid .gname{flex:1;line-height:1.3}
+.rgrid .gs{background:var(--beige);text-align:center;font-family:var(--mono);font-size:12px;
+  letter-spacing:.08em;text-transform:lowercase;width:78px;white-space:nowrap}
+.rgrid .gs.final{background:var(--sage);color:var(--ivory)}
+.plan-day.open{grid-column:1/-1;background:var(--beige)}
+.daypick{margin-top:8px}
+.daypick .search{padding:8px 12px;font-size:13.5px;margin-bottom:6px}
+.daypick .cook-list{max-height:250px;overflow:auto}
+@media (max-width:680px){.rgrid .gs{width:56px;font-size:11px}.rgrid .gi{font-size:13px}}
 .home-top{display:flex;align-items:flex-start;gap:18px}
 .home-top h2{margin:0}
 .home-mark{width:86px;height:86px;flex:none;margin-left:auto;transform:rotate(-3deg)}
@@ -595,24 +612,24 @@ function shelfFor(name){ const f=foodInfo(name); return f?f.shelf:'Fridge'; }
 
 /* ============ seed recipes ============ */
 function seed(){return [
-{id:'pistachio-basque',name:'Pistachio Basque Cheesecake',icon:'cakeslice',kcal:7200,
+{id:'pistachio-basque',name:'Basque Cheesecake',icon:'cakeslice',kcal:7200,
  calc:{kind:'anchor',name:'Cream cheese',base:1000,unit:'g',tin:22,sharedG:1647,eggG:300,
-   options:[{k:'paste',label:'Pistachio paste',items:[['Pistachio paste',150],['White sugar',300]]},
-            {k:'praline',label:'Pistachio praline',items:[['Pistachio praline',200],['Sugar',200]]}]},
+   options:[{k:'hojicha',label:'Hojicha',items:[['Hojicha powder',30],['Sugar',230]],cornstarch:40,cream:330},
+            {k:'praline',label:'Black sesame praline',items:[['Black sesame praline',200],['Sugar',200]],cornstarch:40,cream:300}]},
  prep:'It needs a night in the fridge after baking, so make it the day before you want to eat it.',
- blurb:'Burnt on the outside, barely set in the middle. Built for a 22 cm ring — use the scaler if your cream cheese tub is a different size.',
+ blurb:'Burnt on the outside, barely set in the middle. Built for a 22 cm ring — use the scaler if your cream cheese tub is a different size. Hojicha or black sesame praline.',
  makesQty:12,makesUnit:'slices',
  ingredients:[{qty:1000,unit:'g',name:'Cream cheese, at least 32% fat'},
   {qty:40,unit:'g',name:'Cornflour'},{qty:5,unit:'g',name:'Vanilla paste, or 1 pod scraped'},
   {qty:2,unit:'g',name:'Salt'},{qty:300,unit:'g',name:'Double cream'},
   {qty:300,unit:'g',name:'Egg, about 6 large, weighed out of the shell'},
   {qty:null,unit:'',name:'Then one of these two:'},
-  {qty:150,unit:'g',name:'Pistachio paste — with 300 g white sugar'},
-  {qty:200,unit:'g',name:'Pistachio praline — with 200 g sugar'}],
+  {qty:30,unit:'g',name:'Hojicha powder — with 230 g sugar, 40 g cornflour, 330 g cream'},
+  {qty:200,unit:'g',name:'Black sesame praline — with 200 g sugar, 40 g cornflour, 300 g cream'}],
  method:['Heat the oven to 240°C, top and bottom heat.',
   'Line a 22 cm ring with parchment, sides and base.',
   'Beat the cream cheese with the sugar for whichever option you are making, along with the cornflour, salt and vanilla, until smooth.',
-  'Mix in the pistachio paste or praline.',
+  'Mix in the hojicha powder or the black sesame praline.',
   'Add the egg and cream gradually, mixing to a smooth batter.',
   'Strain into the tin and bake about 25 minutes at 240°C. If it is browning too fast after ten minutes, drop to 210°C.',
   'It wants to come out very dark on top and still wobbly in the middle.',
@@ -624,10 +641,10 @@ function seed(){return [
  makesQty:6,makesUnit:'eggs',
  ingredients:[{qty:6,unit:'',name:'Eggs, fridge cold'},
   {qty:null,unit:'',name:'For the marinade:'},
-  {qty:0.25,unit:'cup',name:'Gompyo fried rice soy sauce'},{qty:0.25,unit:'cup',name:'Water'},
-  {qty:2,unit:'Tbsp',name:'Sugar, or rice syrup'},{qty:3,unit:'',name:'Chillies, sliced'},
+  {qty:60,unit:'ml',name:'Gompyo fried rice soy sauce'},{qty:60,unit:'ml',name:'Water'},
+  {qty:25,unit:'g',name:'Sugar, or rice syrup'},{qty:3,unit:'',name:'Chillies, sliced'},
   {qty:0.25,unit:'',name:'Onion, diced'},{qty:1,unit:'',name:'Green onion, sliced'},
-  {qty:2,unit:'cloves',name:'Garlic, minced'},{qty:0.5,unit:'Tbsp',name:'Sesame seeds'}],
+  {qty:6,unit:'g',name:'Garlic, minced'},{qty:5,unit:'g',name:'Sesame seeds'}],
  method:['Air fry the eggs straight from the fridge at 120°C for 12 minutes. No preheat, single layer, a little space between them.',
   'Drop them straight into a bowl of ice water for 5 minutes. This stops the cooking dead and makes them peel cleanly — dry heat gives a better peel than boiling.',
   'Peel carefully. The whites are set but the yolks are still soft, so be gentle.',
@@ -652,8 +669,8 @@ function seed(){return [
 {id:'maeuntang',name:'Lazy Girl Maeuntang',icon:'noodlebowl',kcal:1350,
  blurb:'Spicy Korean fish stew, made by putting everything in one pot. 150 kcal, 2g fibre and 20g protein a serving.',
  makesQty:9,makesUnit:'servings',
- ingredients:[{qty:3,unit:'lb',name:'Cod'},{qty:1,unit:'',name:'Daikon radish, cut into rounds'},
-  {qty:10,unit:'cloves',name:'Garlic'},{qty:0.33,unit:'cup',name:'Gochugaru'},
+ ingredients:[{qty:1400,unit:'g',name:'Cod'},{qty:1,unit:'',name:'Daikon radish, cut into rounds'},
+  {qty:30,unit:'g',name:'Garlic'},{qty:35,unit:'g',name:'Gochugaru'},
   {qty:1,unit:'Tbsp',name:'Doenjang'},{qty:1,unit:'Tbsp',name:'Gochujang'},
   {qty:1,unit:'Tbsp',name:'Soy sauce'},{qty:2,unit:'Tbsp',name:'Fish sauce'},
   {qty:2,unit:'Tbsp',name:'Mirin'},{qty:null,unit:'',name:'Black pepper, a great deal of it'},
@@ -668,8 +685,8 @@ function seed(){return [
  makesQty:4,makesUnit:'servings',
  ingredients:[{qty:20,unit:'',name:'Perilla leaves, small to medium'},
   {qty:null,unit:'',name:'For the filling:'},
-  {qty:8,unit:'oz',name:'Ground beef'},{qty:0.25,unit:'pack',name:'Sprouted tofu, optional'},
-  {qty:2,unit:'cloves',name:'Garlic'},{qty:2,unit:'',name:'Green onions'},
+  {qty:225,unit:'g',name:'Ground beef'},{qty:75,unit:'g',name:'Sprouted tofu, optional'},
+  {qty:6,unit:'g',name:'Garlic'},{qty:2,unit:'',name:'Green onions'},
   {qty:1,unit:'',name:'Onion, diced'},{qty:1,unit:'Tbsp',name:'Soy sauce'},
   {qty:0.5,unit:'tsp',name:'Sugar'},{qty:1,unit:'tsp',name:'Sesame oil'},
   {qty:null,unit:'',name:'Black pepper'},
@@ -683,20 +700,20 @@ function seed(){return [
  blurb:'A restorative pot of congee with ginseng and jujube. 200 kcal, 2g fibre and 15g protein a serving.',
  makesQty:4,makesUnit:'servings',
  ingredients:[{qty:4,unit:'',name:'Chicken breasts'},{qty:2,unit:'',name:'Ginseng roots'},
-  {qty:4,unit:'',name:'Jujubes'},{qty:15,unit:'cloves',name:'Garlic'},
+  {qty:4,unit:'',name:'Jujubes'},{qty:45,unit:'g',name:'Garlic'},
   {qty:4,unit:'',name:'Green onions'},{qty:1,unit:'',name:'White onion'},
-  {qty:1,unit:'cup',name:'Carrots, julienned'},{qty:1,unit:'',name:'Celery stick, chopped'},
-  {qty:4,unit:'cups',name:'Chicken bone broth'}],
+  {qty:110,unit:'g',name:'Carrots, julienned'},{qty:1,unit:'',name:'Celery stick, chopped'},
+  {qty:950,unit:'ml',name:'Chicken bone broth'}],
  method:['Steam the chicken breasts, then shred them.',
   'Put the shredded chicken into a pot with the ginseng, jujubes, garlic, green onions, white onion, carrots, celery and the broth.',
   'Simmer until everything is soft and the broth has thickened. Shop-bought broth is fine here.']},
 {id:'gochujang-hummus',name:'Gochujang Hummus',icon:'jar',kcal:2000,
  blurb:'Hummus with gochujang stirred through at the end. 250 kcal, 7g fibre and 13g protein a serving.',
  makesQty:8,makesUnit:'servings',
- ingredients:[{qty:1,unit:'cup',name:'Chickpeas, canned and rinsed'},
+ ingredients:[{qty:165,unit:'g',name:'Chickpeas, canned and rinsed'},
   {qty:null,unit:'',name:'Baking powder, for the boiling water'},
-  {qty:1,unit:'Tbsp',name:'Olive oil'},{qty:1,unit:'',name:'Lemon, juiced'},
-  {qty:2,unit:'cloves',name:'Garlic'},{qty:4,unit:'',name:'Ice cubes, small'},
+  {qty:15,unit:'ml',name:'Olive oil'},{qty:1,unit:'',name:'Lemon, juiced'},
+  {qty:6,unit:'g',name:'Garlic'},{qty:4,unit:'',name:'Ice cubes, small'},
   {qty:2,unit:'Tbsp',name:'Gochujang'}],
  method:['Boil the rinsed chickpeas with baking powder for about 10 minutes.',
   'Move them to the freezer for 10 minutes to cool, then peel off as many skins as your patience allows.',
@@ -710,7 +727,7 @@ function seed(){return [
  ingredients:[{qty:null,unit:'',name:'Soak ahead:'},
   {qty:100,unit:'g',name:'Dried split mung beans'},
   {qty:null,unit:'',name:'For the batter:'},
-  {qty:250,unit:'g',name:'Rice flour'},{qty:2,unit:'Tbsp',name:'Cornflour'},
+  {qty:250,unit:'g',name:'Rice flour'},{qty:16,unit:'g',name:'Cornflour'},
   {qty:1,unit:'tsp',name:'Ground turmeric'},{qty:0.75,unit:'tsp',name:'Fine salt'},
   {qty:0.75,unit:'tsp',name:'Sugar'},{qty:83,unit:'ml',name:'Coconut milk'},
   {qty:417,unit:'ml',name:'Sparkling water, cold'},{qty:4,unit:'',name:'Scallions, thinly sliced'},
@@ -735,8 +752,8 @@ function seed(){return [
  makesQty:4,makesUnit:'servings',
  ingredients:[{qty:1,unit:'kg',name:'Chicken wings'},
   {qty:null,unit:'',name:'For the marinade:'},
-  {qty:4,unit:'Tbsp',name:'Hot sauce, such as Frank’s RedHot'},{qty:4,unit:'Tbsp',name:'Greek or thick plain yogurt'},
-  {qty:1,unit:'Tbsp',name:'Lemon juice'},{qty:1.5,unit:'tsp',name:'Garlic powder'},
+  {qty:60,unit:'ml',name:'Hot sauce, such as Frank’s RedHot'},{qty:60,unit:'g',name:'Greek or thick plain yogurt'},
+  {qty:15,unit:'ml',name:'Lemon juice'},{qty:1.5,unit:'tsp',name:'Garlic powder'},
   {qty:1.5,unit:'tsp',name:'Chicken stock powder'},{qty:1,unit:'tsp',name:'Paprika'},
   {qty:0.75,unit:'tsp',name:'Fine salt'},{qty:0.5,unit:'tsp',name:'Black pepper'},
   {qty:null,unit:'',name:'For the coating:'},
@@ -759,13 +776,13 @@ function seed(){return [
 {id:'pajeon',name:'Green Onion Pancake (Pajeon)',icon:'eggtart',kcal:690,
  blurb:'One crisp rectangular pancake. Chopped squid, mussels or oysters can go in with the onions if you fancy it.',
  makesQty:1,makesUnit:'pancake',
- ingredients:[{qty:10,unit:'stalks',name:'Green onions'},{qty:0.5,unit:'cup',name:'Flour'},
-  {qty:0.5,unit:'cup',name:'Water'},{qty:1,unit:'tsp',name:'Soybean paste (doenjang)'},
-  {qty:0.5,unit:'tsp',name:'Sugar'},{qty:3,unit:'Tbsp',name:'Vegetable oil'},
+ ingredients:[{qty:10,unit:'',name:'Green onions'},{qty:65,unit:'g',name:'Flour'},
+  {qty:120,unit:'ml',name:'Water'},{qty:6,unit:'g',name:'Soybean paste (doenjang)'},
+  {qty:2,unit:'g',name:'Sugar'},{qty:45,unit:'ml',name:'Vegetable oil'},
   {qty:null,unit:'',name:'For the dipping sauce:'},
-  {qty:2,unit:'Tbsp',name:'Soy sauce'},{qty:1,unit:'Tbsp',name:'Vinegar'},
-  {qty:1,unit:'tsp',name:'Sugar or honey'},{qty:null,unit:'',name:'Onion, chopped'},
-  {qty:null,unit:'',name:'Green or red chilli, chopped'},{qty:1,unit:'tsp',name:'Toasted sesame seeds'}],
+  {qty:30,unit:'ml',name:'Soy sauce'},{qty:15,unit:'ml',name:'Vinegar'},
+  {qty:5,unit:'g',name:'Sugar or honey'},{qty:null,unit:'',name:'Onion, chopped'},
+  {qty:null,unit:'',name:'Green or red chilli, chopped'},{qty:3,unit:'g',name:'Toasted sesame seeds'}],
  method:['Wash and drain the green onions and cut them into 5-inch lengths.',
   'Whisk the flour, water, soybean paste and sugar into a smooth batter.',
   'Heat a non-stick pan, then add the vegetable oil.',
@@ -778,9 +795,9 @@ function seed(){return [
  blurb:'After searing the chicken, leave the fond on the bottom of the pan. Take care not to burn it while the garlic and ginger cook, and scrape it up once the curry paste and coconut milk go in.',
  makesQty:2,makesUnit:'servings',
  ingredients:[{qty:4,unit:'',name:'Chicken thighs, boneless and skin on'},{qty:2,unit:'',name:'Cabbage wedges, large'},
-  {qty:2,unit:'Tbsp',name:'Red curry paste'},{qty:7,unit:'oz',name:'Coconut milk'},{qty:16,unit:'oz',name:'Chicken broth'},
-  {qty:1.5,unit:'tsp',name:'Sugar'},{qty:2,unit:'cloves',name:'Garlic'},{qty:1,unit:'inch piece',name:'Ginger'},
-  {qty:2,unit:'Tbsp',name:'Fish sauce'},{qty:1,unit:'',name:'Lime'},{qty:1,unit:'bunch',name:'Coriander'},
+  {qty:30,unit:'g',name:'Red curry paste'},{qty:200,unit:'ml',name:'Coconut milk'},{qty:475,unit:'ml',name:'Chicken broth'},
+  {qty:6,unit:'g',name:'Sugar'},{qty:6,unit:'g',name:'Garlic'},{qty:15,unit:'g',name:'Ginger'},
+  {qty:30,unit:'ml',name:'Fish sauce'},{qty:1,unit:'',name:'Lime'},{qty:30,unit:'g',name:'Coriander'},
   {qty:null,unit:'',name:'White rice, to serve'},{qty:null,unit:'',name:'Olive oil, for the pan'},
   {qty:null,unit:'',name:'Salt'},{qty:null,unit:'',name:'Jalapeño slices and scallion, optional'}],
  method:['Season the chicken with salt and lay it skin-side down in a cold pan with a little olive oil. Turn the heat up to medium.',
@@ -793,13 +810,13 @@ function seed(){return [
   'Plate the chicken and cabbage over steaming white rice, pour the curry broth over, and garnish with coriander, a lime wedge, and jalapeño or scallion if you like.']},
 {id:'nuoc-cham',name:'Nuoc Cham',icon:'jar',kcal:200,blurb:'',makesQty:550,makesUnit:'ml',
  ingredients:[{qty:2,unit:'',name:"Bird's eye chilli"},{qty:150,unit:'ml',name:'Hot water, first addition'},
-  {qty:1,unit:'Tbsp',name:'Garlic'},{qty:3,unit:'Tbsp',name:'White granulated sugar'},{qty:0.5,unit:'',name:'Lime'},
-  {qty:5,unit:'Tbsp',name:'Fish sauce'},{qty:0.5,unit:'Tbsp',name:'Malt vinegar'},{qty:400,unit:'ml',name:'Hot water, second addition'}],
+  {qty:9,unit:'g',name:'Garlic'},{qty:38,unit:'g',name:'White granulated sugar'},{qty:0.5,unit:'',name:'Lime'},
+  {qty:75,unit:'ml',name:'Fish sauce'},{qty:8,unit:'ml',name:'Malt vinegar'},{qty:400,unit:'ml',name:'Hot water, second addition'}],
  method:[]},
 {id:'tomato-somen',name:'Tomato Somen',icon:'noodlebowl',kcal:900,blurb:'',makesQty:2,makesUnit:'servings',
- ingredients:[{qty:2,unit:'servings',name:'Somen noodles'},{qty:2,unit:'',name:'Tomatoes, small to medium'},
-  {qty:10,unit:'',name:'Shiso leaves'},{qty:0.5,unit:'tsp',name:'Dashi powder'},{qty:2.5,unit:'Tbsp',name:'Soy sauce'},
-  {qty:2,unit:'Tbsp',name:'Mirin'},{qty:0.5,unit:'tsp',name:'Kosher salt'},
+ ingredients:[{qty:200,unit:'g',name:'Somen noodles'},{qty:2,unit:'',name:'Tomatoes, small to medium'},
+  {qty:10,unit:'',name:'Shiso leaves'},{qty:0.5,unit:'tsp',name:'Dashi powder'},{qty:38,unit:'ml',name:'Soy sauce'},
+  {qty:30,unit:'ml',name:'Mirin'},{qty:0.5,unit:'tsp',name:'Kosher salt'},
   {qty:null,unit:'',name:'6–8 cherry or sungold tomatoes, optional'},{qty:null,unit:'',name:'Sesame seeds, to garnish'}],
  method:[]},
 {id:'charred-cabbage',name:'Charred Cabbage',icon:'cabbage',kcal:760,
@@ -817,7 +834,7 @@ function seed(){return [
   'Finish with a generous spoon of chilli crisp, more chives and a squeeze of lemon.']},
 {id:'carrot-salad',name:'Carrot Salad',icon:'carrot',kcal:940,blurb:'',makesQty:2,makesUnit:'servings',
  ingredients:[{qty:500,unit:'g',name:'Carrots'},{qty:40,unit:'ml',name:'White balsamic vinegar'},
-  {qty:1,unit:'',name:'Lemon, juiced'},{qty:1,unit:'Tbsp',name:'Honey'},{qty:1,unit:'tsp',name:'Salt'},
+  {qty:1,unit:'',name:'Lemon, juiced'},{qty:20,unit:'g',name:'Honey'},{qty:6,unit:'g',name:'Salt'},
   {qty:70,unit:'ml',name:'Sunflower oil'},{qty:0.5,unit:'tsp',name:'Kosher salt'},
   {qty:null,unit:'',name:'Cashews or other nuts, optional'}],
  method:['Trim and grate the carrots.','Mix through the vinegar, lemon juice, honey and salt, then the oil.']},
@@ -825,9 +842,9 @@ function seed(){return [
  blurb:'Red miso and citrusy sansho pepper under a classic steak au poivre. Date night.',
  makesQty:2,makesUnit:'servings',
  ingredients:[{qty:1,unit:'',name:'Steak'},{qty:1,unit:'tsp',name:'Sansho pepper'},{qty:2,unit:'tsp',name:'Black pepper, ground'},
-  {qty:1,unit:'Tbsp',name:'Miso'},{qty:1,unit:'Tbsp',name:'Butter'},{qty:2,unit:'cloves',name:'Garlic, minced'},
-  {qty:1,unit:'',name:'Shallot, minced'},{qty:0.25,unit:'cup',name:'Sake'},{qty:0.5,unit:'cup',name:'Beef broth'},
-  {qty:0.25,unit:'cup',name:'Heavy cream'},{qty:0.25,unit:'cup',name:'Parsley'}],
+  {qty:18,unit:'g',name:'Miso'},{qty:15,unit:'g',name:'Butter'},{qty:6,unit:'g',name:'Garlic, minced'},
+  {qty:1,unit:'',name:'Shallot, minced'},{qty:60,unit:'ml',name:'Sake'},{qty:120,unit:'ml',name:'Beef broth'},
+  {qty:60,unit:'ml',name:'Heavy cream'},{qty:15,unit:'g',name:'Parsley'}],
  method:['Season the steak with salt and pepper. Sear in neutral oil in a skillet over high heat to your preferred doneness, then set aside.',
   'Turn the heat to medium and add the garlic, shallot and ground pepper to the same oil. Cook until the shallots turn translucent.',
   'Raise the heat slightly and pour in the sake to deglaze. Scrape up the bits with a wooden spoon and reduce the sake by half.',
@@ -836,10 +853,10 @@ function seed(){return [
   'Stir through finely chopped parsley, then toss in the butter and swirl the pan to combine. Cut the heat.',
   'Spoon a generous pool of sauce onto the plate, slice the steak over it, and spoon more sauce to finish.']},
 {id:'chicken-rice',name:'Chicken Rice',icon:'chickenrice',kcal:2300,blurb:'',makesQty:2,makesUnit:'servings',
- ingredients:[{qty:2,unit:'',name:'Chicken legs'},{qty:0.25,unit:'cup',name:'Shaoxing wine'},{qty:4,unit:'cloves',name:'Garlic'},
-  {qty:2,unit:'inch piece',name:'Ginger'},{qty:2,unit:'',name:'Scallions'},{qty:1,unit:'',name:'Thai chilli'},
-  {qty:3,unit:'Tbsp',name:'Dark soy'},{qty:2,unit:'Tbsp',name:'Lime juice'},{qty:1,unit:'Tbsp',name:'Sugar'},
-  {qty:0.5,unit:'tsp',name:'White pepper'},{qty:0.25,unit:'cup',name:'Olive oil'},{qty:1,unit:'cup',name:'Rice'},
+ ingredients:[{qty:2,unit:'',name:'Chicken legs'},{qty:60,unit:'ml',name:'Shaoxing wine'},{qty:12,unit:'g',name:'Garlic'},
+  {qty:30,unit:'g',name:'Ginger'},{qty:2,unit:'',name:'Scallions'},{qty:1,unit:'',name:'Thai chilli'},
+  {qty:45,unit:'ml',name:'Dark soy'},{qty:30,unit:'ml',name:'Lime juice'},{qty:12,unit:'g',name:'Sugar'},
+  {qty:0.5,unit:'tsp',name:'White pepper'},{qty:60,unit:'ml',name:'Olive oil'},{qty:185,unit:'g',name:'Rice'},
   {qty:1,unit:'',name:'English cucumber, to garnish'}],
  method:['Slice 1.5" of the ginger, smash 3 garlic cloves and halve the scallions. Add to a medium saucepan with the chicken legs, Shaoxing wine, a small handful of salt and enough cold water to just cover.',
   'Lid on, bring to a boil, then straight back down to low so only a few bubbles break the surface. Poach about 15 minutes, until the chicken reaches 165°F.',
@@ -859,12 +876,14 @@ let fridge=[], grocery=[], plan={}, todos=[];
 let currentId=null, scale=1, editing=false, draft=null;
 let mode='home', cookOff=false, editItem=null, putAway=null, pickDay=null;
 let formDate='', photoReview=null, photoBusy=false, armed=null, pasteBusy=false, pasteText='';
-let calcCoco=null, refocus=null, searchQ='', todoText='';
+let calcCoco=null, refocus=null, searchQ='', pickQ='', todoText='';
+let gridView=false;
 let eggAir=null, eggStart=4, eggTarget=65, eggSize=57;
 let anchorOpt=null;
 let shopStore='waitrose-barnet', shopCat=null, shopQ='', shopBusy=false, shopErr='';
 let basket={}, shopHist={}, shopSplit=null, shopFam='';
 let shopScope='store', allCat=null, allBusy=false, topsOpen=false;
+let putAwayList=null, basketQ='';
 const STORES=[
   ['waitrose-barnet','Waitrose Barnet',1],['longdan','Longdan',1],['morrisons','Morrisons',1],
   ['waitrose-kentish-town','Waitrose Kentish Town',0],['sainsbury-s-local',"Sainsbury's Local",0],
@@ -1142,7 +1161,11 @@ function renderRecipe(){
     </div>
     ${r.prep?`<div class="prep"><span class="prep-tag">Start ahead</span> ${esc(r.prep)}</div>`:''}
     ${r.calc?calcHTML(r):''}
-    <div class="cols">
+    <div class="viewtoggle">
+      <button class="ball" data-view="steps" aria-pressed="${!gridView}">Steps</button>
+      <button class="ball" data-view="grid" aria-pressed="${gridView}">Table</button>
+    </div>
+    ${gridView?gridHTML(r):`<div class="cols">
       <section>
         <h3 class="section-title">Ingredients</h3><div class="section-rule"></div>
         <ul class="ing-list">${ings}</ul>
@@ -1165,7 +1188,7 @@ function renderRecipe(){
         <h3 class="section-title">Method</h3><div class="section-rule"></div>
         ${steps}
       </section>
-    </div></article>`;
+    </div>`}</article>`;
 
   $('#edit').onclick=()=>{editing=true;cookOff=false;draft=structuredClone(r);draft.icon=r.icon||guessIcon(r);render();};
   $('#delete').onclick=e=>arm(e.currentTarget,'Really delete?',async()=>{
@@ -1178,6 +1201,7 @@ function renderRecipe(){
   $('#back').onclick=()=>{ mode='recipes'; render(); };
   pane.querySelectorAll('.batch .ball').forEach(b=>b.onclick=()=>{scale=Number(b.dataset.scale);render();});
   $('#custom').onchange=e=>{const v=Number(e.target.value); if(v>0){scale=v;render();}};
+  pane.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{ gridView=b.dataset.view==='grid'; render(); });
   const clr=$('#clear-ticks'); if(clr) clr.onclick=()=>{ticked.ing.clear();ticked.step.clear();render();};
   const am=$('#add-missing'); if(am) am.onclick=async()=>{
     let n=0;
@@ -1275,7 +1299,8 @@ function anchorHTML(r){
   const have=Math.round(c.base*scale);
   const opt=c.options.find(o=>o.k===(anchorOpt||c.options[0].k))||c.options[0];
   const optW=opt.items.reduce((a,[,g])=>a+g,0);
-  const total=Math.round((c.sharedG+optW)*scale);
+  const cf=opt.cornstarch||40, cr=opt.cream||300;
+  const total=Math.round((c.sharedG-40-300+cf+cr+optW)*scale);
   const tin=c.tin*Math.sqrt(scale);
   const eggG=Math.round(c.eggG*scale), eggN=eggG/50;
   return `<div class="calc">
@@ -1296,6 +1321,8 @@ function anchorHTML(r){
       <div class="co total"><b>${tin.toFixed(0)}</b><span>cm tin, to keep the depth</span></div>
       <div class="co"><b>${eggG}</b><span>g egg · about ${eggN%1<0.15||eggN%1>0.85?Math.round(eggN):Math.floor(eggN)+'–'+Math.ceil(eggN)} large</span></div>
       ${opt.items.map(([n,g])=>`<div class="co"><b>${Math.round(g*scale)}</b><span>g ${esc(n.toLowerCase())}</span></div>`).join('')}
+      <div class="co"><b>${Math.round(cr*scale)}</b><span>g double cream</span></div>
+      <div class="co"><b>${Math.round(cf*scale)}</b><span>g cornflour</span></div>
       <div class="co"><b>${(total/1000).toFixed(2)}</b><span>kg of batter</span></div>
     </div>
     <p class="hint" style="margin-top:8px">Weigh the eggs rather than counting them — six large is about ${c.eggG} g out of the shell, and shell weights vary more than you would think. Bake time stays about the same as long as the depth does.</p>
@@ -1378,6 +1405,60 @@ function wireEgg(r){
   const s=$('#e-start'); if(s) s.oninput=()=>{ const v=Number(s.value); if(v>0){ eggStart=v; re(); } };
 }
 
+
+/* ---- the table layout ----------------------------------------------------
+   Ingredients down the left; each stage brackets everything folded in so far,
+   so you read the shape of the recipe instead of counting steps. Works by
+   matching ingredient names against the method text, which is a guess — so
+   anything it cannot place is grouped at the end rather than hidden.       */
+function stageLabel(step){
+  const w=String(step).trim().split(/[\s,]+/);
+  let v=w[0].replace(/[^A-Za-z]/g,'');
+  if(/^(put|add|tip|pour)$/i.test(v)&&w[1]) v=v;
+  return v.toLowerCase();
+}
+function buildGrid(r){
+  const ings=(r.ingredients||[]).filter(i=>i.name&&!isSection(i.name));
+  const steps=r.method||[];
+  if(!ings.length||steps.length<2) return null;
+  const head=n=>norm(String(n).split(',')[0]).split(' ').filter(w=>w.length>2);
+  const at=ings.map(i=>{
+    const words=head(i.name);
+    for(let s=0;s<steps.length;s++){
+      const t=norm(steps[s]);
+      if(words.length&&words.some(w=>t.includes(w))) return s;
+    }
+    return -1;                                   /* never named in the method */
+  });
+  const placed=at.filter(x=>x>=0).length;
+  if(placed<Math.ceil(ings.length*0.45)) return null;   /* too vague to draw honestly */
+  const rows=ings.map((i,n)=>({ing:i,step:at[n]}))
+    .sort((a,b)=>(a.step<0?99:a.step)-(b.step<0?99:b.step));
+  const used=[...new Set(rows.map(r2=>r2.step).filter(s=>s>=0))].sort((a,b)=>a-b);
+  const cols=used.map(s=>({label:stageLabel(steps[s]),
+    span:rows.filter(r2=>r2.step>=0&&r2.step<=s).length}));
+  const tail=steps.length-1;
+  if(!cols.length||cols[cols.length-1].span<rows.filter(r2=>r2.step>=0).length) return null;
+  cols.push({label:stageLabel(steps[tail]),span:rows.length,final:true});
+  return {rows,cols,unplaced:rows.filter(r2=>r2.step<0).length};
+}
+function gridHTML(r){
+  const g=buildGrid(r);
+  if(!g) return `<p class="empty">This one does not fall into neat stages — the steps view is clearer for it.</p>`;
+  const seen=new Set();
+  return `<div class="gridwrap"><table class="rgrid">
+    ${g.rows.map((row,n)=>`<tr>
+      <td class="gi"><span class="qty">${row.ing.qty!=null?esc(fmt(row.ing.qty*scale))+'<span class="unit">'+esc(row.ing.unit||'')+'</span>':'—'}</span>
+        <span class="gname">${esc(row.ing.name)}</span></td>
+      ${g.cols.map((c,ci)=>{
+        if(n===0){ seen.add(ci); return `<td class="gs ${c.final?'final':''}" rowspan="${c.span}">${esc(c.label)}</td>`; }
+        return '';
+      }).join('')}
+    </tr>`).join('')}
+  </table>
+  ${g.unplaced?`<p class="hint">${g.unplaced} item${g.unplaced===1?'':'s'} the method never names by hand — listed at the bottom.</p>`:''}
+  </div>`;
+}
 
 /* ============ editor ============ */
 function renderEditor(){
@@ -1792,26 +1873,32 @@ function renderPlan(){
           ${ps?`<span class="pm-kcal">${ps} kcal</span>`:''}
           <button class="row-x" style="font-size:14px" data-unplan="${iso}|${idx}" aria-label="Remove">×</button></div>`;
       }).join('');
-      return `<div class="plan-day ${iso===todayISO()?'today':''}">
+      const open=pickDay===iso;
+      return `<div class="plan-day ${iso===todayISO()?'today':''} ${open?'open':''}">
         <h5>${label}${iso===todayISO()?' · today':''}</h5>${meals}
-        <button class="plan-add" data-pick="${iso}">${pickDay===iso?'choose below ↓':'+ plan a meal'}</button>
+        <button class="plan-add" data-pick="${iso}">${open?'× close':'+ plan a meal'}</button>
+        ${open?`<div class="daypick">
+          <input class="search" id="pick-q" type="search" placeholder="Search the drawer" autocomplete="off" value="${esc(pickQ)}">
+          <ul class="cook-list">${recipes.filter(x=>!pickQ||x.name.toLowerCase().includes(pickQ.toLowerCase())).slice(0,8).map(x=>{
+            const mi=matchInfo(x);
+            return `<li><button data-assign="${esc(x.id)}"><span class="thumb">${art(x)}</span>
+              <span class="cook-name">${esc(x.name)}</span>
+              <span class="score">${mi.total?(mi.missing.length?'short '+mi.missing.length:'ready'):''}</span></button></li>`;}).join('')}</ul>
+        </div>`:''}
       </div>`;}).join('')}</div>
-    ${pickDay?`<div class="chooser"><h4 style="font-family:var(--mono);font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--rye);margin:0 0 6px;font-weight:400">Pick a recipe for ${esc(prettyDay(pickDay))}</h4>
-      <ul class="cook-list">${recipes.map(r=>{const mi=matchInfo(r);
-        return `<li><button data-assign="${esc(r.id)}"><span class="thumb">${art(r)}</span>
-          <span class="cook-name">${esc(r.name)}</span>
-          <span class="score">${mi.total?(mi.missing.length?'short of '+mi.missing.length:'ready to go'):''}</span></button></li>`;}).join('')}</ul>
-      <button class="link-btn" id="pick-cancel" style="margin-top:8px">Cancel</button></div>`:''}
     <div class="cook-actions" style="margin-top:20px">
       <button class="link-btn" id="plan-to-list">Send the plan's missing ingredients to the grocery list</button>
     </div>
   </article>`;
 
   const back=$('#back'); if(back) back.onclick=()=>{ mode='home'; render(); };
-  pane.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{ pickDay=pickDay===b.dataset.pick?null:b.dataset.pick; render(); });
+  pane.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{
+    pickDay=pickDay===b.dataset.pick?null:b.dataset.pick; pickQ=''; render(); });
+  const pq=$('#pick-q'); if(pq){ pq.oninput=()=>{ pickQ=pq.value; refocus='pick-q'; render(); };
+    if(refocus==='pick-q'){ refocus=null; pq.focus(); pq.setSelectionRange(pq.value.length,pq.value.length); } }
   pane.querySelectorAll('[data-assign]').forEach(b=>b.onclick=async()=>{
     plan[pickDay]=plan[pickDay]||[]; plan[pickDay].push({id:b.dataset.assign,done:false});
-    pickDay=null; await savePlan(); render(); toast('Planned');
+    pickDay=null; pickQ=''; await savePlan(); render(); toast('Planned');
   });
   const pcx=$('#pick-cancel'); if(pcx) pcx.onclick=()=>{ pickDay=null; render(); };
   pane.querySelectorAll('[data-unplan]').forEach(b=>b.onclick=async()=>{
@@ -2105,6 +2192,19 @@ function renderShop(){
       <div class="head-actions"><button class="pill back-only" id="back">← Home</button></div>
     </div>
 
+    <input class="search" id="basket-q" type="search" placeholder="Search everything you have in any basket" autocomplete="off" value="${esc(basketQ)}" style="margin-top:16px">
+    ${(()=>{ const q=basketQ.trim().toLowerCase(); if(q.length<2) return '';
+      const hits=[];
+      for(const slug in basket) (basket[slug]||[]).forEach(i=>{ if(i.name.toLowerCase().includes(q))
+        hits.push({...i,slug,store:(STORES.find(s=>s[0]===slug)||[,slug])[1]}); });
+      return hits.length?`<ul class="results" style="margin-top:8px">${hits.map(i=>`
+        <li><button data-jump="${esc(i.slug)}">
+          <span class="r-name">${esc(i.name)}</span>
+          <span class="r-store">${esc(i.store)}</span>
+          <span class="r-size">×${i.qty}</span>
+          <span class="r-price">£${(i.price*i.qty).toFixed(2)}</span></button></li>`).join('')}</ul>`
+        :`<p class="home-none" style="margin-top:8px">Not in any basket.</p>`;})()}
+
     <div class="shop-stores">${STORES.map(([slug,name,fav])=>`
       <button class="ball ${fav?'fav':''}" data-store="${slug}" aria-pressed="${shopStore===slug}">${esc(name)}</button>`).join('')}</div>
 
@@ -2128,6 +2228,20 @@ function renderShop(){
         <button class="link-btn" id="shop-tolist">Copy to grocery list</button>
       </div>`
     :`<p class="home-none" style="margin:14px 0">Basket is empty. Search below, or pick from your usuals.</p>`}
+
+    ${putAwayList?`<div class="cookoff" style="margin-top:18px">
+      <h4 style="font-family:var(--mono);font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--rye);margin:0 0 4px;font-weight:400">Put the shopping away</h4>
+      <p class="hint" style="margin:0 0 8px">Untick anything that is not food, or that you are eating straight away. Dates come from the storage data.</p>
+      ${putAwayList.map((p,i)=>`<div class="review-row">
+        <input type="checkbox" ${p.on?'checked':''} data-pl="${i}">
+        <span>${esc(p.name)}${p.until?` <span class="chip">${useByChip(p.until).replace(/<[^>]+>/g,'')}</span>`:''}</span>
+        <span class="item-qty">${esc(p.qty||'')}</span>
+        <select data-plshelf="${i}">${SHELVES.map(s=>`<option ${p.shelf===s?'selected':''}>${s}</option>`).join('')}</select>
+      </div>`).join('')}
+      <div class="edit-actions" style="margin-top:10px;padding:0;border:0">
+        <button class="pill solid" id="pl-go">Into the kitchen</button>
+        <button class="pill" id="pl-skip">Not this time</button>
+      </div></div>`:''}
 
     ${items.length?renderSplit():''}
 
@@ -2201,6 +2315,9 @@ function renderShop(){
   </article>`;
 
   const back=$('#back'); if(back) back.onclick=()=>{ mode='home'; render(); };
+  const bq=$('#basket-q'); if(bq) bq.oninput=()=>{ basketQ=bq.value; refocus='basket-q'; render(); };
+  pane.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>{
+    shopStore=b.dataset.jump; basketQ=''; shopSplit=null; shopCat=null; loadCatalogue(shopStore); });
   pane.querySelectorAll('[data-store]').forEach(b=>b.onclick=()=>{
     shopStore=b.dataset.store; shopQ=''; shopSplit=null; loadCatalogue(shopStore); });
   const sq=$('#shop-q');
@@ -2258,6 +2375,8 @@ function renderShop(){
   pane.querySelectorAll('[data-placed]').forEach(b=>b.onclick=async()=>{
     const o=planOrders(splitCount())[+b.dataset.placed];
     snapshot();
+    putAwayList=o.items.map(u=>({name:u.name,qty:u.size||'',shelf:shelfFor(u.name),
+      until:sugDate(u.name,shelfFor(u.name)),on:true}));
     o.items.forEach(u=>{
       bump(shopStore,u.name,'b');
       const line=bask().find(i=>i.name===u.name);
@@ -2267,8 +2386,20 @@ function renderShop(){
     await saveBasket(); await saveHist(); render();
     toast('Order noted — '+o.items.length+' item'+(o.items.length===1?'':'s')+' remembered', true);
   });
+  pane.querySelectorAll('[data-pl]').forEach(el=>el.onchange=()=>{ putAwayList[+el.dataset.pl].on=el.checked; });
+  pane.querySelectorAll('[data-plshelf]').forEach(el=>el.onchange=()=>{ const i=+el.dataset.plshelf;
+    putAwayList[i].shelf=el.value; putAwayList[i].until=sugDate(putAwayList[i].name,el.value); });
+  const pg2=$('#pl-go'); if(pg2) pg2.onclick=async()=>{
+    let n=0,m=0;
+    putAwayList.filter(p=>p.on).forEach(p=>{ const res=addToFridge({name:p.name,qty:p.qty,shelf:p.shelf,until:p.until}); res.merged?m++:n++; });
+    putAwayList=null; await saveFridge(); render();
+    toast(n+' into the kitchen'+(m?', '+m+' merged':''));
+  };
+  const pc2=$('#pl-skip'); if(pc2) pc2.onclick=()=>{ putAwayList=null; render(); };
   const sd=$('#shop-done'); if(sd) sd.onclick=async()=>{
     const n=bask().length;
+    putAwayList=bask().map(i=>({name:i.name,qty:(i.qty>1?i.qty+'× ':'')+(i.size||''),shelf:shelfFor(i.name),
+      until:sugDate(i.name,shelfFor(i.name)),on:true}));
     bask().forEach(i=>{ for(let k=0;k<i.qty;k++) bump(shopStore,i.name,'b'); });
     snapshot(); basket[shopStore]=[];
     await saveBasket(); await saveHist(); render();
@@ -2284,6 +2415,7 @@ function renderShop(){
         name:i.name,qty:i.qty>1?i.qty+'×':'',done:false,src:shopCat?shopCat.store:'Deliveroo'}); n++; } });
     await saveGrocery(); render(); toast(n+' copied to the grocery list');
   };
+  if(refocus==='basket-q'){ refocus=null; const n=$('#basket-q'); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } }
   if(refocus==='shop-q'){ refocus=null; const n=$('#shop-q'); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } }
 }
 
