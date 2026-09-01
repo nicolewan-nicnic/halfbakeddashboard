@@ -43,7 +43,7 @@ button{cursor:pointer}
 .search{flex:1;min-width:190px;padding:11px 16px;background:transparent;border:2.5px solid var(--crumb);border-radius:var(--wob2)}
 .search::placeholder{color:var(--rye);opacity:.7}
 .count{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--rye)}
-.tiles{list-style:none;margin:0;padding:0;display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+.tiles{list-style:none;margin:0;padding:0;display:grid;gap:16px;grid-template-columns:repeat(3,1fr)}
 .tile{width:100%;background:var(--ivory);border:2.5px solid var(--crumb);border-radius:var(--wob1);padding:18px 16px 16px;text-align:left;display:flex;flex-direction:column;gap:10px;box-shadow:3px 4px 0 var(--taupe);transition:transform .15s,box-shadow .15s}
 .tile:nth-child(3n+2){border-radius:var(--wob2)}
 .tile:hover{transform:translate(-1px,-3px) rotate(-.6deg);box-shadow:4px 7px 0 var(--taupe)}
@@ -168,7 +168,8 @@ button{cursor:pointer}
 .results.compare li.best{background:var(--beige)}
 .r-store{font-family:var(--mono);font-size:11px;color:var(--rye);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .r-unit{font-family:var(--mono);font-size:12.5px;color:var(--sage);text-align:right;white-space:nowrap}
-@media (max-width:680px){
+@media (max-width:680px){.tiles{grid-template-columns:repeat(2,1fr)}
+
   .results.compare button{grid-template-columns:1fr 66px;row-gap:2px}
   .results.compare .r-store{grid-column:1}
   .results.compare .r-size{display:none}
@@ -236,8 +237,8 @@ button{cursor:pointer}
 .viewtoggle .ball{min-width:0;padding:6px 14px;font-size:12.5px;border-radius:var(--wob3)}
 .viewtoggle .ball[aria-pressed="true"]{background:var(--sage);border-color:var(--sage);color:var(--ivory)}
 .gridwrap{margin-top:16px;overflow-x:auto}
-.rgrid{border-collapse:collapse;width:100%;border:2.5px solid var(--crumb);border-radius:var(--wob3)}
-.rgrid td{border:1.5px solid var(--crumb);padding:7px 10px;vertical-align:middle}
+.rgrid{border-collapse:collapse;width:100%;border:2.5px solid var(--crumb)}
+.rgrid td{border:2.5px solid var(--crumb);padding:7px 10px;vertical-align:middle}
 .rgrid .gi{display:flex;gap:12px;align-items:baseline;font-size:14px;background:var(--ivory)}
 .rgrid .gi .qty{min-width:66px;text-align:right}
 .rgrid .gname{flex:1;line-height:1.3}
@@ -371,7 +372,6 @@ button{cursor:pointer}
 @media (min-width:960px){
   .layout{grid-template-columns:330px 1fr;align-items:start}
   .shelf{position:sticky;top:24px}
-  .tiles{grid-template-columns:1fr 1fr}
   .tile .thumb{width:62px;height:62px}
   .tile-name{font-size:17px}
   .back-only{display:none}
