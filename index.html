@@ -608,7 +608,7 @@ function shelfFor(name){ const f=foodInfo(name); return f?f.shelf:'Fridge'; }
 
 /* ============ seed recipes ============ */
 function seed(){return [
-{id:'pistachio-basque',name:'Basque Cheesecake',icon:'cakeslice',kcal:7200,
+{id:'pistachio-basque',name:'Basque Cheesecake',icon:'basque-cheesecake',kcal:7200,
  calc:{kind:'anchor',name:'Cream cheese',base:1000,unit:'g',tin:22,sharedG:1647,eggG:300,
    options:[{k:'hojicha',label:'Hojicha',items:[['Hojicha powder',30],['Sugar',230]],cornstarch:40,cream:330},
             {k:'praline',label:'Black sesame praline',items:[['Black sesame praline',200],['Sugar',200]],cornstarch:40,cream:300}]},
@@ -631,7 +631,7 @@ function seed(){return [
   'It wants to come out very dark on top and still wobbly in the middle.',
   'Cool at room temperature, then refrigerate overnight.',
   'Slice with a hot knife for clean edges.']},
-{id:'mayak-eggs',name:'Mayak Eggs',icon:'jar',kcal:600,
+{id:'mayak-eggs',name:'Mayak Eggs',icon:'mayak-eggs',kcal:600,
  prep:'The eggs want at least 6 hours in the marinade, and are better overnight. Make them the day before.',
  blurb:'Korean marinated eggs — jammy yolks sitting in a sweet, garlicky soy. Called mayak because you cannot stop eating them.',
  makesQty:6,makesUnit:'eggs',
@@ -648,7 +648,7 @@ function seed(){return [
   'Sit the peeled eggs in the marinade, pressing a piece of kitchen paper over the surface so the exposed tops stay submerged.',
   'Refrigerate at least 6 hours, ideally overnight. They keep about 4 days, getting saltier and firmer as they sit.',
   'Serve over hot rice with a spoonful of the marinade.']},
-{id:'onsen-eggs',name:'Onsen Eggs',icon:'eggtart',kcal:300,
+{id:'onsen-eggs',name:'Onsen Eggs',icon:'onsen-eggs',kcal:300,
  calc:{kind:'egg',air:70},
  blurb:'The reverse of a soft-boiled egg: silky, barely-set white around a thick custardy yolk. Your air fryer going down to 70°C is exactly what this needs.',
  makesQty:4,makesUnit:'eggs',
@@ -662,7 +662,7 @@ function seed(){return [
   'Lift them out and either eat them warm or drop them in ice water if you are saving them.',
   'Crack into a small bowl — the white should slide out barely set, the yolk thick and glossy.',
   'Warm the dashi, soy and mirin together and pour it around, then scatter the spring onion.']},
-{id:'maeuntang',name:'Lazy Girl Maeuntang',icon:'noodlebowl',kcal:1350,
+{id:'maeuntang',name:'Lazy Girl Maeuntang',icon:'maeuntang',kcal:1350,
  blurb:'Spicy Korean fish stew, made by putting everything in one pot. 150 kcal, 2g fibre and 20g protein a serving.',
  makesQty:9,makesUnit:'servings',
  ingredients:[{qty:1400,unit:'g',name:'Cod'},{qty:1,unit:'',name:'Daikon radish, cut into rounds'},
@@ -676,7 +676,7 @@ function seed(){return [
  method:['Put the cod, daikon, garlic, gochugaru, doenjang, gochujang, soy, fish sauce, mirin and a heavy hand of black pepper into a pot together.',
   'Bring to a boil and cook until the fish is done through.',
   'Serve topped with chopped chrysanthemum greens and green onions, adding sliced green and red peppers if you want more heat.']},
-{id:'kkaenip-jeon',name:'Kkaenip Jeon',icon:'eggtart',kcal:1400,
+{id:'kkaenip-jeon',name:'Kkaenip Jeon',icon:'kkaenip-jeon',kcal:1400,
  blurb:'Perilla leaves stuffed with seasoned beef, floured, egged and fried. 350 kcal, 5g fibre and 22g protein a serving.',
  makesQty:4,makesUnit:'servings',
  ingredients:[{qty:20,unit:'',name:'Perilla leaves, small to medium'},
@@ -703,7 +703,7 @@ function seed(){return [
  method:['Steam the chicken breasts, then shred them.',
   'Put the shredded chicken into a pot with the ginseng, jujubes, garlic, green onions, white onion, carrots, celery and the broth.',
   'Simmer until everything is soft and the broth has thickened. Shop-bought broth is fine here.']},
-{id:'gochujang-hummus',name:'Gochujang Hummus',icon:'jar',kcal:2000,
+{id:'gochujang-hummus',name:'Gochujang Hummus',icon:'gochujang-hummus',kcal:2000,
  blurb:'Hummus with gochujang stirred through at the end. 250 kcal, 7g fibre and 13g protein a serving.',
  makesQty:8,makesUnit:'servings',
  ingredients:[{qty:165,unit:'g',name:'Chickpeas, canned and rinsed'},
@@ -715,7 +715,7 @@ function seed(){return [
   'Move them to the freezer for 10 minutes to cool, then peel off as many skins as your patience allows.',
   'Blend the chickpeas with the olive oil, lemon juice, garlic and ice cubes until smooth.',
   'Stir the gochujang through at the end.']},
-{id:'banh-xeo',name:'Bánh Xèo',icon:'croissant',kcal:4000,
+{id:'banh-xeo',name:'Bánh Xèo',icon:'banh-xeo',kcal:4000,
  calc:{kind:'batter',ratio:2,dry:250,waterParts:5,dryPerCrepe:36},
  prep:'Soak the mung beans in cold water for at least 4 hours, or overnight. Drain and steam them soft before you start the batter.',
  blurb:'250 g of dry mix makes about seven crackling turmeric crêpes. Use the calculator to scale it and set how much coconut milk goes into the liquid.',
@@ -758,9 +758,9 @@ function seed(){return [
   'Marinate for at least 2 to 3 hours, ideally overnight.',
   'Combine the flour, cornflour and potato starch in a wide bowl.',
   'Toss the marinated wings through the dry mix. You are after a thin, craggy coating rather than a thick batter, so leave the clumps of marinade where they are.',
-  'Air fry at 190°C / 375°F for 30 to 35 minutes, shaking or turning the wings halfway through.',
+  'Air fry at 190°C / 375°F for 25 minutes, shaking or turning the wings halfway through.',
   'For extra crispiness, finish at 200°C / 400°F for another 3 to 5 minutes.']},
-{id:'pa-muchim',name:'Pa Muchim (Scallion Salad)',icon:'cabbage',kcal:140,
+{id:'pa-muchim',name:'Pa Muchim (Scallion Salad)',icon:'pa-muchim',kcal:140,
  blurb:'Korean scallion salad — the sharp, spicy tangle that cuts through anything rich.',
  makesQty:4,makesUnit:'servings',
  ingredients:[{qty:4,unit:'',name:'Scallions, medium'},{qty:2,unit:'tsp',name:'Gochugaru'},
@@ -769,7 +769,7 @@ function seed(){return [
  method:['Cut the scallions crosswise into roughly 4-inch lengths, then slice each piece thinly lengthwise.',
   'Soak the shreds in cold water for about 10 minutes to mellow and curl them, then drain well.',
   'Just before serving, add the gochugaru, sesame oil, sesame seeds, soy, vinegar and sugar, and toss.']},
-{id:'pajeon',name:'Green Onion Pancake (Pajeon)',icon:'eggtart',kcal:690,
+{id:'pajeon',name:'Green Onion Pancake (Pajeon)',icon:'pajeon',kcal:690,
  blurb:'One crisp rectangular pancake. Chopped squid, mussels or oysters can go in with the onions if you fancy it.',
  makesQty:1,makesUnit:'pancake',
  ingredients:[{qty:10,unit:'',name:'Green onions'},{qty:65,unit:'g',name:'Flour'},
@@ -808,7 +808,11 @@ function seed(){return [
  ingredients:[{qty:2,unit:'',name:"Bird's eye chilli"},{qty:150,unit:'ml',name:'Hot water, first addition'},
   {qty:9,unit:'g',name:'Garlic'},{qty:38,unit:'g',name:'White granulated sugar'},{qty:0.5,unit:'',name:'Lime'},
   {qty:75,unit:'ml',name:'Fish sauce'},{qty:8,unit:'ml',name:'Malt vinegar'},{qty:400,unit:'ml',name:'Hot water, second addition'}],
- method:[]},
+ method:['Blend the chillies with 150 ml hot water until smooth.',
+  'Add the garlic, sugar, lime juice, fish sauce and malt vinegar to the blended chilli mixture and stir well.',
+  'Top up with 400 ml hot water to reach the desired volume and flavour.',
+  'Taste and adjust seasonings if needed. Strain through a fine sieve if preferred for a smoother texture.',
+  'Serve at room temperature or chilled.']},
 {id:'tomato-somen',name:'Tomato Somen',icon:'noodlebowl',kcal:900,blurb:'',makesQty:2,makesUnit:'servings',
  ingredients:[{qty:200,unit:'g',name:'Somen noodles'},{qty:2,unit:'',name:'Tomatoes, small to medium'},
   {qty:10,unit:'',name:'Shiso leaves'},{qty:0.5,unit:'tsp',name:'Dashi powder'},{qty:38,unit:'ml',name:'Soy sauce'},
@@ -2064,7 +2068,8 @@ async function loadAllCatalogues(){
   const out={};
   await Promise.all(STORES.map(async ([slug,name])=>{
     try{
-      const r=await fetch('data/'+slug+'.json'); if(!r.ok) return;
+      const path=API_BASE?'/data/'+slug+'.json':'data/'+slug+'.json';
+      const r=await fetch(path); if(!r.ok) return;
       const j=await r.json();
       out[slug]=j.items.map(a=>({name:a[0],price:a[1],cat:a[2],size:a[3],slug,store:j.store}));
     }catch(e){}
@@ -2105,7 +2110,8 @@ async function loadCatalogue(slug){
   if(shopCat&&shopCat.slug===slug) return;
   shopBusy=true; shopErr=''; render();
   try{
-    const r=await fetch('data/'+slug+'.json');
+    const path=API_BASE?'/data/'+slug+'.json':'data/'+slug+'.json';
+    const r=await fetch(path);
     if(!r.ok) throw new Error('HTTP '+r.status);
     const j=await r.json();
     shopCat={slug,store:j.store,items:j.items.map(a=>({name:a[0],price:a[1],cat:a[2],size:a[3]}))};
