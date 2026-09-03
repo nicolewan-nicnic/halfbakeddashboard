@@ -44,6 +44,17 @@ button{cursor:pointer}
 .search::placeholder{color:var(--rye);opacity:.7}
 .count{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--rye)}
 .tiles{list-style:none;margin:0;padding:0;display:grid;gap:16px;grid-template-columns:repeat(3,1fr)}
+.cuisine-head{font-family:var(--display,inherit);font-size:15px;font-weight:600;letter-spacing:.02em;
+  margin:26px 0 12px;display:flex;align-items:center;gap:9px;color:var(--crumb)}
+.cuisine-head::after{content:"";flex:1;height:2.5px;background:var(--crumb);opacity:.16;border-radius:2px}
+.cuisine-n{font-family:var(--mono,monospace);font-size:11.5px;font-weight:500;opacity:.5}
+.tagrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.tagpill{background:transparent;border:2.5px solid var(--crumb);border-radius:var(--wob3);
+  padding:4px 12px;font-size:12.5px;font-weight:500;cursor:pointer;line-height:1.5}
+.tagpill:hover{background:var(--beige)}
+.tagpill.on{background:var(--sage);border-color:var(--sage);color:var(--ivory)}
+.rtags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.rtag{font-size:11.5px;padding:2px 9px;border:2px solid var(--crumb);border-radius:var(--wob3);opacity:.72}
 .tile{width:100%;background:var(--ivory);border:2.5px solid var(--crumb);border-radius:var(--wob1);padding:18px 16px 16px;text-align:left;display:flex;flex-direction:column;gap:10px;box-shadow:3px 4px 0 var(--taupe);transition:transform .15s,box-shadow .15s}
 .tile:nth-child(3n+2){border-radius:var(--wob2)}
 .tile:hover{transform:translate(-1px,-3px) rotate(-.6deg);box-shadow:4px 7px 0 var(--taupe)}
@@ -509,9 +520,9 @@ async function sset(k,v){
 }
 
 /* Every illustration is a Half Baked Society original, background removed. */
-const ART = {"croissant": "icons/croissant.webp", "shortcake": "icons/shortcake.webp", "breadbag": "icons/breadbag.webp", "butter": "icons/butter.webp", "jar": "icons/jar.webp", "cakeslice": "icons/cakeslice.webp", "bun": "icons/bun.webp", "noodlebowl": "icons/noodlebowl.webp", "carrot": "icons/carrot.webp", "icedcoffee": "icons/icedcoffee.webp", "chickenrice": "icons/chickenrice.webp", "steak": "icons/steak.webp", "cabbage": "icons/cabbage.webp", "eggtart": "icons/eggtart.webp", "friedchicken": "icons/friedchicken.webp", "__logo": "icons/logo.webp"};
+const ART = {"croissant": "icons/croissant.webp", "shortcake": "icons/shortcake.webp", "breadbag": "icons/breadbag.webp", "butter": "icons/butter.webp", "jar": "icons/jar.webp", "cakeslice": "icons/cakeslice.webp", "bun": "icons/bun.webp", "noodlebowl": "icons/noodlebowl.webp", "carrot": "icons/carrot.webp", "icedcoffee": "icons/icedcoffee.webp", "chickenrice": "icons/chickenrice.webp", "steak": "icons/steak.webp", "cabbage": "icons/cabbage.webp", "eggtart": "icons/eggtart.webp", "friedchicken": "icons/friedchicken.webp", "banh-xeo": "icons/banh-xeo.png", "basque-cheesecake": "icons/basque-cheesecake.png", "kkaenip-jeon": "icons/kkaenip-jeon.png", "pajeon": "icons/pajeon.png", "maeuntang": "icons/maeuntang.png", "soft-eggs": "icons/soft-eggs.png", "green-salad": "icons/green-salad.png", "brown-soup": "icons/brown-soup.png", "red-soup": "icons/red-soup.png", "beef-soup": "icons/beef-soup.png", "__logo": "icons/logo.webp"};
 const LOGO = ART.__logo;
-const ICONS=['croissant','breadbag','bun','shortcake','cakeslice','jar','butter','steak','icedcoffee','noodlebowl','chickenrice','friedchicken','cabbage','carrot','eggtart'].filter(n=>ART[n]);
+const ICONS=['croissant','breadbag','bun','shortcake','cakeslice','jar','butter','steak','icedcoffee','noodlebowl','chickenrice','friedchicken','cabbage','carrot','eggtart','soft-eggs','green-salad','brown-soup','red-soup','beef-soup','banh-xeo','basque-cheesecake','kkaenip-jeon','pajeon','maeuntang'].filter(n=>ART[n]);
 
 function art(r){
   if(r && r.img) return `<img class="ico" src="${r.img}" alt="">`;
@@ -608,7 +619,7 @@ function shelfFor(name){ const f=foodInfo(name); return f?f.shelf:'Fridge'; }
 
 /* ============ seed recipes ============ */
 function seed(){return [
-{id:'pistachio-basque',name:'Basque Cheesecake',icon:'basque-cheesecake',kcal:7200,
+{id:'pistachio-basque',name:'Basque Cheesecake',icon:'basque-cheesecake',cuisine:'Western',tags:['Dessert','Make-ahead','Baking'],kcal:7200,
  calc:{kind:'anchor',name:'Cream cheese',base:1000,unit:'g',tin:22,sharedG:1647,eggG:300,
    options:[{k:'hojicha',label:'Hojicha',items:[['Hojicha powder',30],['Sugar',230]],cornstarch:40,cream:330},
             {k:'praline',label:'Black sesame praline',items:[['Black sesame praline',200],['Sugar',200]],cornstarch:40,cream:300}]},
@@ -631,7 +642,7 @@ function seed(){return [
   'It wants to come out very dark on top and still wobbly in the middle.',
   'Cool at room temperature, then refrigerate overnight.',
   'Slice with a hot knife for clean edges.']},
-{id:'mayak-eggs',name:'Mayak Eggs',icon:'mayak-eggs',kcal:600,
+{id:'mayak-eggs',name:'Mayak Eggs',icon:'soft-eggs',cuisine:'Korean',tags:['Side','Make-ahead','Eggs'],kcal:600,
  prep:'The eggs want at least 6 hours in the marinade, and are better overnight. Make them the day before.',
  blurb:'Korean marinated eggs — jammy yolks sitting in a sweet, garlicky soy. Called mayak because you cannot stop eating them.',
  makesQty:6,makesUnit:'eggs',
@@ -648,7 +659,7 @@ function seed(){return [
   'Sit the peeled eggs in the marinade, pressing a piece of kitchen paper over the surface so the exposed tops stay submerged.',
   'Refrigerate at least 6 hours, ideally overnight. They keep about 4 days, getting saltier and firmer as they sit.',
   'Serve over hot rice with a spoonful of the marinade.']},
-{id:'onsen-eggs',name:'Onsen Eggs',icon:'onsen-eggs',kcal:300,
+{id:'onsen-eggs',name:'Onsen Eggs',icon:'soft-eggs',cuisine:'Japanese',tags:['Side','Quick','Eggs'],kcal:300,
  calc:{kind:'egg',air:70},
  blurb:'The reverse of a soft-boiled egg: silky, barely-set white around a thick custardy yolk. Your air fryer going down to 70°C is exactly what this needs.',
  makesQty:4,makesUnit:'eggs',
@@ -662,7 +673,7 @@ function seed(){return [
   'Lift them out and either eat them warm or drop them in ice water if you are saving them.',
   'Crack into a small bowl — the white should slide out barely set, the yolk thick and glossy.',
   'Warm the dashi, soy and mirin together and pour it around, then scatter the spring onion.']},
-{id:'maeuntang',name:'Lazy Girl Maeuntang',icon:'maeuntang',kcal:1350,
+{id:'maeuntang',name:'Lazy Girl Maeuntang',icon:'maeuntang',cuisine:'Korean',tags:['Main','Soup','Spicy'],kcal:1350,
  blurb:'Spicy Korean fish stew, made by putting everything in one pot. 150 kcal, 2g fibre and 20g protein a serving.',
  makesQty:9,makesUnit:'servings',
  ingredients:[{qty:1400,unit:'g',name:'Cod'},{qty:1,unit:'',name:'Daikon radish, cut into rounds'},
@@ -676,7 +687,7 @@ function seed(){return [
  method:['Put the cod, daikon, garlic, gochugaru, doenjang, gochujang, soy, fish sauce, mirin and a heavy hand of black pepper into a pot together.',
   'Bring to a boil and cook until the fish is done through.',
   'Serve topped with chopped chrysanthemum greens and green onions, adding sliced green and red peppers if you want more heat.']},
-{id:'kkaenip-jeon',name:'Kkaenip Jeon',icon:'kkaenip-jeon',kcal:1400,
+{id:'kkaenip-jeon',name:'Kkaenip Jeon',icon:'kkaenip-jeon',cuisine:'Korean',tags:['Side','Pan-fried'],kcal:1400,
  blurb:'Perilla leaves stuffed with seasoned beef, floured, egged and fried. 350 kcal, 5g fibre and 22g protein a serving.',
  makesQty:4,makesUnit:'servings',
  ingredients:[{qty:20,unit:'',name:'Perilla leaves, small to medium'},
@@ -692,7 +703,7 @@ function seed(){return [
   'Stuff each perilla leaf with a spoonful of the mixture — you should get about 20.',
   'Coat each one in flour, then in beaten egg.',
   'Fry both sides in oil until golden.']},
-{id:'collagen-congee',name:'Collagen Chicken Congee',icon:'chickenrice',kcal:800,
+{id:'collagen-congee',name:'Collagen Chicken Congee',icon:'brown-soup',cuisine:'Chinese',tags:['Main','Soup','Comfort'],kcal:800,
  blurb:'A restorative pot of congee with ginseng and jujube. 200 kcal, 2g fibre and 15g protein a serving.',
  makesQty:4,makesUnit:'servings',
  ingredients:[{qty:4,unit:'',name:'Chicken breasts'},{qty:2,unit:'',name:'Ginseng roots'},
@@ -703,7 +714,7 @@ function seed(){return [
  method:['Steam the chicken breasts, then shred them.',
   'Put the shredded chicken into a pot with the ginseng, jujubes, garlic, green onions, white onion, carrots, celery and the broth.',
   'Simmer until everything is soft and the broth has thickened. Shop-bought broth is fine here.']},
-{id:'gochujang-hummus',name:'Gochujang Hummus',icon:'gochujang-hummus',kcal:2000,
+{id:'gochujang-hummus',name:'Gochujang Hummus',icon:'red-soup',cuisine:'Fusion',tags:['Dip','Make-ahead','Vegetarian'],kcal:2000,
  blurb:'Hummus with gochujang stirred through at the end. 250 kcal, 7g fibre and 13g protein a serving.',
  makesQty:8,makesUnit:'servings',
  ingredients:[{qty:165,unit:'g',name:'Chickpeas, canned and rinsed'},
@@ -715,7 +726,7 @@ function seed(){return [
   'Move them to the freezer for 10 minutes to cool, then peel off as many skins as your patience allows.',
   'Blend the chickpeas with the olive oil, lemon juice, garlic and ice cubes until smooth.',
   'Stir the gochujang through at the end.']},
-{id:'banh-xeo',name:'Bánh Xèo',icon:'banh-xeo',kcal:4000,
+{id:'banh-xeo',name:'Bánh Xèo',icon:'banh-xeo',cuisine:'Vietnamese',tags:['Main','Pan-fried','Weekend'],kcal:4000,
  calc:{kind:'batter',ratio:2,dry:250,waterParts:5,dryPerCrepe:36},
  prep:'Soak the mung beans in cold water for at least 4 hours, or overnight. Drain and steam them soft before you start the batter.',
  blurb:'250 g of dry mix makes about seven crackling turmeric crêpes. Use the calculator to scale it and set how much coconut milk goes into the liquid.',
@@ -743,7 +754,7 @@ function seed(){return [
   'Lid off, drizzle a little oil around the rim, and let it fry until the edges lift and turn lacy and brown. Give it a good 3 to 4 minutes — patience here is what makes it crisp.',
   'Pile bean sprouts over one half, fold the crêpe over them, and slide it out.',
   'Tear pieces off, wrap them in lettuce with the herbs, and dip in nuoc cham.']},
-{id:'crispy-wings',name:'Crispy Air Fryer Chicken Wings',icon:'friedchicken',kcal:2700,
+{id:'crispy-wings',name:'Crispy Air Fryer Chicken Wings',icon:'friedchicken',cuisine:'Western',tags:['Main','Air fryer','Quick'],kcal:2700,
  blurb:'Don’t shake all the marinade off before coating — the wet clumps the flour picks up are what turn into the craggy, crispy bits.',
  makesQty:4,makesUnit:'servings',
  ingredients:[{qty:1,unit:'kg',name:'Chicken wings'},
@@ -760,7 +771,7 @@ function seed(){return [
   'Toss the marinated wings through the dry mix. You are after a thin, craggy coating rather than a thick batter, so leave the clumps of marinade where they are.',
   'Air fry at 190°C / 375°F for 25 minutes, shaking or turning the wings halfway through.',
   'For extra crispiness, finish at 200°C / 400°F for another 3 to 5 minutes.']},
-{id:'pa-muchim',name:'Pa Muchim (Scallion Salad)',icon:'pa-muchim',kcal:140,
+{id:'pa-muchim',name:'Pa Muchim (Scallion Salad)',icon:'green-salad',cuisine:'Korean',tags:['Side','Quick','Vegetarian'],kcal:140,
  blurb:'Korean scallion salad — the sharp, spicy tangle that cuts through anything rich.',
  makesQty:4,makesUnit:'servings',
  ingredients:[{qty:4,unit:'',name:'Scallions, medium'},{qty:2,unit:'tsp',name:'Gochugaru'},
@@ -769,7 +780,7 @@ function seed(){return [
  method:['Cut the scallions crosswise into roughly 4-inch lengths, then slice each piece thinly lengthwise.',
   'Soak the shreds in cold water for about 10 minutes to mellow and curl them, then drain well.',
   'Just before serving, add the gochugaru, sesame oil, sesame seeds, soy, vinegar and sugar, and toss.']},
-{id:'pajeon',name:'Green Onion Pancake (Pajeon)',icon:'pajeon',kcal:690,
+{id:'pajeon',name:'Green Onion Pancake (Pajeon)',icon:'pajeon',cuisine:'Korean',tags:['Side','Pan-fried','Vegetarian'],kcal:690,
  blurb:'One crisp rectangular pancake. Chopped squid, mussels or oysters can go in with the onions if you fancy it.',
  makesQty:1,makesUnit:'pancake',
  ingredients:[{qty:10,unit:'',name:'Green onions'},{qty:65,unit:'g',name:'Flour'},
@@ -787,7 +798,7 @@ function seed(){return [
   'As it cooks, pat and press it gently with the spatula to keep the shape.',
   'When the underside is crisp and golden, flip. Cook until the second side matches, flip once more, give it a final minute, then plate.',
   'Stir the sauce ingredients together in a small bowl and serve alongside, hot.']},
-{id:'red-curry-chicken-cabbage',name:'Red Curry Chicken & Charred Cabbage',icon:'chickenrice',kcal:2000,
+{id:'red-curry-chicken-cabbage',name:'Red Curry Chicken & Charred Cabbage',icon:'chickenrice',cuisine:'Thai',tags:['Main','Weeknight','Spicy'],kcal:2000,
  blurb:'After searing the chicken, leave the fond on the bottom of the pan. Take care not to burn it while the garlic and ginger cook, and scrape it up once the curry paste and coconut milk go in.',
  makesQty:2,makesUnit:'servings',
  ingredients:[{qty:4,unit:'',name:'Chicken thighs, boneless and skin on'},{qty:2,unit:'',name:'Cabbage wedges, large'},
@@ -804,7 +815,7 @@ function seed(){return [
   'Bring to a boil and keep cooking until the coconut milk splits and the oil rises to the surface.',
   'Add the chicken stock, fish sauce, sugar and a squeeze of lime. Bring to a boil, reduce to a brothy consistency, then cut the heat.',
   'Plate the chicken and cabbage over steaming white rice, pour the curry broth over, and garnish with coriander, a lime wedge, and jalapeño or scallion if you like.']},
-{id:'nuoc-cham',name:'Nuoc Cham',icon:'jar',kcal:200,blurb:'',makesQty:550,makesUnit:'ml',
+{id:'nuoc-cham',name:'Nuoc Cham',icon:'jar',cuisine:'Vietnamese',tags:['Sauce','Make-ahead','No-cook'],kcal:200,blurb:'',makesQty:550,makesUnit:'ml',
  ingredients:[{qty:2,unit:'',name:"Bird's eye chilli"},{qty:150,unit:'ml',name:'Hot water, first addition'},
   {qty:9,unit:'g',name:'Garlic'},{qty:38,unit:'g',name:'White granulated sugar'},{qty:0.5,unit:'',name:'Lime'},
   {qty:75,unit:'ml',name:'Fish sauce'},{qty:8,unit:'ml',name:'Malt vinegar'},{qty:400,unit:'ml',name:'Hot water, second addition'}],
@@ -813,13 +824,13 @@ function seed(){return [
   'Top up with 400 ml hot water to reach the desired volume and flavour.',
   'Taste and adjust seasonings if needed. Strain through a fine sieve if preferred for a smoother texture.',
   'Serve at room temperature or chilled.']},
-{id:'tomato-somen',name:'Tomato Somen',icon:'noodlebowl',kcal:900,blurb:'',makesQty:2,makesUnit:'servings',
+{id:'tomato-somen',name:'Tomato Somen',icon:'noodlebowl',cuisine:'Japanese',tags:['Main','Quick','Noodles'],kcal:900,blurb:'',makesQty:2,makesUnit:'servings',
  ingredients:[{qty:200,unit:'g',name:'Somen noodles'},{qty:2,unit:'',name:'Tomatoes, small to medium'},
   {qty:10,unit:'',name:'Shiso leaves'},{qty:0.5,unit:'tsp',name:'Dashi powder'},{qty:38,unit:'ml',name:'Soy sauce'},
   {qty:30,unit:'ml',name:'Mirin'},{qty:0.5,unit:'tsp',name:'Kosher salt'},
   {qty:null,unit:'',name:'6–8 cherry or sungold tomatoes, optional'},{qty:null,unit:'',name:'Sesame seeds, to garnish'}],
  method:[]},
-{id:'charred-cabbage',name:'Charred Cabbage',icon:'cabbage',kcal:760,
+{id:'charred-cabbage',name:'Charred Cabbage',icon:'cabbage',cuisine:'Western',tags:['Side','Vegetarian'],kcal:760,
  blurb:'Quantities still to fill in — the spreadsheet row had Tomato Somen’s list pasted into it.',
  makesQty:2,makesUnit:'servings',
  ingredients:[{qty:null,unit:'',name:'Cabbage, cut into wedges'},{qty:null,unit:'',name:'Butter'},{qty:null,unit:'',name:'Salt'},
@@ -832,13 +843,13 @@ function seed(){return [
   'Combine the mayo, yogurt, lemon juice, half the chives, parsley, red onion and garlic in a bowl. Salt and pepper to taste.',
   'Spread a bed of the yogurt sauce on the plate and set the cabbage on top.',
   'Finish with a generous spoon of chilli crisp, more chives and a squeeze of lemon.']},
-{id:'carrot-salad',name:'Carrot Salad',icon:'carrot',kcal:940,blurb:'',makesQty:2,makesUnit:'servings',
+{id:'carrot-salad',name:'Carrot Salad',icon:'carrot',cuisine:'Western',tags:['Side','No-cook','Vegetarian'],kcal:940,blurb:'',makesQty:2,makesUnit:'servings',
  ingredients:[{qty:500,unit:'g',name:'Carrots'},{qty:40,unit:'ml',name:'White balsamic vinegar'},
   {qty:1,unit:'',name:'Lemon, juiced'},{qty:20,unit:'g',name:'Honey'},{qty:6,unit:'g',name:'Salt'},
   {qty:70,unit:'ml',name:'Sunflower oil'},{qty:0.5,unit:'tsp',name:'Kosher salt'},
   {qty:null,unit:'',name:'Cashews or other nuts, optional'}],
  method:['Trim and grate the carrots.','Mix through the vinegar, lemon juice, honey and salt, then the oil.']},
-{id:'steak-au-poivre',name:'Steak au Poivre with Miso & Sansho Pepper',icon:'steak',kcal:1250,
+{id:'steak-au-poivre',name:'Steak au Poivre with Miso & Sansho Pepper',icon:'steak',cuisine:'Fusion',tags:['Main','Date night'],kcal:1250,
  blurb:'Red miso and citrusy sansho pepper under a classic steak au poivre. Date night.',
  makesQty:2,makesUnit:'servings',
  ingredients:[{qty:1,unit:'',name:'Steak'},{qty:1,unit:'tsp',name:'Sansho pepper'},{qty:2,unit:'tsp',name:'Black pepper, ground'},
@@ -852,7 +863,7 @@ function seed(){return [
   'Reduce the heat to low and pour in the cream. Let the sauce thicken to a gravy consistency and adjust the salt.',
   'Stir through finely chopped parsley, then toss in the butter and swirl the pan to combine. Cut the heat.',
   'Spoon a generous pool of sauce onto the plate, slice the steak over it, and spoon more sauce to finish.']},
-{id:'chicken-rice',name:'Chicken Rice',icon:'chickenrice',kcal:2300,blurb:'',makesQty:2,makesUnit:'servings',
+{id:'chicken-rice',name:'Chicken Rice',icon:'chickenrice',cuisine:'Singaporean',tags:['Main','Comfort'],kcal:2300,blurb:'',makesQty:2,makesUnit:'servings',
  ingredients:[{qty:2,unit:'',name:'Chicken legs'},{qty:60,unit:'ml',name:'Shaoxing wine'},{qty:12,unit:'g',name:'Garlic'},
   {qty:30,unit:'g',name:'Ginger'},{qty:2,unit:'',name:'Scallions'},{qty:1,unit:'',name:'Thai chilli'},
   {qty:45,unit:'ml',name:'Dark soy'},{qty:30,unit:'ml',name:'Lime juice'},{qty:12,unit:'g',name:'Sugar'},
@@ -864,7 +875,7 @@ function seed(){return [
   'Cook the rice in the poaching liquid — about 1.25 parts liquid to 1 part washed rice.',
   'While the rice cooks, make the sauce: finely slice the chilli, grate 1 clove of garlic and 1/2" of ginger. Combine with the dark soy, lime juice, white pepper and sugar, then whisk in the olive oil to emulsify into a thick dressing.',
   'Slice the chicken over a bed of rice and spoon the sauce over generously. Serve with thinly sliced cucumber, coriander and scallion.']},
-{id:'viet-coffee',name:'Vietnamese Coffee',icon:'icedcoffee',kcal:135,blurb:'',makesQty:220,makesUnit:'ml',
+{id:'viet-coffee',name:'Vietnamese Coffee',icon:'icedcoffee',cuisine:'Vietnamese',tags:['Drink','Quick'],kcal:135,blurb:'',makesQty:220,makesUnit:'ml',
  ingredients:[{qty:20,unit:'g',name:'Vietnamese coffee'},{qty:40,unit:'g',name:'Condensed milk'},
   {qty:200,unit:'ml',name:'Water'},{qty:null,unit:'',name:'Ice'}],
  method:[]}
@@ -876,7 +887,7 @@ let fridge=[], grocery=[], plan={}, todos=[];
 let currentId=null, scale=1, editing=false, draft=null;
 let mode='home', cookOff=false, editItem=null, putAway=null, pickDay=null;
 let formDate='', photoReview=null, photoBusy=false, armed=null, pasteBusy=false, pasteText='';
-let calcCoco=null, refocus=null, searchQ='', pickQ='', todoText='';
+let calcCoco=null, refocus=null, searchQ='', pickQ='', todoText='', tagFilter='';
 let gridView=false;
 let eggAir=null, eggStart=4, eggTarget=65, eggSize=57;
 let anchorOpt=null;
@@ -897,7 +908,7 @@ const pane=$('#pane');
 
 /* Merge the three layers. Seed supplies the recipe; your override replaces only
    the fields you actually changed; anything you made yourself is untouched.   */
-const PATCHABLE=['name','blurb','prep','icon','img','kcal','makesQty','makesUnit','ingredients','method','calc'];
+const PATCHABLE=['name','blurb','prep','icon','img','kcal','makesQty','makesUnit','ingredients','method','calc','cuisine','tags'];
 function rebuild(){
   const out=[];
   seed().forEach(s=>{
@@ -1089,7 +1100,34 @@ function renderNav(){
 /* ============ recipe drawer (its own page) ============ */
 function renderRecipes(){
   const q=(searchQ||'').trim().toLowerCase();
-  const list=recipes.filter(r=>!q||r.name.toLowerCase().includes(q)||r.ingredients.some(i=>String(i.name).toLowerCase().includes(q)));
+  let list=recipes.filter(r=>!q||r.name.toLowerCase().includes(q)||r.ingredients.some(i=>String(i.name).toLowerCase().includes(q)));
+  if(tagFilter) list=list.filter(r=>(r.tags||[]).includes(tagFilter));
+
+  /* every tag actually in use, most-used first, so the row stays useful */
+  const tally={};
+  recipes.forEach(r=>(r.tags||[]).forEach(t=>{ tally[t]=(tally[t]||0)+1; }));
+  const allTags=Object.keys(tally).sort((a,b)=>tally[b]-tally[a]||a.localeCompare(b));
+
+  /* group by cuisine; a fixed order keeps the drawer feeling stable */
+  const ORDER=['Korean','Vietnamese','Japanese','Chinese','Thai','Singaporean','Fusion','Western'];
+  const groups={};
+  list.forEach(r=>{ const c=r.cuisine||'Other'; (groups[c]=groups[c]||[]).push(r); });
+  const cuisines=Object.keys(groups).sort((a,b)=>{
+    const ia=ORDER.indexOf(a), ib=ORDER.indexOf(b);
+    return (ia<0?99:ia)-(ib<0?99:ib) || a.localeCompare(b);
+  });
+
+  const tile=r=>`<li><button class="tile" data-id="${esc(r.id)}" ${r.id===currentId?'aria-current="true"':''}>
+      <span class="thumb">${art(r)}</span>
+      <span class="tile-name">${esc(r.name)}</span>
+      <span class="tile-makes">${r.makesQty?'Makes '+esc(fmt(r.makesQty))+' '+esc(r.makesUnit):'&nbsp;'}</span>
+    </button></li>`;
+
+  const body = list.length
+    ? cuisines.map(c=>`<h3 class="cuisine-head">${esc(c)} <span class="cuisine-n">${groups[c].length}</span></h3>
+        <ul class="tiles">${groups[c].map(tile).join('')}</ul>`).join('')
+    : `<p class="empty" style="margin-top:18px">Nothing in the drawer matches that.</p>`;
+
   pane.innerHTML=`<article class="card">
     <div class="card-head">
       <div style="flex:1;min-width:180px"><h2>The recipe drawer</h2>
@@ -1097,14 +1135,12 @@ function renderRecipes(){
       <div class="head-actions"><button class="pill back-only" id="back">← Home</button></div>
     </div>
     <input class="search" id="search" type="search" placeholder="Search recipes or ingredients" autocomplete="off" value="${esc(searchQ)}" style="margin-top:18px">
+    ${allTags.length?`<div class="tagrow">
+      <button class="tagpill ${tagFilter?'':'on'}" data-tag="">All</button>
+      ${allTags.map(t=>`<button class="tagpill ${tagFilter===t?'on':''}" data-tag="${esc(t)}">${esc(t)}</button>`).join('')}
+    </div>`:''}
+    ${body}
     <ul class="tiles" style="margin-top:16px">
-      ${list.length?list.map(r=>`
-        <li><button class="tile" data-id="${esc(r.id)}" ${r.id===currentId?'aria-current="true"':''}>
-          <span class="thumb">${art(r)}</span>
-          <span class="tile-name">${esc(r.name)}</span>
-          <span class="tile-makes">${r.makesQty?'Makes '+esc(fmt(r.makesQty))+' '+esc(r.makesUnit):'&nbsp;'}</span>
-        </button></li>`).join('')
-      :`<li style="grid-column:1/-1" class="empty">Nothing in the drawer matches that.</li>`}
       <li><button class="tile add" id="new-btn"><span class="plus">+</span><span>Add a recipe</span></button></li>
       <li><button class="tile add" id="paste-btn"><span class="plus">✂</span><span>Paste a recipe</span></button></li>
     </ul>
@@ -1112,9 +1148,10 @@ function renderRecipes(){
   const back=$('#back'); if(back) back.onclick=()=>{ mode='home'; render(); };
   const s=$('#search');
   s.oninput=()=>{ searchQ=s.value; refocus='search'; render(); };
+  pane.querySelectorAll('.tagpill').forEach(b=>b.onclick=()=>{ tagFilter=b.dataset.tag||''; render(); });
   $('#new-btn').onclick=()=>{
     editing=true; mode='recipe'; cookOff=false;
-    draft={_isNew:true,name:'',blurb:'',prep:'',icon:'croissant',img:null,kcal:null,makesQty:2,makesUnit:'servings',ingredients:[{qty:null,unit:'',name:''}],method:[]};
+    draft={_isNew:true,name:'',blurb:'',prep:'',icon:'croissant',img:null,cuisine:'',tags:[],kcal:null,makesQty:2,makesUnit:'servings',ingredients:[{qty:null,unit:'',name:''}],method:[]};
     render();
   };
   $('#paste-btn').onclick=()=>{ mode='paste'; editing=false; draft=null; pasteBusy=false; render(); };
@@ -1146,6 +1183,10 @@ function renderRecipe(){
       <div style="flex:1;min-width:180px">
         <h2>${esc(r.name)}</h2>
         ${r.blurb?`<p class="blurb">${esc(r.blurb)}</p>`:''}
+        ${(r.cuisine||(r.tags&&r.tags.length))?`<div class="rtags">
+          ${r.cuisine?`<span class="rtag">${esc(r.cuisine)}</span>`:''}
+          ${(r.tags||[]).map(t=>`<span class="rtag">${esc(t)}</span>`).join('')}
+        </div>`:''}
       </div>
       <div class="head-actions">
         <button class="pill" id="back">← Recipes</button>
@@ -1477,6 +1518,8 @@ function renderEditor(){
     <p class="hint" style="margin-bottom:20px">Generate a new one with your illustration prompt, then upload the PNG. It gets shrunk and saved with the recipe.</p>
     <label class="field"><span>Name</span><input id="f-name" value="${esc(d.name)}"></label>
     <label class="field"><span>Note, optional</span><input id="f-blurb" value="${esc(d.blurb||'')}" placeholder="A line about when you make it"></label>
+    <label class="field"><span>Cuisine</span><input id="f-cuisine" value="${esc(d.cuisine||'')}" placeholder="Korean, Vietnamese, Western…"></label>
+    <label class="field"><span>Tags, comma separated</span><input id="f-tags" value="${esc((d.tags||[]).join(', '))}" placeholder="Main, Quick, Vegetarian"></label>
     <label class="field"><span>Start ahead, optional</span><input id="f-prep" value="${esc(d.prep||'')}" placeholder="Soak the mung beans overnight"></label>
     <div class="field-row">
       <label class="field"><span>Makes</span><input id="f-makes" class="num" type="number" step="any" value="${d.makesQty??''}"></label>
@@ -1524,6 +1567,8 @@ function collect(){
   }).filter(i=>i.name);
   return {name:$('#f-name').value.trim()||'Untitled recipe',
     blurb:$('#f-blurb').value.trim(), icon:draft.icon||'croissant', img:draft.img||null,
+    cuisine:($('#f-cuisine')?$('#f-cuisine').value.trim():'')||null,
+    tags:($('#f-tags')?$('#f-tags').value.split(',').map(t=>t.trim()).filter(Boolean):[]),
     kcal:$('#f-kcal').value===''?null:Number($('#f-kcal').value), calc:draft.calc||null,
     prep:$('#f-prep').value.trim(),
     makesQty:$('#f-makes').value===''?null:Number($('#f-makes').value),
@@ -2441,6 +2486,12 @@ function renderSettings(){
     <h3 class="section-title" style="margin-top:24px">Your data</h3><div class="section-rule"></div>
     <div class="calc-out">${counts.map(([k,v])=>`<div class="co"><b>${v}</b><span>${esc(k.toLowerCase())}</span></div>`).join('')}</div>
     <p class="hint" style="margin-top:10px">Saved ${API_BASE?(apiDown?'on this device — the database is unreachable right now':'to the database, so it follows you between devices'):'on this device only'}. Version ${APP_VERSION}.</p>
+    <p class="hint" style="margin-top:6px">Icons: ${Object.keys(ART).length-1} registered${(()=>{
+      const bad=recipes.filter(r=>!r.img&&r.icon&&!ART[r.icon]).map(r=>r.name);
+      const ov=Object.keys(overrides).filter(k=>overrides[k]&&overrides[k].icon).length;
+      return (bad.length?' · unknown on: '+bad.join(', '):' · all recognised')+(ov?' · '+ov+' saved icon override'+(ov===1?'':'s'):'');
+    })()}</p>
+    <p style="margin-top:8px"><button class="pill" id="reset-icons">Reset all icons to shipped defaults</button></p>
 
     <h3 class="section-title" style="margin-top:26px">Backup</h3><div class="section-rule"></div>
     <p class="hint" style="margin:0 0 10px">A backup is one file holding everything — recipes, fridge, list, plan, to-dos, baskets and shopping history. Worth taking before you move the app anywhere.</p>
@@ -2456,6 +2507,18 @@ function renderSettings(){
   const back=$('#back'); if(back) back.onclick=()=>{ mode='home'; render(); };
   $('#backup-btn').onclick=doBackup;
     $('#reset-btn').onclick=e=>arm(e.currentTarget,'Really reset?',doReset);
+    const ri=$('#reset-icons');
+    if(ri) ri.onclick=async()=>{
+      /* drop every saved icon override so the icon shipped with each recipe wins */
+      let n=0;
+      Object.keys(overrides).forEach(k=>{
+        const o=overrides[k];
+        if(o && o.icon){ delete o.icon; n++; if(Object.keys(o).length===0) delete overrides[k]; }
+      });
+      await saveRecipeStores(); rebuild(); render();
+      banner(n?('Cleared '+n+' saved icon'+(n===1?'':'s')+'. Recipes now use their shipped icons.')
+              :'No saved icon overrides — every recipe was already using its shipped icon.');
+    };
 }
 
 /* ============ paste importer ============ */
@@ -2529,7 +2592,7 @@ function render(){
 $('#logo').innerHTML=`<img src="${LOGO}" alt="Half Baked Society">`;
 $('#logo').style.cursor='pointer'; $('#logo').title='Home';
 const goMode=m=>()=>{ mode=m; editing=false; draft=null; cookOff=false; putAway=null; pickDay=null; editItem=null; formDate='';
-  if(m!=='recipes') searchQ='';
+  if(m!=='recipes'){ searchQ=''; tagFilter=''; }
   document.body.dataset.view='detail'; render(); };
 const on=(sel,ev,fn)=>{ const el=$(sel); if(el) el.addEventListener(ev,fn); };
 $('#home-btn').onclick=goMode('home');
@@ -2601,17 +2664,30 @@ async function doReset(){
 /* ============ boot ============ */
 (async function init(){
  try{
-  mine      = await sget(S.mine)      || [];
-  overrides = await sget(S.overrides) || {};
-  removed   = await sget(S.removed)   || [];
-  fridge    = await sget(S.fridge)    || [];
-  grocery   = await sget(S.grocery)   || [];
-  plan      = await sget(S.plan)      || {};
-  todos     = await sget(S.todos)     || [];
-  basket    = await sget(S.basket)    || {};
-  shopHist  = await sget(S.hist)      || {};
-  foodPrefs = await sget(S.prefs)     || {};
-  let meta  = await sget(S.meta)      || null;
+  /* Paint immediately from the embedded recipes so the page never sits blank
+     while the network wakes up. The saved data merges in a moment later. */
+  rebuild();
+  currentId=recipes[0]?.id??null;
+  document.body.dataset.view='detail';
+  render();
+
+  /* Load every store in parallel instead of one request after another —
+     eleven sequential round-trips were the reason startup felt slow. */
+  const [_mine,_over,_rem,_fri,_gro,_pl,_td,_bk,_hs,_pr,meta] = await Promise.all([
+    sget(S.mine), sget(S.overrides), sget(S.removed), sget(S.fridge),
+    sget(S.grocery), sget(S.plan), sget(S.todos), sget(S.basket),
+    sget(S.hist), sget(S.prefs), sget(S.meta)
+  ]);
+  mine      = _mine || [];
+  overrides = _over || {};
+  removed   = _rem  || [];
+  fridge    = _fri  || [];
+  grocery   = _gro  || [];
+  plan      = _pl   || {};
+  todos     = _td   || [];
+  basket    = _bk   || {};
+  shopHist  = _hs   || {};
+  foodPrefs = _pr   || {};
 
   /* one-time lift from the old single-blob store into the split stores */
   if(!meta && !API_BASE){
@@ -2631,14 +2707,30 @@ async function doReset(){
   }
   await sset(S.meta,{version:APP_VERSION,seen:(meta&&meta.seen)||new Date().toISOString()});
 
-  rebuild();
+  /* Self-heal: an earlier build could save a *guessed* icon into a recipe's
+     override (e.g. Mayak Eggs -> icedcoffee). If a stored icon is exactly what
+     the guesser would pick, or points at an icon that no longer exists, drop it
+     so the icon shipped with the recipe shows through. Custom picks are kept. */
+  let healed=false;
+  seed().forEach(s=>{
+    const o=overrides[s.id];
+    if(o && o.icon && !o.img && o.icon!==s.icon && (o.icon===guessIcon(s) || !ART[o.icon])){
+      delete o.icon;
+      if(Object.keys(o).length===0) delete overrides[s.id];
+      healed=true;
+    }
+  });
+  if(healed) await saveRecipeStores();
+
   let dirty=false;
   recipes.forEach(r=>{ if(!r.img && r.icon && !ART[r.icon]){ r.icon=guessIcon(r); } });
   fridge.forEach(f=>{ if(!f.addedAt){ f.addedAt=todayISO(); dirty=true; } });
   if(dirty) await saveFridge();
 
-  currentId=recipes[0]?.id??null;
-  document.body.dataset.view='detail';
+  /* Merge the saved data in and repaint. Keep the user's place if they've
+     already tapped into something during the brief load. */
+  rebuild();
+  if(currentId==null) currentId=recipes[0]?.id??null;
   render();
  }catch(e){
   /* whatever went wrong, still show the app rather than a blank page */
