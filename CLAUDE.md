@@ -7,7 +7,8 @@ Single-page recipe, fridge, meal-plan and grocery-shopping app. Deployed on Verc
 ```
 index.html    the entire app — markup, CSS and JS in one file (~2,800 lines)
 api/kv.js     key-value store backing /api/kv
-data/         nine Deliveroo shop price lists (JSON) + boots_borehamwood_products.csv
+api/ai.js     server proxy for the Claude calls (photo intake, recipe paste)
+data/         shop price lists — `<slug>.csv` per shop (current), `<slug>.json` (older fallback)
 icons/        recipe icons — .webp (originals) and .png (newer)
 schema.sql
 ```
@@ -41,9 +42,29 @@ There is a self-heal for icons in `init()` that does exactly that.
 `sget` / `sset` wrap `/api/kv`, falling back to local storage when the API is down.
 Keys are in the `S` object. `sset` is the single choke point for every write.
 
+`hbs:menu` (`menu`) is a flat list of mix-and-match dishes: `{id, name, role, note}`
+where `role` is one of `carb` / `veg` / `meat` / `other`. It backs the "Mix & match
+menu" panel on the meal plan — tap a dish to write `role: name` into a day.
+
+### Meal-plan entries
+`plan[isoDate]` is an array of entries. Two shapes:
+- `{id, done}` — a recipe reference (rendered from `seed()`/`mine`).
+- `{note, done}` (no `id`) — a plain line the user typed. Stored verbatim; nothing
+  parses it. This is deliberately a free-text slot for Claude Code to read and act on.
+`renderPlan`, `renderHome`'s "Today", `renderNav`'s count and `#plan-to-list` all
+handle both shapes — check `p.id==null && p.note!=null` before treating one as a recipe.
+
 ### Rendering
-`render()` dispatches on `mode`. Each section has its own `renderX()`. Handlers are
-re-bound on every render — there is no framework.
+`render()` calls `renderNav()`, then `renderBody()` (the `mode` dispatch), then
+`shapeBalls()`. Each section has its own `renderX()`. Handlers are re-bound on every
+render — there is no framework.
+
+### Hash routing
+`syncHash()` uses `history.pushState` (not `location.hash =`) so the app's own
+navigation never fires `hashchange` and never bounces back through `applyHash`.
+`hashFor()` returns `null` while `editing` or `mode==='paste'` — those are transient
+states with no URL of their own, so the address bar stays on wherever you came from.
+Only real Back/Forward reaches the `hashchange` listener.
 
 ---
 
@@ -86,12 +107,24 @@ tagged with `opt` only show when that option is selected, and the selection is s
 with the batch calculator via `anchorOpt`. Quantities in the ingredient list and in
 `calc.options` must agree — they were out of sync before and nobody noticed.
 
-**Boots is not a Deliveroo shop.**
-It loads from CSV, not JSON, via `loadBootsProducts()`, keyed by `BOOTS_SLUG`. It must
-produce the same `{slug, store, items[]}` shape as `loadCatalogue()` or it loads and
-renders nothing. It is deliberately excluded from the fridge and grocery list — it's
-toiletries — while still counting toward the £15 minimum. The CSV has a UTF-8 BOM and
-both `unit_price` and `price_gbp` columns; match column names exactly.
+**Shop price lists: CSV is current, JSON is the fallback.**
+Each shop has `data/<slug>.csv` — the up-to-date export — and most also have an older
+`data/<slug>.json`. `loadCatalogue()` / `loadAllCatalogues()` / `loadBootsProducts()`
+try the CSV first (via `parseShopCsv`) and fall back to the JSON only if the CSV is
+missing or unparseable (e.g. Bayley & Sage has JSON only). Every path must produce the
+same `{slug, store, items:[{name,price,cat,size}]}` shape or the shop UI renders nothing.
+CSV header: `store?,category,subcategory,product_name,pack_size,unit_price,price_gbp,…`
+with a UTF-8 BOM — `parseShopCsv` strips the BOM, prefers `price_gbp` (never
+`unit_price`, which carries `£x/L` junk) and `subcategory` for the category. Boots
+tries `boots-borehamwood.csv` then the older `boots_borehamwood_products.csv`.
+
+**Boots is still not a food shop.**
+It's toiletries/pharmacy — deliberately excluded from the fridge and grocery list, but
+it still counts toward the £15 minimum. Keyed by `BOOTS_SLUG`, own loader
+(`loadBootsProducts`) because its slug has no `STORES` entry.
+
+**`data/*.csv` are the source of truth now.** The `.json` copies are stale; keep them
+only as the offline fallback. If you regenerate shop data, regenerate the CSVs.
 
 **Share mode.**
 `SHARE` is set from the URL hash (`#/share` or `#/share/<id>`). In share mode `sset`
@@ -124,9 +157,16 @@ a small picture in a visible square.
   are in the chat history if needed.
 - **A blackberry hojicha ice cream recipe** is still to be added; the source document
   came through empty.
-- **`/api/kv` has no authentication.** Any key is readable by anyone who knows the URL.
-  Share links make this more relevant. Fix: allowlist the three recipe keys for
-  unauthenticated GET, require a secret from an env var for everything else.
+- **`/api/kv` authentication.** Set `APP_TOKEN` in the environment to lock the store
+  down: with it set, writes and reads of anything other than the three public recipe
+  keys (`hbs:recipes.mine` / `.overrides` / `.removed`) require
+  `Authorization: Bearer <APP_TOKEN>`. The owner supplies it once via `?k=<token>` in
+  the app URL — the page stores it, strips it from the address bar, and sends it on
+  every call. Share links never carry it. With `APP_TOKEN` unset the store stays fully
+  open (dev only). Same token gates `/api/ai`.
+- **Photo intake / recipe paste need a server.** They POST to `/api/ai`, which adds
+  `x-api-key` from `ANTHROPIC_API_KEY` (env) and forwards to Anthropic — the key never
+  reaches the browser. Without a server (`API_BASE=''`) the feature can't work.
 - **`icons/beef-soup.png` is unused** — no recipe references it. It's a beef and radish
   soup, waiting for a matching recipe.
 - **The tin planner only appears on recipes with an anchor calculator** (currently just

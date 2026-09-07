@@ -13,7 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Karla:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
-  --ivory:#F5F1EB; --beige:#F3EBD8; --orange:#C9592B; --sage:#0A5743;
+  --ivory:#F5F1EB; --beige:#F3EBD8; --orange:#C9592B; --tomato:#C9592B; --sage:#0A5743;
   --crumb:#1C1C1C; --rye:#4A4A4A; --taupe:#DDD6CE;
   --display:'Source Serif 4',Georgia,serif;
   --body:'Karla',system-ui,-apple-system,sans-serif;
@@ -84,6 +84,8 @@ button{cursor:pointer}
 .ball{background:var(--ivory);border:2.5px solid var(--crumb);border-radius:50% 47% 53% 50%/50% 53% 47% 50%;min-width:48px;padding:7px 11px;font-family:var(--mono);font-size:13px}
 .ball:hover{background:#fdfbf7}
 .ball[aria-pressed="true"]{background:var(--orange);color:var(--ivory)}
+/* 5+ characters of label reads better as a rounded rectangle than the dough blob */
+.ball.rect{border-radius:var(--wob3)}
 .custom{width:76px;padding:7px 10px;background:var(--ivory);border:2.5px solid var(--crumb);border-radius:var(--wob3);font-family:var(--mono);font-size:13px}
 .yield{margin-left:auto;font-family:var(--mono);font-size:13.5px;color:var(--rye)}
 .yield b{color:var(--sage);font-weight:500}
@@ -94,7 +96,7 @@ button{cursor:pointer}
 .ing-list,.steps{list-style:none;margin:0;padding:0}
 .steps{counter-reset:step}
 /* shared, read-only view: hide everything that leads to or edits the owner's data */
-body.shared #nav, body.shared #shelf, body.shared .back-only, body.shared #logo{display:none!important}
+body.shared .shelf, body.shared .back-only, body.shared #logo{display:none!important}
 body.shared .owner-only{display:none!important}
 body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
 .tick{width:100%;display:flex;gap:12px;align-items:flex-start;text-align:left;background:none;border:0;padding:7px 6px 7px 0;border-radius:9px}
@@ -260,6 +262,7 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
 .rgrid .gs{background:var(--beige);text-align:center;font-family:var(--mono);font-size:12px;
   letter-spacing:.08em;text-transform:lowercase;width:78px;white-space:nowrap}
 .rgrid .gs.final{background:var(--sage);color:var(--ivory)}
+.rgrid .gs.pad{background:transparent;border-color:var(--taupe)}
 .plan-day.open{grid-column:1/-1;background:var(--beige)}
 .daypick{margin-top:8px}
 .daypick .search{padding:8px 12px;font-size:13.5px;margin-bottom:6px}
@@ -483,7 +486,11 @@ window.addEventListener('error',function(e){
    it did not touch. Set API_BASE to '/api/kv' after deploying to Vercel and
    everything below moves to the database with no other change.            */
 const API_BASE = '/api/kv';                    /* '' = this device · '/api/kv' = server */
-const APP_VERSION = 6;                  /* bump when shipping new seed recipes  */
+/* Photo intake and the paste importer call Claude through a small server proxy
+   (api/ai.js) so the API key never reaches the browser. The direct endpoint is
+   only a fallback for running with no server, where the feature cannot work.  */
+const AI_ENDPOINT = API_BASE ? '/api/ai' : 'https://api.anthropic.com/v1/messages';
+const APP_VERSION = 7;                  /* bump when shipping new seed recipes  */
 
 const S = {
   mine:      'hbs:recipes.mine',        /* recipes you created                  */
@@ -493,6 +500,7 @@ const S = {
   grocery:   'hbs:grocery',
   plan:      'hbs:plan',
   todos:     'hbs:todos',
+  menu:      'hbs:menu',                /* mix-and-match dishes by role (carb/veg/meat) */
   basket:    'hbs:shop.basket',
   hist:      'hbs:shop.history',
   prefs:     'hbs:foodprefs',
@@ -501,6 +509,28 @@ const S = {
 const LEGACY='recipe-ledger:v1';
 
 let apiDown=false;
+
+/* Owner's write secret. Never embedded in the page — passed once as ?k=… in the
+   URL, then remembered on this device and sent on every API call. Share links
+   never carry it; the server only needs it for writes and for reading anything
+   other than the three public recipe keys. */
+const AUTH=(function(){
+  try{
+    const u=new URL(location.href);
+    const k=u.searchParams.get('k');
+    if(k){
+      localStorage.setItem('hbs:k',k);
+      u.searchParams.delete('k');
+      history.replaceState(null,'',u.pathname+u.search+u.hash);
+    }
+    return localStorage.getItem('hbs:k')||'';
+  }catch(e){ return ''; }
+})();
+function apiHeaders(extra){
+  const h=Object.assign({},extra||{});
+  if(AUTH) h.Authorization='Bearer '+AUTH;
+  return h;
+}
 
 /* ---------- share mode ----------------------------------------------------
    Reached via #/share (whole collection) or #/share/<recipe-id> (one recipe).
@@ -516,7 +546,7 @@ function localSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); return t
 async function sget(k){
   if(API_BASE && !apiDown){
     try{
-      const r=await fetch(API_BASE+'?key='+encodeURIComponent(k));
+      const r=await fetch(API_BASE+'?key='+encodeURIComponent(k),{headers:apiHeaders()});
       if(r.status===404||r.status===400) return null;   /* never written, or not a key we store */
       if(!r.ok) throw new Error('HTTP '+r.status);
       const j=await r.json();
@@ -538,7 +568,7 @@ async function sset(k,v){
   if(SHARE) return;
   if(API_BASE && !apiDown){
     try{
-      const r=await fetch(API_BASE,{method:'PUT',headers:{'Content-Type':'application/json'},
+      const r=await fetch(API_BASE,{method:'PUT',headers:apiHeaders({'Content-Type':'application/json'}),
         body:JSON.stringify({key:k,value:v})});
       if(!r.ok) throw new Error('HTTP '+r.status);
       return true;
@@ -644,11 +674,17 @@ function lifeDays(name,shelf){
   const f=foodInfo(name);
   return f&&f.life[shelf]!=null?f.life[shelf]:null;
 }
+/* Local calendar date as YYYY-MM-DD. Never via toISOString(): that is UTC, so
+   on any positive offset (the UK included, under BST) local midnight lands on
+   the previous day and every date in the app quietly shifts by one. */
+function isoLocal(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
 function sugDate(name,shelf){
   const d=lifeDays(name,shelf);
   if(d==null) return '';
   const t=new Date(); t.setDate(t.getDate()+Math.min(d,13));
-  return d>13?'':t.toISOString().slice(0,10);   /* beyond the 2-week calendar → treat as no date */
+  return d>13?'':isoLocal(t);   /* beyond the 2-week calendar → treat as no date */
 }
 function unitsFor(name){ const f=foodInfo(name); return f?f.units.concat(GENERIC_UNITS.filter(u=>!f.units.includes(u))):GENERIC_UNITS; }
 function shelfFor(name){ const f=foodInfo(name); return f?f.shelf:'Fridge'; }
@@ -967,17 +1003,33 @@ function seed(){return [
     'For a swirled pint: while second base churns, store first in freezer. When both ready, alternate flavors and swirl together in one container.',
     'Transfer to freezer. To serve at original consistency, remove 5-10 minutes before eating. Makes approximately 2 pints (950ml).'
   ]
-}
+},
+{id:'bibimbap',name:'Bibimbap',icon:'chickenrice',cuisine:'Korean',tags:['Main','Assembly','Rice'],kcal:2400,
+ blurb:'Not a fixed recipe — warm rice under whatever banchan are around, a meat, a fried egg and gochujang. Build it from the carb / veg side / meat menu on the meal plan.',
+ makesQty:2,makesUnit:'servings',
+ ingredients:[{qty:null,unit:'',name:'Carb:'},
+  {qty:300,unit:'g',name:'Short-grain rice, cooked'},
+  {qty:null,unit:'',name:'Veg sides — pick three or four:'},
+  {qty:null,unit:'',name:'Sigeumchi-namul, kongnamul, musaengchae, kimchi, gosari, seasoned courgette'},
+  {qty:null,unit:'',name:'Meat:'},
+  {qty:200,unit:'g',name:'Bulgogi, or minced beef fried with soy and sugar'},
+  {qty:null,unit:'',name:'To finish:'},
+  {qty:2,unit:'',name:'Eggs, fried'},{qty:null,unit:'',name:'Gochujang, sesame oil, toasted sesame seeds'}],
+ method:['Warm the rice into deep bowls.',
+  'Arrange the veg sides around the edge and the meat in the middle.',
+  'Fry an egg per bowl, sunny side up, and set it on top.',
+  'Serve with gochujang and a drizzle of sesame oil — mix it all together at the table.']}
 ];}
 
 /* ============ state ============ */
 let mine=[], overrides={}, removed=[], recipes=[];
-let fridge=[], grocery=[], plan={}, todos=[];
+let fridge=[], grocery=[], plan={}, todos=[], menu=[];
 let currentId=null, scale=1, editing=false, draft=null;
 let mode='home', cookOff=false, editItem=null, putAway=null, pickDay=null;
 let formDate='', photoReview=null, photoBusy=false, armed=null, pasteBusy=false, pasteText='';
 let calcCoco=null, refocus=null, searchQ='', pickQ='', todoText='', tagFilter='';
 let gridView=false;
+let userNavigated=false;   /* true once the user has actively opened a section or recipe */
 let eggAir=null, eggStart=4, eggTarget=65, eggSize=57;
 let anchorOpt=null;
 /* Tin planner: the containers you are actually going to pour into.
@@ -991,8 +1043,10 @@ let putAwayList=null, basketQ='';
 const STORES=[
   ['waitrose-barnet','Waitrose Barnet',1],['longdan','Longdan',1],['morrisons','Morrisons',1],
   ['waitrose-kentish-town','Waitrose Kentish Town',0],['sainsbury-s-local',"Sainsbury's Local",0],
+  ['sainsburys-stanmore',"Sainsbury's Stanmore",0],
   ['co-op','Co-op',0],['asda-colindale','Asda Colindale',0],['asda-express','Asda Express',0],
   ['bayley-sage','Bayley & Sage',0]];
+function storeName(slug){ const s=STORES.find(x=>x[0]===slug); return s?s[1]:slug; }
 const MIN_ORDER=15;
 const BOOTS_SLUG='boots';  /* Boots: searchable but not in baskets/fridge */
 const SHELVES=['Fridge','Freezer','Cupboard'];
@@ -1024,20 +1078,30 @@ function diffFromSeed(id,data){
 const saveRecipeStores=async()=>{ await sset(S.mine,mine); await sset(S.overrides,overrides); await sset(S.removed,removed); };
 const saveFridge=()=>sset(S.fridge,fridge), saveGrocery=()=>sset(S.grocery,grocery),
       savePlan=()=>sset(S.plan,plan), savePrefs=()=>sset(S.prefs,foodPrefs),
-      saveTodos=()=>sset(S.todos,todos), saveBasket=()=>sset(S.basket,basket), saveHist=()=>sset(S.hist,shopHist);
+      saveTodos=()=>sset(S.todos,todos), saveBasket=()=>sset(S.basket,basket), saveHist=()=>sset(S.hist,shopHist),
+      saveMenu=()=>sset(S.menu,menu);
 const save=saveRecipeStores;
+
+/* Mix-and-match menu: dishes tagged by the part of the plate they cover, so a
+   bibimbap-style meal is "pick a carb, a couple of veg sides and a meat".
+   Fixed order so the panel doesn't reshuffle as items are added. */
+const ROLES=[['carb','Carb'],['veg','Veg side'],['meat','Meat'],['other','Other']];
+function roleLabel(k){ const r=ROLES.find(x=>x[0]===k); return r?r[1]:k; }
 
 function banner(m){ $('#banner-slot').innerHTML='<div class="banner">'+m+'</div>'; }
 let undoSnap=null;
 function snapshot(){ undoSnap={mine:structuredClone(mine),overrides:structuredClone(overrides),
   removed:[...removed],fridge:structuredClone(fridge),grocery:structuredClone(grocery),
-  plan:structuredClone(plan),todos:structuredClone(todos),basket:structuredClone(basket)}; }
+  plan:structuredClone(plan),todos:structuredClone(todos),basket:structuredClone(basket),
+  shopHist:structuredClone(shopHist),menu:structuredClone(menu)}; }
 async function doUndo(){
   if(!undoSnap) return;
   ({mine,overrides,fridge,grocery,plan,todos}=structuredClone(undoSnap)); removed=[...undoSnap.removed];
   if(undoSnap.basket) basket=structuredClone(undoSnap.basket);
+  if(undoSnap.shopHist) shopHist=structuredClone(undoSnap.shopHist);
+  if(undoSnap.menu) menu=structuredClone(undoSnap.menu);
   undoSnap=null; rebuild();
-  await saveRecipeStores(); await saveFridge(); await saveGrocery(); await savePlan(); await saveTodos(); await saveBasket();
+  await saveRecipeStores(); await saveFridge(); await saveGrocery(); await savePlan(); await saveTodos(); await saveBasket(); await saveHist(); await saveMenu();
   if(currentId&&!find(currentId)) currentId=recipes[0]?.id??null;
   render(); toast('Put back');
 }
@@ -1081,7 +1145,7 @@ function perServing(r){
 }
 function prettyDay(iso){ const d=new Date(iso+'T00:00:00');
   return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+' '+d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]; }
-function todayISO(){ const t=new Date(); t.setHours(0,0,0,0); return t.toISOString().slice(0,10); }
+function todayISO(){ return isoLocal(new Date()); }
 function norm(s){return String(s||'').toLowerCase().replace(/[^a-z ]/g,' ').replace(/\s+/g,' ').trim();}
 const ASSUMED=['water','salt','pepper','ice'];
 const ALIAS={'scallion':'spring onion','spring onion':'scallion','cilantro':'coriander','coriander':'cilantro','chilli':'chili','chili':'chilli','eggplant':'aubergine','aubergine':'eggplant','zucchini':'courgette','courgette':'zucchini'};
@@ -1158,7 +1222,7 @@ function calHTML(sel,sug,idPrefix){
   const t=new Date(); t.setHours(0,0,0,0);
   for(let i=0;i<14;i++){
     const d=new Date(t); d.setDate(t.getDate()+i);
-    const iso=d.toISOString().slice(0,10);
+    const iso=isoLocal(d);
     const wd=['Su','Mo','Tu','We','Th','Fr','Sa'][d.getDay()];
     cells.push(`<button type="button" data-cal="${iso}" data-sel="${sel===iso?1:0}" data-sug="${sug===iso?1:0}"><small>${wd}</small>${d.getDate()}</button>`);
   }
@@ -1246,11 +1310,11 @@ function renderRecipes(){
   s.oninput=()=>{ searchQ=s.value; refocus='search'; render(); };
   pane.querySelectorAll('.tagpill').forEach(b=>b.onclick=()=>{ tagFilter=b.dataset.tag||''; render(); });
   const nb=$('#new-btn'); if(nb) nb.onclick=()=>{
-    editing=true; mode='recipe'; cookOff=false;
+    userNavigated=true; editing=true; mode='recipe'; cookOff=false;
     draft={_isNew:true,name:'',blurb:'',prep:'',icon:'croissant',img:null,cuisine:'',tags:[],kcal:null,makesQty:2,makesUnit:'servings',ingredients:[{qty:null,unit:'',name:''}],method:[]};
     render();
   };
-  const pb=$('#paste-btn'); if(pb) pb.onclick=()=>{ mode='paste'; editing=false; draft=null; pasteBusy=false; render(); };
+  const pb=$('#paste-btn'); if(pb) pb.onclick=()=>{ userNavigated=true; mode='paste'; editing=false; draft=null; pasteBusy=false; render(); };
   pane.querySelectorAll('.tile[data-id]').forEach(b=>b.onclick=()=>openRecipe(b.dataset.id));
   if(refocus==='search'){ refocus=null; const n=$('#search'); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } }
 }
@@ -1590,7 +1654,11 @@ function wireAnchor(r){
   const c=r.calc;
   const set=g=>{ scale=Math.max(0.05,g/c.base); render(); };
   pane.querySelectorAll('[data-anchor]').forEach(b=>b.onclick=()=>set(Number(b.dataset.anchor)));
-  pane.querySelectorAll('[data-aopt]').forEach(b=>b.onclick=()=>{ anchorOpt=b.dataset.aopt; render(); });
+  pane.querySelectorAll('[data-aopt]').forEach(b=>b.onclick=()=>{
+    anchorOpt=b.dataset.aopt;
+    ticked.ing.clear();        /* the visible opt rows change, so old ticks no longer line up */
+    render();
+  });
   const el=$('#a-have');
   if(el){ el.oninput=()=>{ if(!el.value) return; const v=Number(el.value);
     if(v>0){ scale=v/c.base; refocus='a-have'; render(); } };
@@ -1677,7 +1745,7 @@ function eggHTML(r){
 function wireEgg(r){
   const re=()=>{ const el=pane.querySelector('.calc'); if(!el) return;
     const keep=document.activeElement&&document.activeElement.id;
-    el.outerHTML=eggHTML(r); wireEgg(r);
+    el.outerHTML=eggHTML(r); wireEgg(r); shapeBalls();
     if(keep){ const n=$('#'+keep); if(n){ n.focus(); if(n.setSelectionRange) n.setSelectionRange(n.value.length,n.value.length); } } };
   pane.querySelectorAll('[data-estart]').forEach(b=>b.onclick=()=>{ eggStart=Number(b.dataset.estart); re(); });
   pane.querySelectorAll('[data-eair]').forEach(b=>b.onclick=()=>{ eggAir=Number(b.dataset.eair); re(); });
@@ -1694,9 +1762,14 @@ function wireEgg(r){
    matching ingredient names against the method text, which is a guess — so
    anything it cannot place is grouped at the end rather than hidden.       */
 function stageLabel(step){
-  const w=String(step).trim().split(/[\s,]+/);
-  let v=w[0].replace(/[^A-Za-z]/g,'');
-  if(/^(put|add|tip|pour)$/i.test(v)&&w[1]) v=v;
+  const w=String(step).trim().split(/[\s,]+/).map(x=>x.replace(/[^A-Za-z]/g,'')).filter(Boolean);
+  let v=w[0]||'';
+  /* "Add the cabbage…" reads better as "cabbage" than "add" — skip the vague
+     verb and any article straight after it. */
+  if(/^(put|add|tip|pour|mix|stir|combine|fold|whisk)$/i.test(v)){
+    const nxt=w.slice(1).find(x=>!/^(the|a|an|in|into|to|of|it|them|all|together|through)$/i.test(x));
+    if(nxt) v=nxt;
+  }
   return v.toLowerCase();
 }
 function buildGrid(r){
@@ -1727,14 +1800,14 @@ function buildGrid(r){
 function gridHTML(r){
   const g=buildGrid(r);
   if(!g) return `<p class="empty">This one does not fall into neat stages — the steps view is clearer for it.</p>`;
-  const seen=new Set();
   return `<div class="gridwrap"><table class="rgrid">
     ${g.rows.map((row,n)=>`<tr>
       <td class="gi"><span class="qty">${row.ing.qty!=null?esc(fmt(row.ing.qty*scale))+'<span class="unit">'+esc(row.ing.unit||'')+'</span>':'—'}</span>
         <span class="gname">${esc(row.ing.name)}</span></td>
-      ${g.cols.map((c,ci)=>{
-        if(n===0){ seen.add(ci); return `<td class="gs ${c.final?'final':''}" rowspan="${c.span}">${esc(c.label)}</td>`; }
-        return '';
+      ${g.cols.map(c=>{
+        if(n===0) return `<td class="gs ${c.final?'final':''}" rowspan="${c.span}">${esc(c.label)}</td>`;
+        if(n>=c.span) return '<td class="gs pad"></td>';   /* bracket closed above — keep the column aligned */
+        return '';                                          /* still under the row-0 rowspan */
       }).join('')}
     </tr>`).join('')}
   </table>
@@ -1837,10 +1910,11 @@ async function onSave(){
 
 /* ============ fridge intake (shared by form, put-away, photo) ============ */
 function addToFridge({name,qty,shelf,until,staple}){
-  const existing=fridge.find(f=>{
-    const a=norm(f.name), b=norm(name);
-    return a.length>=3&&b.length>=3&&(a.includes(b)||b.includes(a));
-  });
+  /* Merge only with the *same* item (plurals allowed) — not any stored name that
+     merely contains this one, which used to fold "red onion" into "onion" and
+     "chicken stock" into "chicken". */
+  const nk=sing(norm(name));
+  const existing=nk.length>=3?fridge.find(f=>sing(norm(f.name))===nk):null;
   if(existing){
     if(qty) existing.qty=qty;
     existing.shelf=shelf||existing.shelf;
@@ -2027,8 +2101,8 @@ async function handlePhoto(file){
       r.onerror=()=>rej(new Error('read'));
       r.readAsDataURL(file);
     });
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',headers:{'Content-Type':'application/json'},
+    const resp=await fetch(AI_ENDPOINT,{
+      method:'POST',headers:apiHeaders({'Content-Type':'application/json'}),
       body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,
         messages:[{role:'user',content:[
           {type:'image',source:{type:'base64',media_type:file.type||'image/jpeg',data:b64}},
@@ -2136,7 +2210,7 @@ function renderGrocery(){
 function renderPlan(){
   const t=new Date(); t.setHours(0,0,0,0);
   const days=[];
-  for(let i=0;i<14;i++){ const d=new Date(t); d.setDate(t.getDate()+i); days.push(d.toISOString().slice(0,10)); }
+  for(let i=0;i<14;i++){ const d=new Date(t); d.setDate(t.getDate()+i); days.push(isoLocal(d)); }
   const urgent=urgentItems();
   const sug=urgent.map(f=>({f,rs:recipesUsing(f)})).filter(x=>x.rs.length)[0];
 
@@ -2152,6 +2226,12 @@ function renderPlan(){
       const d=new Date(iso+'T00:00:00');
       const label=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+' '+d.getDate();
       const meals=(plan[iso]||[]).map((p,idx)=>{
+        if(p.note!=null && p.id==null){   /* a plain written line — stored as-is for Claude Code to read */
+          return `<div class="plan-meal ${p.done?'done':''}">
+            <button class="tick-sm" data-note-done="${iso}|${idx}" aria-pressed="${!!p.done}"><span class="box"></span></button>
+            <span class="pm-name" contenteditable="true" data-note-edit="${iso}|${idx}">${esc(p.note)}</span>
+            <button class="row-x" style="font-size:14px" data-unplan="${iso}|${idx}" aria-label="Remove">×</button></div>`;
+        }
         const r=find(p.id); if(!r) return '';
         const ps=perServing(r);
         return `<div class="plan-meal ${p.done?'done':''}">
@@ -2164,7 +2244,8 @@ function renderPlan(){
         <h5>${label}${iso===todayISO()?' · today':''}</h5>${meals}
         <button class="plan-add" data-pick="${iso}">${open?'× close':'+ plan a meal'}</button>
         ${open?`<div class="daypick">
-          <input class="search" id="pick-q" type="search" placeholder="Search the drawer" autocomplete="off" value="${esc(pickQ)}">
+          <input class="search" id="pick-q" type="search" placeholder="Search a recipe, or just write a line" autocomplete="off" value="${esc(pickQ)}">
+          ${pickQ.trim()?`<button class="plan-add" style="border-style:solid;margin-top:6px" id="pick-note">+ Write “${esc(pickQ.trim())}” in for this day</button>`:''}
           <ul class="cook-list">${recipes.filter(x=>!pickQ||x.name.toLowerCase().includes(pickQ.toLowerCase())).slice(0,8).map(x=>{
             const mi=matchInfo(x);
             return `<li><button data-assign="${esc(x.id)}"><span class="thumb">${art(x)}</span>
@@ -2172,6 +2253,31 @@ function renderPlan(){
               <span class="score">${mi.total?(mi.missing.length?'short '+mi.missing.length:'ready'):''}</span></button></li>`;}).join('')}</ul>
         </div>`:''}
       </div>`;}).join('')}</div>
+
+    <div class="useup" style="margin-top:22px">
+      <h4>Mix &amp; match menu</h4>
+      <p class="hint" style="margin:0 0 10px">Dishes you rotate through, by the part of the plate they cover — a bibimbap-style meal is a carb, a couple of veg sides and a meat. ${pickDay?'Tap one to write it into the open day.':'Open a day above, then tap — or “+ today”.'}</p>
+      ${ROLES.map(([key,label])=>{
+        const items=menu.filter(m=>m.role===key);
+        if(!items.length) return '';
+        return `<div style="margin-bottom:10px">
+          <span class="picker-label" style="margin:0 0 5px">${esc(label)}</span>
+          <div class="usual-chips">${items.map(m=>`
+            <button class="ball" data-menuadd="${esc(m.id)}">${esc(m.name)}${m.note?` <span class="n">${esc(m.note)}</span>`:''}</button>`).join('')}
+          </div></div>`;
+      }).join('')}
+      ${menu.length?`<ul class="items" style="margin-top:4px">${ROLES.flatMap(([key,label])=>menu.filter(m=>m.role===key)).map(m=>`
+        <li><span class="item-name">${esc(m.name)}</span>
+          <span class="chip">${esc(roleLabel(m.role))}</span>
+          <button class="row-x" data-menurm="${esc(m.id)}" aria-label="Remove ${esc(m.name)}">×</button></li>`).join('')}</ul>`
+        :`<p class="home-none" style="margin:0 0 8px">Nothing on the menu yet. Add the dishes you make often below.</p>`}
+      <div class="add-item" style="grid-template-columns:1fr 130px auto;margin-top:10px">
+        <label><span class="picker-label">Dish</span><input id="menu-name" placeholder="Sigeumchi-namul" autocomplete="off"></label>
+        <label><span class="picker-label">Role</span><select id="menu-role">${ROLES.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('')}</select></label>
+        <button class="pill solid" id="menu-add" style="align-self:end;padding:10px 14px">Add</button>
+      </div>
+    </div>
+
     <div class="cook-actions" style="margin-top:20px">
       <button class="link-btn" id="plan-to-list">Send the plan's missing ingredients to the grocery list</button>
     </div>
@@ -2186,12 +2292,46 @@ function renderPlan(){
     plan[pickDay]=plan[pickDay]||[]; plan[pickDay].push({id:b.dataset.assign,done:false});
     pickDay=null; pickQ=''; await savePlan(); render(); toast('Planned');
   });
+  const pn=$('#pick-note'); if(pn) pn.onclick=async()=>{
+    const v=pickQ.trim(); if(!v||!pickDay) return;
+    plan[pickDay]=plan[pickDay]||[]; plan[pickDay].push({note:v,done:false});
+    pickDay=null; pickQ=''; await savePlan(); render(); toast('Written in');
+  };
   const pcx=$('#pick-cancel'); if(pcx) pcx.onclick=()=>{ pickDay=null; render(); };
   pane.querySelectorAll('[data-unplan]').forEach(b=>b.onclick=async()=>{
     snapshot(); const [iso,idx]=b.dataset.unplan.split('|');
     plan[iso].splice(+idx,1); if(!plan[iso].length) delete plan[iso];
-    await savePlan(); render(); toast('Unplanned', true);
+    await savePlan(); render(); toast('Removed', true);
   });
+  pane.querySelectorAll('[data-note-done]').forEach(b=>b.onclick=async()=>{
+    const [iso,idx]=b.dataset.noteDone.split('|'); const p=plan[iso]&&plan[iso][+idx];
+    if(!p) return; p.done=!p.done; await savePlan(); render();
+  });
+  pane.querySelectorAll('[data-note-edit]').forEach(el=>{
+    el.onblur=async()=>{ const [iso,idx]=el.dataset.noteEdit.split('|'); const arr=plan[iso];
+      if(!arr||!arr[+idx]) return; const v=el.textContent.trim();
+      if(!v){ arr.splice(+idx,1); if(!arr.length) delete plan[iso]; }
+      else if(v!==arr[+idx].note){ arr[+idx].note=v; } else return;
+      await savePlan(); render(); };
+    el.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); el.blur(); } };
+  });
+  pane.querySelectorAll('[data-menuadd]').forEach(b=>b.onclick=async()=>{
+    const m=menu.find(x=>x.id===b.dataset.menuadd); if(!m) return;
+    const day=pickDay||todayISO();
+    plan[day]=plan[day]||[]; plan[day].push({note:roleLabel(m.role).toLowerCase()+': '+m.name,done:false});
+    if(pickDay) pickDay=null;
+    await savePlan(); render(); toast('Added to '+(day===todayISO()?'today':prettyDay(day)));
+  });
+  pane.querySelectorAll('[data-menurm]').forEach(b=>b.onclick=async()=>{
+    menu=menu.filter(m=>m.id!==b.dataset.menurm); await saveMenu(); render();
+  });
+  const madd=$('#menu-add'); if(madd) madd.onclick=async()=>{
+    const nm=$('#menu-name'); const name=nm.value.trim(); if(!name){ nm.focus(); return; }
+    menu.push({id:'m'+Date.now()+Math.random().toString(36).slice(2,6),name,role:$('#menu-role').value,note:''});
+    await saveMenu(); refocus='menu-name'; render();
+  };
+  const mnm=$('#menu-name'); if(mnm){ mnm.onkeydown=e=>{ if(e.key==='Enter') madd.click(); };
+    if(refocus==='menu-name'){ refocus=null; mnm.focus(); } }
   pane.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{ openRecipe(b.dataset.open); });
   const sp=$('#sug-plan'); if(sp) sp.onclick=async()=>{
     const t2=todayISO(); plan[t2]=plan[t2]||[]; plan[t2].push({id:sug.rs[0].id,done:false});
@@ -2218,7 +2358,7 @@ function renderHome(){
   const d=new Date(); const hr=d.getHours();
   const greet=hr<11?'Morning':hr<17?'Afternoon':'Evening';
   const urgent=urgentItems();
-  const today=(plan[t0]||[]).map(p=>({p,r:find(p.id)})).filter(x=>x.r);
+  const today=(plan[t0]||[]).map(p=>({p,r:find(p.id)})).filter(x=>x.r||x.p.note!=null);
   const cook=recipes.map(r=>({r,mi:matchInfo(r),urg:usedItems(r).filter(f=>urgent.includes(f)).length}))
     .filter(x=>x.mi.have.length>0)
     .sort((a,b)=>b.urg-a.urg||a.mi.missing.length-b.mi.missing.length).slice(0,3);
@@ -2272,11 +2412,12 @@ function renderHome(){
 
     <section class="home-block">
       <h3 class="home-h">Today</h3>
-      ${today.length?`<ul class="home-today">${today.map(x=>`
+      ${today.length?`<ul class="home-today">${today.map(x=>x.r?`
         <li class="${x.p.done?'done':''}"><span class="ht-art">${art(x.r)}</span>
           <button class="link-btn ht-name" data-open="${esc(x.r.id)}">${esc(x.r.name)}</button>
           ${perServing(x.r)?`<span class="item-qty">${perServing(x.r)} kcal a serving</span>`:''}
-          ${x.p.done?'<span class="chip">cooked</span>':''}</li>`).join('')}</ul>`
+          ${x.p.done?'<span class="chip">cooked</span>':''}</li>`
+        :`<li class="${x.p.done?'done':''}"><span class="ht-name">${esc(x.p.note)}</span>${x.p.done?' <span class="chip">done</span>':''}</li>`).join('')}</ul>`
       :`<p class="home-none">Nothing planned. <button class="link-btn" data-go="plan">Plan something</button></p>`}
       ${gN?`<p class="home-none" style="margin-top:10px">${gN} thing${gN===1?'':'s'} on the grocery list. <button class="link-btn" data-go="grocery">Open it</button></p>`:''}
     </section>
@@ -2350,13 +2491,24 @@ function unitPrice(price,size){
 async function loadAllCatalogues(){
   if(allCat||allBusy) return;
   allBusy=true; render();
+  const base=API_BASE?'/data/':'data/';
   const out={};
   await Promise.all(STORES.map(async ([slug,name])=>{
     try{
-      const path=API_BASE?'/data/'+slug+'.json':'data/'+slug+'.json';
-      const r=await fetch(path); if(!r.ok) return;
-      const j=await r.json();
-      out[slug]=j.items.map(a=>({name:a[0],price:a[1],cat:a[2],size:a[3],slug,store:j.store}));
+      let items=null;
+      /* the CSV export is the current data; the JSON is a fallback for stores
+         not re-exported yet (e.g. Bayley & Sage) */
+      try{
+        const rc=await fetch(base+slug+'.csv');
+        if(rc.ok){ const p=parseShopCsv(await rc.text());
+          if(p) items=p.items.map(i=>({...i,slug,store:p.store||name})); }
+      }catch(e){}
+      if(!items){
+        const r=await fetch(base+slug+'.json'); if(!r.ok) return;
+        const j=await r.json();
+        items=j.items.map(a=>({name:a[0],price:a[1],cat:a[2],size:a[3],slug,store:j.store}));
+      }
+      out[slug]=items;
     }catch(e){}
   }));
   allCat=Object.keys(out).length?out:null;
@@ -2392,9 +2544,6 @@ function unbump(slug,name,n){
   if(!e.a && !e.b) delete h[name];
 }
 let bootsCat=null;   /* cached Boots catalogue, loaded on demand from CSV */
-/* Boots is a plain CSV rather than a Deliveroo JSON price list, so it gets its
-   own loader — but it must produce the same {slug,store,items[]} shape that the
-   rest of the shop UI reads, otherwise it loads and then renders nothing. */
 function parseCsvLine(line){
   const out=[]; let cur='', q=false;
   for(let i=0;i<line.length;i++){
@@ -2405,32 +2554,48 @@ function parseCsvLine(line){
   }
   out.push(cur); return out.map(s=>s.trim());
 }
+/* Every shop's price list is now a CSV export; the JSON files are older copies
+   kept only as a fallback. One parser for all of them — Deliveroo shops and
+   Boots — producing the same {store, items:[{name,price,cat,size}]} the JSON
+   path produced. Header: store?,category,subcategory,product_name,pack_size,
+   unit_price,price_gbp,… with a UTF-8 BOM. Returns null if it isn't one. */
+function parseShopCsv(text){
+  const rows=String(text).replace(/^\uFEFF/,'').trim().split(/\r?\n/);
+  if(rows.length<2) return null;
+  const head=parseCsvLine(rows[0]).map(h=>h.toLowerCase());
+  const col=(...names)=>{ for(const n of names){ const i=head.indexOf(n); if(i>=0) return i; } return -1; };
+  const iName=col('product_name','name','product');
+  const iPrice=col('price_gbp','price');          /* exact — unit_price/was_price never win */
+  const iCat=col('subcategory','category');
+  const iSize=col('pack_size','size');
+  const iStore=col('store');
+  if(iName<0||iPrice<0) return null;               /* not a shop CSV — let the caller fall back */
+  let store='';
+  const items=[];
+  for(let r=1;r<rows.length;r++){
+    const c=parseCsvLine(rows[r]);
+    const name=(c[iName]||'').replace(/^"|"$/g,'').trim();
+    const price=parseFloat(String(c[iPrice]||'').replace(/[^0-9.]/g,''));
+    if(!name || isNaN(price)) continue;
+    if(iStore>=0 && c[iStore] && !store) store=c[iStore].trim();
+    items.push({name,price,cat:(c[iCat]||'').trim()||'Other',size:(c[iSize]||'').trim()});
+  }
+  return items.length?{store,items}:null;
+}
 async function loadBootsProducts(){
   if(shopCat && shopCat.slug===BOOTS_SLUG) return;
   if(bootsCat){ shopCat=bootsCat; render(); return; }
   shopBusy=true; shopErr=''; render();
+  const base=API_BASE?'/data/':'data/';
+  /* newest uniform export first, then the older products dump */
   try{
-    const path=API_BASE?'/data/boots_borehamwood_products.csv':'data/boots_borehamwood_products.csv';
-    const r=await fetch(path);
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const rows=(await r.text()).trim().split(/\r?\n/);
-    /* strip the UTF-8 BOM, or the first column name never matches */
-    const head=parseCsvLine(rows[0].replace(/^\uFEFF/,'')).map(h=>h.toLowerCase());
-    const col=(...names)=>{ for(const n of names){ const i=head.indexOf(n); if(i>=0) return i; } return -1; };
-    const iName=col('product_name','name','product');
-    const iPrice=col('price_gbp','price');          /* exact, so unit_price/was_price can't win */
-    const iCat=col('subcategory','category');
-    const iSize=col('pack_size','size');
-    if(iName<0||iPrice<0) throw new Error('unexpected CSV columns');
-    const items=[];
-    rows.slice(1).forEach(line=>{
-      const c=parseCsvLine(line);
-      const name=(c[iName]||'').replace(/^"|"$/g,'');
-      const price=parseFloat(String(c[iPrice]||'').replace(/[^0-9.]/g,''));
-      if(name && !isNaN(price)) items.push({name,price,cat:c[iCat]||'Boots',size:c[iSize]||''});
-    });
-    if(!items.length) throw new Error('no rows parsed');
-    bootsCat={slug:BOOTS_SLUG,store:'Boots Borehamwood',items};
+    let parsed=null;
+    for(const f of ['boots-borehamwood.csv','boots_borehamwood_products.csv']){
+      try{ const r=await fetch(base+f); if(!r.ok) continue;
+        const p=parseShopCsv(await r.text()); if(p){ parsed=p; break; } }catch(e){}
+    }
+    if(!parsed) throw new Error('no boots csv');
+    bootsCat={slug:BOOTS_SLUG,store:parsed.store||'Boots Borehamwood',items:parsed.items};
     shopCat=bootsCat;
   }catch(e){
     shopCat=null;
@@ -2441,12 +2606,22 @@ async function loadBootsProducts(){
 async function loadCatalogue(slug){
   if(shopCat&&shopCat.slug===slug) return;
   shopBusy=true; shopErr=''; render();
+  const base=API_BASE?'/data/':'data/';
   try{
-    const path=API_BASE?'/data/'+slug+'.json':'data/'+slug+'.json';
-    const r=await fetch(path);
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const j=await r.json();
-    shopCat={slug,store:j.store,items:j.items.map(a=>({name:a[0],price:a[1],cat:a[2],size:a[3]}))};
+    let cat=null;
+    /* CSV is the up-to-date export; JSON is the fallback for anything not re-exported */
+    try{
+      const rc=await fetch(base+slug+'.csv');
+      if(rc.ok){ const p=parseShopCsv(await rc.text());
+        if(p) cat={slug,store:p.store||storeName(slug),items:p.items}; }
+    }catch(e){}
+    if(!cat){
+      const r=await fetch(base+slug+'.json');
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const j=await r.json();
+      cat={slug,store:j.store,items:j.items.map(a=>({name:a[0],price:a[1],cat:a[2],size:a[3]}))};
+    }
+    shopCat=cat;
   }catch(e){
     shopCat=null;
     shopErr='The price list for this shop is not available here — add items by hand below and the £'+MIN_ORDER+' maths still works.';
@@ -2538,11 +2713,11 @@ function renderShop(){
       <button class="ball" data-scope="all" aria-pressed="${shopScope==='all'}">Every shop</button>
       <button class="ball" data-scope="store" aria-pressed="${shopScope==='store'}">${esc(shopStore==='boots'?'Boots Borehamwood':(shopCat?shopCat.store:'This shop'))} only</button>
       <button class="ball" data-scope="baskets" aria-pressed="${shopScope==='baskets'}">In my baskets</button>
-      ${shopScope==='all'?`<span class="calc-sync">${allBusy?'loading every price list…':(allCat?'all nine shops · cheapest per kilo first':'')}</span>`:''}
+      ${shopScope==='all'?`<span class="calc-sync">${allBusy?'loading every price list…':(allCat?'every shop · cheapest per kilo first':'')}</span>`:''}
     </div>
     ${shopBusy?`<p class="home-none">Loading the price list…</p>`:''}
     ${shopErr?`<div class="banner" style="margin-bottom:14px">${esc(shopErr)}</div>`:''}
-    <input class="search" id="shop-q" type="search" placeholder="${shopScope==='baskets'?'Search your baskets':'Search 29,000 products across every shop'}" autocomplete="off" value="${esc(shopQ)}">
+    <input class="search" id="shop-q" type="search" placeholder="${shopScope==='baskets'?'Search your baskets':'Search every shop'}" autocomplete="off" value="${esc(shopQ)}">
     ${results.length?(()=>{
       const groups=new Map();
       results.forEach(i=>{ const f=famOf(i.cat);
@@ -2591,7 +2766,7 @@ function renderShop(){
           <span class="r-price">£${i.price.toFixed(2)}</span></button></li>`).join('')}</ul>
         ${gResults.length>60?`<p class="hint">Showing the 60 best value of ${gResults.length} matches.</p>`:''}`;})()
       :(q.length>1&&allCat?`<p class="home-none" style="margin-top:10px">Nothing matching that in any shop.</p>`
-        :(allBusy?'':`<p class="home-none" style="margin-top:10px">Type at least two letters to compare across all nine shops.</p>`)))
+        :(allBusy?'':`<p class="home-none" style="margin-top:10px">Type at least two letters to compare across every shop.</p>`)))
      :''}
 
 
@@ -2766,7 +2941,7 @@ function renderShop(){
 function renderSettings(){
   const counts=[['Recipes',recipes.length],['In the fridge',fridge.length],
     ['On the grocery list',grocery.length],['Planned meals',Object.values(plan).reduce((a,v)=>a+v.length,0)],
-    ['To do',todos.length],['Baskets',Object.values(basket).reduce((a,v)=>a+v.length,0)]];
+    ['To do',todos.length],['Menu items',menu.length],['Baskets',Object.values(basket).reduce((a,v)=>a+v.length,0)]];
   pane.innerHTML=`<article class="card">
     <div class="card-head">
       <div style="flex:1;min-width:180px"><h2>Settings</h2>
@@ -2849,8 +3024,8 @@ function renderPaste(){
     if(!txt||pasteBusy){ $('#paste-text').focus(); return; }
     pasteText=txt; pasteBusy=true; render();
     try{
-      const resp=await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',headers:{'Content-Type':'application/json'},
+      const resp=await fetch(AI_ENDPOINT,{
+        method:'POST',headers:apiHeaders({'Content-Type':'application/json'}),
         body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:
           'Parse this recipe into JSON. Respond with ONLY the JSON object, no markdown fences, no preamble. Shape: {"name":string,"blurb":"one short sentence describing the dish, written in your own words","makesQty":number,"makesUnit":"servings or ml or pancake etc","kcal":integer estimate of total calories for the whole recipe,"ingredients":[{"qty":number or null,"unit":"tsp/Tbsp/cup/g/ml or empty","name":"specific ingredient name"}],"method":["each step rewritten concisely in your own words"]} . Use null qty for garnish/optional/free-text lines. Recipe text follows:\n\n'+txt}]})});
       const data=await resp.json();
@@ -2875,10 +3050,17 @@ function renderPaste(){
 }
 
 /* ============ render + wiring ============ */
-function openRecipe(id){
-  currentId=id; mode='recipe'; scale=1; editing=false; cookOff=false; draft=null;
-  calcCoco=null;
+/* Everything that must start fresh each time a recipe is opened. Shared by the
+   tile/handler path (openRecipe) and the Back/Forward path (applyHash) so both
+   reset scale, ticks and the calculators the same way. */
+function resetRecipeView(){
+  scale=1; cookOff=false; calcCoco=null; anchorOpt=null;
   ticked.ing.clear(); ticked.step.clear(); tins=null; tinMode='even';
+}
+function openRecipe(id){
+  userNavigated=true;
+  currentId=id; mode='recipe'; editing=false; draft=null;
+  resetRecipeView();
   document.body.dataset.view='detail'; render();
 }
 
@@ -2891,6 +3073,7 @@ let routing=false;                    /* guards against hashchange feedback loop
 
 function hashFor(){
   if(SHARE) return null;
+  if(editing||mode==='paste') return null;   /* transient states — leave the URL where it was */
   if(mode==='recipe'&&currentId) return '#/recipe/'+encodeURIComponent(currentId);
   if(mode==='home') return '#/';
   return ROUTES.includes(mode)?'#/'+mode:'#/';
@@ -2898,7 +3081,12 @@ function hashFor(){
 function syncHash(){
   if(SHARE) return;
   const h=hashFor();
-  if(h && location.hash!==h){ routing=true; location.hash=h; routing=false; }
+  if(!h || location.hash===h) return;
+  /* pushState changes the URL WITHOUT firing hashchange, so the app's own
+     navigation never bounces back through applyHash (which was clobbering the
+     editor and paste screens). Back/Forward still fires hashchange. */
+  try{ history.pushState(null,'',h); }
+  catch(e){ routing=true; location.hash=h; }
 }
 function applyHash(){
   if(SHARE) return;
@@ -2906,21 +3094,34 @@ function applyHash(){
   const m=h.match(/^recipe\/(.+)$/);
   if(m){
     const id=decodeURIComponent(m[1]);
-    if(find(id)){ currentId=id; mode='recipe'; editing=false; return; }
+    if(find(id)){ if(id!==currentId) resetRecipeView(); currentId=id; mode='recipe'; editing=false; return; }
   }
   const seg=h.split('/')[0];
   mode = ROUTES.includes(seg) ? seg : 'home';
   editing=false;
 }
 window.addEventListener('hashchange',()=>{
-  if(routing||SHARE) return;
+  if(SHARE) return;
+  if(routing){ routing=false; return; }   /* our own fallback write, not a real navigation */
+  userNavigated=true;
   applyHash(); render();
 });
 
+/* A ball carrying 5+ characters of text reads better as a rounded rectangle
+   than as the little dough-blob shape. Decided per button after every render. */
+function shapeBalls(){
+  pane.querySelectorAll('.ball').forEach(b=>{
+    b.classList.toggle('rect', (b.textContent||'').replace(/\s+/g,' ').trim().length>=5);
+  });
+}
 function render(){
   armed=null;
   syncHash();
   renderNav();
+  renderBody();
+  shapeBalls();
+}
+function renderBody(){
   if(mode==='fridge'&&!SHARE){ renderFridge(); return; }
   if(mode==='grocery'&&!SHARE){ renderGrocery(); return; }
   if(mode==='plan'&&!SHARE){ renderPlan(); return; }
@@ -2934,7 +3135,7 @@ function render(){
 
 $('#logo').innerHTML=`<img src="${LOGO}" alt="Half Baked Society">`;
 $('#logo').style.cursor='pointer'; $('#logo').title='Home';
-const goMode=m=>()=>{ mode=m; editing=false; draft=null; cookOff=false; putAway=null; pickDay=null; editItem=null; formDate='';
+const goMode=m=>()=>{ userNavigated=true; mode=m; editing=false; draft=null; cookOff=false; putAway=null; pickDay=null; editItem=null; formDate='';
   if(m!=='recipes'){ searchQ=''; tagFilter=''; }
   document.body.dataset.view='detail'; render(); };
 const on=(sel,ev,fn)=>{ const el=$(sel); if(el) el.addEventListener(ev,fn); };
@@ -2945,7 +3146,9 @@ $('#fridge-btn').onclick=goMode('fridge');
 $('#grocery-btn').onclick=goMode('grocery');
 $('#plan-btn').onclick=goMode('plan');
 $('#settings-btn').onclick=goMode('settings');
-$('#shop-btn').onclick=()=>{ mode='shop'; editing=false; draft=null; document.body.dataset.view='detail';
+$('#shop-btn').onclick=()=>{ userNavigated=true; mode='shop'; editing=false; draft=null;
+  cookOff=false; putAway=null; pickDay=null; editItem=null; formDate='';
+  document.body.dataset.view='detail';
   if(!shopCat) loadCatalogue(shopStore); else render(); };
 $('#photo-file').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(f) handlePhoto(f); };
 $('#doodle-file').onchange=e=>{
@@ -2967,7 +3170,7 @@ $('#doodle-file').onchange=e=>{
   e.target.value='';
 };
 function doBackup(){
-  const blob=new Blob([JSON.stringify({v:APP_VERSION,mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,basket,shopHist},null,2)],{type:'application/json'});
+  const blob=new Blob([JSON.stringify({v:APP_VERSION,mine,overrides,removed,fridge,grocery,plan,todos,menu,foodPrefs,basket,shopHist},null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='half-baked-'+todayISO()+'.json';
   a.click(); URL.revokeObjectURL(a.href);
@@ -2989,11 +3192,12 @@ $('#import-file').onchange=e=>{
       removed=Array.isArray(d.removed)?d.removed:[];
       if(d.fridge) fridge=d.fridge; if(d.grocery) grocery=d.grocery;
       if(d.plan) plan=d.plan; if(d.todos) todos=d.todos; if(d.foodPrefs) foodPrefs=d.foodPrefs;
+      if(d.menu) menu=d.menu;
       if(d.basket) basket=d.basket; if(d.shopHist) shopHist=d.shopHist;
       rebuild(); currentId=recipes[0]?.id??null;
   editing=false; mode='recipes';
       await saveRecipeStores(); await saveFridge(); await saveGrocery();
-      await savePlan(); await saveTodos(); await savePrefs();
+      await savePlan(); await saveTodos(); await savePrefs(); await saveMenu();
       render(); toast('Restored '+recipes.length+' recipes');
     }catch(err){ banner('That file is not a Half Baked backup. Pick the .json you downloaded from here.'); }
   };
@@ -3027,13 +3231,13 @@ async function doReset(){
      eleven sequential round-trips were the reason startup felt slow. */
   /* In share mode fetch ONLY the three recipe keys. The fridge, grocery list,
      meal plan, baskets and purchase history are never requested at all. */
-  const [_mine,_over,_rem,_fri,_gro,_pl,_td,_bk,_hs,_pr,meta] = SHARE
+  const [_mine,_over,_rem,_fri,_gro,_pl,_td,_bk,_hs,_pr,_mn,meta] = SHARE
     ? [...await Promise.all([sget(S.mine), sget(S.overrides), sget(S.removed)]),
-       null,null,null,null,null,null,null,null]
+       null,null,null,null,null,null,null,null,null]
     : await Promise.all([
         sget(S.mine), sget(S.overrides), sget(S.removed), sget(S.fridge),
         sget(S.grocery), sget(S.plan), sget(S.todos), sget(S.basket),
-        sget(S.hist), sget(S.prefs), sget(S.meta)
+        sget(S.hist), sget(S.prefs), sget(S.menu), sget(S.meta)
       ]);
   mine      = _mine || [];
   overrides = _over || {};
@@ -3045,6 +3249,7 @@ async function doReset(){
   basket    = _bk   || {};
   shopHist  = _hs   || {};
   foodPrefs = _pr   || {};
+  menu      = _mn   || [];
 
   /* one-time lift from the old single-blob store into the split stores */
   if(!meta && !API_BASE){
@@ -3089,7 +3294,10 @@ async function doReset(){
   rebuild();
   if(SHARE){
     if(SHARE_ID && find(SHARE_ID)) currentId=SHARE_ID;
-  } else if(currentId==null) currentId=recipes[0]?.id??null;
+  } else {
+    if(!userNavigated) applyHash();   /* user recipes now exist, so a deep link to one resolves */
+    if(currentId==null) currentId=recipes[0]?.id??null;
+  }
   render();
  }catch(e){
   /* whatever went wrong, still show the app rather than a blank page */
