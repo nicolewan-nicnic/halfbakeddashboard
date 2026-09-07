@@ -56,6 +56,18 @@ menu" panel on the meal plan — tap a dish to write `role: name` into a day.
 `renderPlan`, `renderHome`'s "Today", `renderNav`'s count and `#plan-to-list` all
 branch on these — check `p.tmpl==='nbd'` first, then `p.id==null && p.note!=null`.
 
+### Imported "to try" recipes (Elanne Boake)
+`EB_SEED` (defined just before `seed()`, appended via `.concat`) holds ~92 recipes
+fetched from elanneboake.com. Each carries `source:'elanne-boake'`, a `link` to the
+authoritative page, and its **real** `cuisine` from the start. They are NOT held in a
+separate group — they sit in their real cuisine and the drawer's To-try / Made lens
+filters them: `tryFilter` ∈ `''` (all) / `'try'` (`source && !madeIt(id)`) / `'made'`
+(`source && madeIt(id)`). `hbs:cooked` (`cookedIds`) is the ledger; the recipe page's
+"I've made this" button (`markMade`) is the only thing that moves a recipe from To-try
+to Made (manual, per the spec). `art()` falls back to `empty-plate` for a `source`
+recipe `guessIcon` can't place. `link` is a new PATCHABLE recipe field with an editor
+input and an "Open the original ↗" button on the recipe page.
+
 ### No-Brainer Dinner
 One catalogue meal — the seed recipe `no-brainer-dinner`. Every combination is a
 planned **instance** in `plan[iso]` (`tmpl:'nbd'`), never a new catalogue meal.
