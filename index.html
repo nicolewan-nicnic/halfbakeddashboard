@@ -1027,7 +1027,7 @@ function seed(){return [
   {qty:2,unit:'tsp',name:'Sugar'},
   {qty:1,unit:'tsp',name:'Soy sauce'},
   {qty:1,unit:'tsp',name:'Mirin'},
-  {qty:2,unit:'pinch',name:'Kosher salt'},
+  {qty:null,unit:'',name:'Kosher salt, 2 pinches'},
   {qty:2,unit:'Tbsp',name:'Neutral oil, for the pan'}],
  method:['Crack the eggs into a bowl and cut through them with chopsticks in a zig-zag — mix just enough to combine, not until frothy.',
   'Stir the dashi, sugar, soy sauce, mirin and salt together in a second bowl until the sugar dissolves, then whisk into the eggs without overmixing. Pour into a jug or measuring cup with a spout.',
@@ -1047,6 +1047,7 @@ let formDate='', photoReview=null, photoBusy=false, armed=null, pasteBusy=false,
 let calcCoco=null, refocus=null, searchQ='', pickQ='', todoText='', tagFilter='';
 let gridView=false;
 let userNavigated=false;   /* true once the user has actively opened a section or recipe */
+let menuRole='veg';        /* remembered role in the meal-plan menu add form */
 let eggAir=null, eggStart=4, eggTarget=65, eggSize=57;
 let anchorOpt=null;
 /* Tin planner: the containers you are actually going to pour into.
@@ -2273,7 +2274,7 @@ function renderPlan(){
 
     <div class="useup" style="margin-top:22px">
       <h4>Mix &amp; match menu</h4>
-      <p class="hint" style="margin:0 0 10px">Dishes you rotate through, by the part of the plate they cover — a No-Brainer Dinner is a carb, a veg side and a meat; a few more veg sides makes it bibimbap. ${pickDay?'Tap one to write it into the open day.':'Open a day above, then tap — or “+ today”.'}</p>
+      <p class="hint" style="margin:0 0 10px">Dishes you rotate through, by the part of the plate they cover — a No-Brainer Dinner is a carb, a veg side and a meat; a few more veg sides makes it bibimbap. ${pickDay?'Tap one to write it into the open day.':'Open a day above first, or a tap writes it into today.'}</p>
       ${ROLES.map(([key,label])=>{
         const items=menu.filter(m=>m.role===key);
         if(!items.length) return '';
@@ -2290,7 +2291,7 @@ function renderPlan(){
         :`<p class="home-none" style="margin:0 0 8px">Nothing on the menu yet. Add the dishes you make often below.</p>`}
       <div class="add-item" style="grid-template-columns:1fr 130px auto;margin-top:10px">
         <label><span class="picker-label">Dish</span><input id="menu-name" placeholder="Sigeumchi-namul" autocomplete="off"></label>
-        <label><span class="picker-label">Role</span><select id="menu-role">${ROLES.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('')}</select></label>
+        <label><span class="picker-label">Role</span><select id="menu-role">${ROLES.map(([k,l])=>`<option value="${k}" ${k===menuRole?'selected':''}>${esc(l)}</option>`).join('')}</select></label>
         <button class="pill solid" id="menu-add" style="align-self:end;padding:10px 14px">Add</button>
       </div>
     </div>
@@ -2325,11 +2326,13 @@ function renderPlan(){
     if(!p) return; p.done=!p.done; await savePlan(); render();
   });
   pane.querySelectorAll('[data-note-edit]').forEach(el=>{
+    /* Only ever writes the text back in place — no splicing here, so it can't
+       race the ×/tick handlers' indices. Clearing a note isn't a delete; use ×. */
     el.onblur=async()=>{ const [iso,idx]=el.dataset.noteEdit.split('|'); const arr=plan[iso];
       if(!arr||!arr[+idx]) return; const v=el.textContent.trim();
-      if(!v){ arr.splice(+idx,1); if(!arr.length) delete plan[iso]; }
-      else if(v!==arr[+idx].note){ arr[+idx].note=v; } else return;
-      await savePlan(); render(); };
+      if(!v){ el.textContent=arr[+idx].note; return; }
+      if(v===arr[+idx].note) return;
+      arr[+idx].note=v; await savePlan(); };
     el.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); el.blur(); } };
   });
   pane.querySelectorAll('[data-menuadd]').forEach(b=>b.onclick=async()=>{
@@ -2342,9 +2345,12 @@ function renderPlan(){
   pane.querySelectorAll('[data-menurm]').forEach(b=>b.onclick=async()=>{
     menu=menu.filter(m=>m.id!==b.dataset.menurm); await saveMenu(); render();
   });
+  const mrole=$('#menu-role'); if(mrole) mrole.onchange=()=>{ menuRole=mrole.value; };
   const madd=$('#menu-add'); if(madd) madd.onclick=async()=>{
     const nm=$('#menu-name'); const name=nm.value.trim(); if(!name){ nm.focus(); return; }
-    menu.push({id:'m'+Date.now()+Math.random().toString(36).slice(2,6),name,role:$('#menu-role').value,note:''});
+    const role=$('#menu-role').value; menuRole=role;
+    if(menu.some(m=>m.role===role && norm(m.name)===norm(name))){ toast('Already on the menu'); nm.value=''; nm.focus(); return; }
+    menu.push({id:'m'+Date.now()+Math.random().toString(36).slice(2,6),name,role,note:''});
     await saveMenu(); refocus='menu-name'; render();
   };
   const mnm=$('#menu-name'); if(mnm){ mnm.onkeydown=e=>{ if(e.key==='Enter') madd.click(); };
@@ -2583,7 +2589,10 @@ function parseShopCsv(text){
   const col=(...names)=>{ for(const n of names){ const i=head.indexOf(n); if(i>=0) return i; } return -1; };
   const iName=col('product_name','name','product');
   const iPrice=col('price_gbp','price');          /* exact — unit_price/was_price never win */
-  const iCat=col('subcategory','category');
+  /* `category` is the curated ~30-bucket taxonomy the family filter (FAMS) was
+     tuned against — "Meat, Poultry, Fish" etc; `subcategory` is 190+ raw aisles
+     that mostly fall through to "Everything else". Prefer the coarse one. */
+  const iCat=col('category','subcategory');
   const iSize=col('pack_size','size');
   const iStore=col('store');
   if(iName<0||iPrice<0) return null;               /* not a shop CSV — let the caller fall back */
