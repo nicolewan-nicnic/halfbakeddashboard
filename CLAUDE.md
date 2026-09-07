@@ -47,12 +47,36 @@ where `role` is one of `carb` / `veg` / `meat` / `other`. It backs the "Mix & ma
 menu" panel on the meal plan — tap a dish to write `role: name` into a day.
 
 ### Meal-plan entries
-`plan[isoDate]` is an array of entries. Two shapes:
+`plan[isoDate]` is an array of entries. Three shapes:
 - `{id, done}` — a recipe reference (rendered from `seed()`/`mine`).
 - `{note, done}` (no `id`) — a plain line the user typed. Stored verbatim; nothing
-  parses it. This is deliberately a free-text slot for Claude Code to read and act on.
+  parses it. A free-text slot for Claude Code to read and act on.
+- `{tmpl:'nbd', id:'no-brainer-dinner', carb, protein, veg[], cook, fav, status,
+  done, created, updated}` — a **No-Brainer Dinner** instance (see below).
 `renderPlan`, `renderHome`'s "Today", `renderNav`'s count and `#plan-to-list` all
-handle both shapes — check `p.id==null && p.note!=null` before treating one as a recipe.
+branch on these — check `p.tmpl==='nbd'` first, then `p.id==null && p.note!=null`.
+
+### No-Brainer Dinner
+One catalogue meal — the seed recipe `no-brainer-dinner`. Every combination is a
+planned **instance** in `plan[iso]` (`tmpl:'nbd'`), never a new catalogue meal.
+- Builder: `mode='nbd'`, `nbdRef={iso,idx}` → `renderNbd()`. Transient (no route);
+  entered by choosing "No-Brainer Dinner" in the day picker or tapping an instance.
+- `carb` = `{kind}` (5 standards + custom carbs stored in `menu` as `role:'carb'`).
+  `protein` = `{cat, name?}` (5 categories + optional specific). `veg` = `[{ids:[fridge
+  ids], name}]` — dedup fridge+freezer by name, keep **all** ids so a renamed/removed
+  item is still linked. `cook` = optional string.
+- `foodClass(item)` classifies by keyword (`VEG_WORDS`/`CARB_WORDS`/`PROT_WORDS`),
+  overridable per fridge item via `f.class`. `f.opened` (bool, toggled in the fridge
+  row) feeds priority.
+- Inventory is **never** touched on planning. `nbdComplete()` (via "Mark cooked" →
+  confirm-usage panel) removes the ticked fridge ids, sets `status:'completed'`,
+  `done:true`, and pushes the combo to `nbdRecent` (`hbs:nbd.recent`, cap 12).
+  `status` ∈ `planned`/`completed`/`skipped`; removing the entry = deleted.
+- `hbs:nbd.fav` (`nbdFav`) = saved combos; veg stored by name, re-resolved to ids
+  on reuse (`nbdLoadCombo`), unresolved ones flagged by `nbdMissing`.
+- "Use what I have" = `nbdAuto()` — fills gaps from available inventory, expiring +
+  opened first, nudges off an exact `nbdRecent` repeat. Never auto-adds to the
+  shopping list; every shopping action is an explicit button that dedupes.
 
 ### Rendering
 `render()` calls `renderNav()`, then `renderBody()` (the `mode` dispatch), then
@@ -62,9 +86,9 @@ render — there is no framework.
 ### Hash routing
 `syncHash()` uses `history.pushState` (not `location.hash =`) so the app's own
 navigation never fires `hashchange` and never bounces back through `applyHash`.
-`hashFor()` returns `null` while `editing` or `mode==='paste'` — those are transient
-states with no URL of their own, so the address bar stays on wherever you came from.
-Only real Back/Forward reaches the `hashchange` listener.
+`hashFor()` returns `null` while `editing`, `mode==='paste'` or `mode==='nbd'` —
+transient states with no URL of their own. Only real Back/Forward reaches the
+`hashchange` listener.
 
 ---
 
@@ -107,24 +131,23 @@ tagged with `opt` only show when that option is selected, and the selection is s
 with the batch calculator via `anchorOpt`. Quantities in the ingredient list and in
 `calc.options` must agree — they were out of sync before and nobody noticed.
 
-**Shop price lists: CSV is current, JSON is the fallback.**
-Each shop has `data/<slug>.csv` — the up-to-date export — and most also have an older
-`data/<slug>.json`. `loadCatalogue()` / `loadAllCatalogues()` / `loadBootsProducts()`
-try the CSV first (via `parseShopCsv`) and fall back to the JSON only if the CSV is
-missing or unparseable (e.g. Bayley & Sage has JSON only). Every path must produce the
-same `{slug, store, items:[{name,price,cat,size}]}` shape or the shop UI renders nothing.
-CSV header: `store?,category,subcategory,product_name,pack_size,unit_price,price_gbp,…`
-with a UTF-8 BOM — `parseShopCsv` strips the BOM, prefers `price_gbp` (never
-`unit_price`, which carries `£x/L` junk) and `subcategory` for the category. Boots
-tries `boots-borehamwood.csv` then the older `boots_borehamwood_products.csv`.
+**Shop price lists: `data/<slug>.csv` is the source of truth.**
+`data/<slug>.json` is a compact pre-parsed copy, regenerated from the CSV by
+`scripts/csv-to-json.py` — **run that after editing any CSV**.
+- `loadCatalogue()` (single shop): CSV first (`parseShopCsv`), JSON fallback — the
+  shop you're building a basket for is always freshest.
+- `loadAllCatalogues()` ("compare every shop"): JSON first — the browser would
+  otherwise parse ~14 MB of CSV. CSV fallback for a shop with no JSON.
+- `loadBootsProducts()`: `boots-borehamwood.csv` → `boots_borehamwood_products.csv`
+  → `boots.json`.
+Every path must produce `{slug, store, items:[{name,price,cat,size}]}`.
+`parseShopCsv` strips the UTF-8 BOM, takes `price_gbp` (never `unit_price` — it
+carries `£x/L` junk) and **`category`** for `cat` (the ~30-bucket curated taxonomy
+the `FAMS` family filter is tuned for, not the 190+ raw `subcategory` aisles).
 
 **Boots is still not a food shop.**
-It's toiletries/pharmacy — deliberately excluded from the fridge and grocery list, but
-it still counts toward the £15 minimum. Keyed by `BOOTS_SLUG`, own loader
-(`loadBootsProducts`) because its slug has no `STORES` entry.
-
-**`data/*.csv` are the source of truth now.** The `.json` copies are stale; keep them
-only as the offline fallback. If you regenerate shop data, regenerate the CSVs.
+Toiletries/pharmacy — excluded from the fridge and grocery list, still counts toward
+the £15 minimum. Keyed by `BOOTS_SLUG`, own loader; its slug has no `STORES` entry.
 
 **Share mode.**
 `SHARE` is set from the URL hash (`#/share` or `#/share/<id>`). In share mode `sset`
@@ -169,6 +192,11 @@ a small picture in a visible square.
   reaches the browser. Without a server (`API_BASE=''`) the feature can't work.
 - **`icons/beef-soup.png` is unused** — no recipe references it. It's a beef and radish
   soup, waiting for a matching recipe.
+- **`icons/ice-cream.png` and `icons/empty-plate.png` are referenced but not yet on
+  disk.** `ART` and three recipes (`matcha-gelato`, `matcha-hojicha-rice-ice-cream`
+  → ice-cream; `no-brainer-dinner` → empty-plate) point at them. Until the files are
+  added (512×512, transparent bg, tight ~4% crop) `art()` falls back to the croissant
+  via a new `onerror` handler — no broken images, but not the intended art.
 - **The tin planner only appears on recipes with an anchor calculator** (currently just
   the Basque cheesecake). Making it available to any recipe with a known batter weight
   is a small change.

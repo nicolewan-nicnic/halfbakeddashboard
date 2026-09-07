@@ -370,11 +370,12 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
 .plan-day{border:2px solid var(--taupe);border-radius:var(--wob3);padding:10px;min-height:100px;display:flex;flex-direction:column;gap:6px}
 .plan-day.today{border-color:var(--crumb);background:var(--beige)}
 .plan-day h5{margin:0;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--rye);font-weight:400}
-.plan-meal{display:flex;gap:6px;align-items:baseline;font-size:13.5px}
-.plan-meal.done .pm-name{opacity:.5;text-decoration:line-through}
+.plan-meal{display:flex;gap:6px;align-items:baseline;font-size:13.5px;flex-wrap:wrap}
+.plan-meal.done .pm-name,.plan-meal.skipped .pm-name{opacity:.5;text-decoration:line-through}
 .pm-name{flex:1;background:none;border:0;padding:0;text-align:left;font:inherit;color:inherit;cursor:pointer;min-width:0}
 .pm-name:hover{text-decoration:underline;text-underline-offset:3px}
 .pm-kcal{font-family:var(--mono);font-size:10.5px;color:var(--rye);white-space:nowrap}
+.pm-sub{flex-basis:100%;font-size:12px;color:var(--rye);line-height:1.35;padding-left:0}
 .plan-add{background:none;border:1.5px dashed var(--taupe);border-radius:8px;color:var(--rye);font-size:12px;padding:4px;margin-top:auto;cursor:pointer}
 .plan-add:hover{border-color:var(--crumb);color:var(--crumb)}
 .chooser{margin-top:14px;background:var(--beige);border-radius:var(--wob2);padding:12px 14px}
@@ -490,7 +491,7 @@ const API_BASE = '/api/kv';                    /* '' = this device · '/api/kv' 
    (api/ai.js) so the API key never reaches the browser. The direct endpoint is
    only a fallback for running with no server, where the feature cannot work.  */
 const AI_ENDPOINT = API_BASE ? '/api/ai' : 'https://api.anthropic.com/v1/messages';
-const APP_VERSION = 8;                  /* bump when shipping new seed recipes  */
+const APP_VERSION = 9;                  /* bump when shipping new seed recipes  */
 
 const S = {
   mine:      'hbs:recipes.mine',        /* recipes you created                  */
@@ -501,6 +502,8 @@ const S = {
   plan:      'hbs:plan',
   todos:     'hbs:todos',
   menu:      'hbs:menu',                /* mix-and-match dishes by role (carb/veg/meat) */
+  nbdfav:    'hbs:nbd.fav',             /* saved No-Brainer Dinner combinations         */
+  nbdrecent: 'hbs:nbd.recent',          /* recently cooked NBD combinations             */
   basket:    'hbs:shop.basket',
   hist:      'hbs:shop.history',
   prefs:     'hbs:foodprefs',
@@ -586,18 +589,22 @@ async function sset(k,v){
 }
 
 /* Every illustration is a Half Baked Society original, background removed. */
-const ART = {"croissant": "icons/croissant.webp", "shortcake": "icons/shortcake.webp", "breadbag": "icons/breadbag.webp", "butter": "icons/butter.webp", "jar": "icons/jar.webp", "cakeslice": "icons/cakeslice.webp", "bun": "icons/bun.webp", "noodlebowl": "icons/noodlebowl.webp", "carrot": "icons/carrot.webp", "icedcoffee": "icons/icedcoffee.webp", "chickenrice": "icons/chickenrice.webp", "steak": "icons/steak.webp", "cabbage": "icons/cabbage.webp", "eggtart": "icons/eggtart.webp", "friedchicken": "icons/friedchicken.webp", "banh-xeo": "icons/banh-xeo.png", "basque-cheesecake": "icons/basque-cheesecake.png", "kkaenip-jeon": "icons/kkaenip-jeon.png", "pajeon": "icons/pajeon.png", "maeuntang": "icons/maeuntang.png", "soft-eggs": "icons/soft-eggs.png", "green-salad": "icons/green-salad.png", "brown-soup": "icons/brown-soup.png", "red-soup": "icons/red-soup.png", "beef-soup": "icons/beef-soup.png", "__logo": "icons/logo.webp"};
+const ART = {"croissant": "icons/croissant.webp", "shortcake": "icons/shortcake.webp", "breadbag": "icons/breadbag.webp", "butter": "icons/butter.webp", "jar": "icons/jar.webp", "cakeslice": "icons/cakeslice.webp", "bun": "icons/bun.webp", "noodlebowl": "icons/noodlebowl.webp", "carrot": "icons/carrot.webp", "icedcoffee": "icons/icedcoffee.webp", "chickenrice": "icons/chickenrice.webp", "steak": "icons/steak.webp", "cabbage": "icons/cabbage.webp", "eggtart": "icons/eggtart.webp", "friedchicken": "icons/friedchicken.webp", "banh-xeo": "icons/banh-xeo.png", "basque-cheesecake": "icons/basque-cheesecake.png", "kkaenip-jeon": "icons/kkaenip-jeon.png", "pajeon": "icons/pajeon.png", "maeuntang": "icons/maeuntang.png", "soft-eggs": "icons/soft-eggs.png", "green-salad": "icons/green-salad.png", "brown-soup": "icons/brown-soup.png", "red-soup": "icons/red-soup.png", "beef-soup": "icons/beef-soup.png", "ice-cream": "icons/ice-cream.png", "empty-plate": "icons/empty-plate.png", "__logo": "icons/logo.webp"};
 const LOGO = ART.__logo;
-const ICONS=['croissant','breadbag','bun','shortcake','cakeslice','jar','butter','steak','icedcoffee','noodlebowl','chickenrice','friedchicken','cabbage','carrot','eggtart','soft-eggs','green-salad','brown-soup','red-soup','beef-soup','banh-xeo','basque-cheesecake','kkaenip-jeon','pajeon','maeuntang'].filter(n=>ART[n]);
+const ICONS=['croissant','breadbag','bun','shortcake','cakeslice','jar','butter','steak','icedcoffee','ice-cream','noodlebowl','chickenrice','friedchicken','cabbage','carrot','eggtart','soft-eggs','green-salad','brown-soup','red-soup','beef-soup','empty-plate','banh-xeo','basque-cheesecake','kkaenip-jeon','pajeon','maeuntang'].filter(n=>ART[n]);
 
+/* If an icon file is missing on disk, fall back to the croissant rather than
+   showing a broken image. */
+const ICO_FALLBACK=` onerror="this.onerror=null;this.src='${ART.croissant}'"`;
 function art(r){
-  if(r && r.img) return `<img class="ico" src="${r.img}" alt="">`;
+  if(r && r.img) return `<img class="ico" src="${r.img}" alt=""${ICO_FALLBACK}>`;
   const n=(r && (r.icon||guessIcon(r)))||'croissant';
-  return `<img class="ico" src="${ART[n]||ART.croissant}" alt="">`;
+  return `<img class="ico" src="${ART[n]||ART.croissant}" alt=""${ICO_FALLBACK}>`;
 }
-function artByName(n){ return `<img class="ico" src="${ART[n]||ART.croissant}" alt="">`; }
+function artByName(n){ return `<img class="ico" src="${ART[n]||ART.croissant}" alt=""${ICO_FALLBACK}>`; }
 function guessIcon(r){
   const t=(r.name+' '+(r.ingredients||[]).map(i=>i.name).join(' ')).toLowerCase();
+  if(/ice cream|ice-cream|gelato|sorbet|semifreddo|kulfi/.test(t)) return 'ice-cream';
   if(/coffee|espresso|latte|iced|cold brew|condensed milk|tea|matcha/.test(t)) return 'icedcoffee';
   if(/noodle|somen|ramen|udon|soba|pho/.test(t)) return 'noodlebowl';
   if(/steak|beef|sear|sirloin|ribeye/.test(t)) return 'steak';
@@ -954,7 +961,7 @@ function seed(){return [
  ingredients:[{qty:20,unit:'g',name:'Vietnamese coffee'},{qty:40,unit:'g',name:'Condensed milk'},
   {qty:200,unit:'ml',name:'Water'},{qty:null,unit:'',name:'Ice'}],
  method:[]},
-{id:'matcha-gelato',name:'Matcha Gelato - Chef Mian',icon:'icedcoffee',kcal:250,blurb:'Silky, intensely bitter Japanese matcha gelato by Chef Mian. Aged base with fresh matcha added post-heat to preserve color and aroma. For hardcore bitter-matcha lovers.',makesQty:500,makesUnit:'ml',cuisine:'Japanese',tags:['Dessert','Make-ahead','Dairy'],
+{id:'matcha-gelato',name:'Matcha Gelato - Chef Mian',icon:'ice-cream',kcal:250,blurb:'Silky, intensely bitter Japanese matcha gelato by Chef Mian. Aged base with fresh matcha added post-heat to preserve color and aroma. For hardcore bitter-matcha lovers.',makesQty:500,makesUnit:'ml',cuisine:'Japanese',tags:['Dessert','Make-ahead','Dairy'],
   ingredients:[
     {qty:22,unit:'g',name:'Matcha powder'},
     {qty:60,unit:'ml',name:'Whole milk (for dissolving matcha)'},
@@ -978,7 +985,7 @@ function seed(){return [
     'Freeze for about 2 hours before serving. For best results, use high-grade Japanese matcha — quality makes a significant difference in color, umami, and flavor complexity.'
   ]
 },
-{id:'matcha-hojicha-rice-ice-cream',name:'Matcha & Hojicha Rice Ice Cream',icon:'icedcoffee',kcal:280,blurb:'Creamy rice-based ice cream with two flavors: bright matcha and toasty hojicha. Jasmine rice powder adds subtle floral complexity. By Elanne Boake.',makesQty:950,makesUnit:'ml',cuisine:'Japanese',tags:['Dessert','Make-ahead','Dairy','Two-Flavor'],
+{id:'matcha-hojicha-rice-ice-cream',name:'Matcha & Hojicha Rice Ice Cream',icon:'ice-cream',kcal:280,blurb:'Creamy rice-based ice cream with two flavors: bright matcha and toasty hojicha. Jasmine rice powder adds subtle floral complexity. By Elanne Boake.',makesQty:950,makesUnit:'ml',cuisine:'Japanese',tags:['Dessert','Make-ahead','Dairy','Two-Flavor'],
   ingredients:[
     {qty:250,unit:'ml',name:'Heavy cream (per base)'},
     {qty:400,unit:'ml',name:'2% milk (per base)'},
@@ -1004,7 +1011,7 @@ function seed(){return [
     'Transfer to freezer. To serve at original consistency, remove 5-10 minutes before eating. Makes approximately 2 pints (950ml).'
   ]
 },
-{id:'no-brainer-dinner',name:'No-Brainer Dinner',icon:'chickenrice',cuisine:'Korean',tags:['Main','Assembly','Rice'],kcal:2000,
+{id:'no-brainer-dinner',name:'No-Brainer Dinner',icon:'empty-plate',cuisine:'Korean',tags:['Main','Assembly','Rice'],kcal:2000,
  blurb:'The default: a carb, a veg side and a meat on one plate. Rice as the carb, one or two things off the veg-side menu, a quick protein. Load on three or four veg sides and a fried egg with gochujang and it is bibimbap.',
  makesQty:2,makesUnit:'servings',
  ingredients:[{qty:null,unit:'',name:'Carb:'},
@@ -1048,6 +1055,9 @@ let calcCoco=null, refocus=null, searchQ='', pickQ='', todoText='', tagFilter=''
 let gridView=false;
 let userNavigated=false;   /* true once the user has actively opened a section or recipe */
 let menuRole='veg';        /* remembered role in the meal-plan menu add form */
+let nbdFav=[], nbdRecent=[];
+let nbdRef=null;           /* {iso,idx} of the NBD instance open in the builder */
+let nbdCook=null;          /* {iso,idx} while confirming which ingredients were used */
 let eggAir=null, eggStart=4, eggTarget=65, eggSize=57;
 let anchorOpt=null;
 /* Tin planner: the containers you are actually going to pour into.
@@ -1097,7 +1107,8 @@ const saveRecipeStores=async()=>{ await sset(S.mine,mine); await sset(S.override
 const saveFridge=()=>sset(S.fridge,fridge), saveGrocery=()=>sset(S.grocery,grocery),
       savePlan=()=>sset(S.plan,plan), savePrefs=()=>sset(S.prefs,foodPrefs),
       saveTodos=()=>sset(S.todos,todos), saveBasket=()=>sset(S.basket,basket), saveHist=()=>sset(S.hist,shopHist),
-      saveMenu=()=>sset(S.menu,menu);
+      saveMenu=()=>sset(S.menu,menu),
+      saveNbdFav=()=>sset(S.nbdfav,nbdFav), saveNbdRecent=()=>sset(S.nbdrecent,nbdRecent);
 const save=saveRecipeStores;
 
 /* Mix-and-match menu: dishes tagged by the part of the plate they cover, so a
@@ -1106,20 +1117,134 @@ const save=saveRecipeStores;
 const ROLES=[['carb','Carb'],['veg','Veg side'],['meat','Meat'],['other','Other']];
 function roleLabel(k){ const r=ROLES.find(x=>x[0]===k); return r?r[1]:k; }
 
+/* ============ No-Brainer Dinner ============
+   One catalogue meal (the seed recipe `no-brainer-dinner`); every combination
+   is a planned instance in plan[iso] tagged {tmpl:'nbd'}. It never creates a
+   new catalogue meal and never touches inventory until the meal is confirmed
+   cooked. */
+const NBD_ID='no-brainer-dinner';
+const NBD_CARBS=['Bread','Rice','Noodles','Pasta','Potato'];
+const NBD_PROTEINS=['Beef','Chicken','Pork','Fish','Other'];
+const NBD_COOK=['Roasted','Stir-fried','Grilled','Curried','Garlic butter','Soy and ginger','Spicy'];
+const VEG_WORDS=['cabbage','carrot','broccoli','cauliflower','spinach','kale','lettuce','pak choi','bok choy','choi sum','gai lan','courgette','zucchini','aubergine','eggplant','pepper','capsicum','leek','celery','cucumber','tomato','mushroom','bean sprout','beansprout','green bean','mangetout','sugar snap','pea','sweetcorn','asparagus','beet','radish','daikon','mooli','turnip','swede','squash','pumpkin','kohlrabi','fennel','chard','rocket','arugula','watercress','sprout','okra','artichoke','samphire','spring onion','scallion','greens','salad leaves','salad leaf','mixed veg','stir fry veg','stir-fry veg','edamame','morning glory','water spinach','kangkong','perilla','shiso','chrysanthemum','gosari','fernbrake','napa','kimchi','onion','shallot','garlic'];
+const CARB_WORDS=['rice','bread','loaf','baguette','ciabatta','sourdough','noodle','pasta','spaghetti','macaroni','penne','udon','soba','somen','vermicelli','ramen','potato','gnocchi','couscous','quinoa','bulgur','tortilla','wrap','roti','naan','chapati','bun','orzo'];
+const PROT_WORDS={beef:['beef','mince','steak','brisket','sirloin','ribeye'],chicken:['chicken','poussin'],pork:['pork','bacon','sausage','gammon','ham','chorizo'],fish:['fish','salmon','cod','tuna','haddock','mackerel','sardine','anchovy','prawn','shrimp','squid','crab','mussel','pollock','sea bass','trout'],other:['tofu','tempeh','seitan','halloumi','paneer','egg','lentil','chickpea','bean','duck','lamb','turkey','venison']};
+function foodClass(item){
+  if(item && typeof item==='object' && item.class) return item.class;
+  const b=norm(String((item&&item.name)||item||'').split(',')[0]);
+  if(!b) return 'other';
+  const has=arr=>arr.some(w=>b.includes(w));
+  if(has(VEG_WORDS)) return 'veg';
+  if(has(CARB_WORDS)) return 'carb';
+  for(const cat in PROT_WORDS) if(has(PROT_WORDS[cat])) return 'protein';
+  return 'other';
+}
+function proteinCat(name){
+  const b=norm(String(name).split(',')[0]);
+  for(const cat in PROT_WORDS) if(PROT_WORDS[cat].some(w=>b.includes(w))) return cat==='other'?'Other':cat[0].toUpperCase()+cat.slice(1);
+  return null;
+}
+/* Fridge/freezer items that are (or could be) vegetables, deduped by name,
+   priority-ordered: expiring → opened → fridge → freezer → recently added. */
+function nbdVegGroups(){
+  const rows=fridge.filter(f=>(f.shelf==='Fridge'||f.shelf==='Freezer'));
+  const g=new Map();
+  rows.forEach(f=>{
+    const key=sing(norm(String(f.name).split(',')[0])); if(!key) return;
+    if(!g.has(key)) g.set(key,{key,name:String(f.name).split(',')[0].trim(),recs:[]});
+    g.get(key).recs.push(f);
+  });
+  const groups=[...g.values()].map(x=>{
+    x.isVeg=x.recs.some(f=>foodClass(f)==='veg');
+    x.soon=x.recs.some(f=>{ const n=dayDiff(f.until); return n!=null && n<=3; });
+    x.opened=x.recs.some(f=>f.opened);
+    x.fridge=x.recs.some(f=>f.shelf==='Fridge');
+    x.freezer=x.recs.some(f=>f.shelf==='Freezer');
+    x.added=Math.max(...x.recs.map(f=>Date.parse((f.addedAt||'')+'T00:00:00')||0));
+    x.ids=x.recs.map(f=>f.id);
+    return x;
+  });
+  const rank=x=>(x.soon?0:1000)+(x.opened?0:200)+(x.fridge?0:x.freezer?60:120);
+  groups.sort((a,b)=>rank(a)-rank(b) || b.added-a.added || a.name.localeCompare(b.name));
+  return groups;
+}
+function nbdResolution(p){
+  const n=(p.carb?1:0)+(p.protein?1:0)+((p.veg&&p.veg.length)?1:0);
+  return n===0?'empty':n>=3?'full':'partial';
+}
+function nbdSummary(p){
+  const parts=[];
+  if(p.protein) parts.push(((p.cook?p.cook+' ':'')+(p.protein.name||p.protein.cat)));
+  if(p.carb) parts.push(p.carb.name||p.carb.kind);
+  (p.veg||[]).forEach(v=>parts.push(v.name));
+  if(!parts.length) return 'Choose from fridge or freezer later';
+  const s=parts.map(x=>String(x).toLowerCase()).join(' + ');
+  return s.charAt(0).toUpperCase()+s.slice(1);
+}
+function nbdSig(p){
+  return [(p.carb&&(p.carb.name||p.carb.kind))||'', (p.protein&&(p.protein.name||p.protein.cat))||'',
+    (p.veg||[]).map(v=>v.name).map(x=>x.toLowerCase()).sort().join(',')].join('|').toLowerCase();
+}
+/* which selected components are no longer available in inventory */
+function nbdMissing(p){
+  const out=[];
+  if(p.carb && !nbdCarbAvail().some(c=>c.toLowerCase()===(p.carb.name||p.carb.kind).toLowerCase())) out.push('carb');
+  if(p.protein && !nbdProtAvail().includes(p.protein.cat)) out.push('protein');
+  (p.veg||[]).forEach(v=>{
+    const live=(v.ids||[]).some(id=>fridge.some(f=>f.id===id)) || nbdVegGroups().some(g=>g.isVeg && sing(norm(g.name))===sing(norm(v.name)));
+    if(!live) out.push('veg:'+v.name);
+  });
+  return out;
+}
+function nbdCarbAvail(){
+  const all=NBD_CARBS.concat(menu.filter(m=>m.role==='carb').map(m=>m.name));
+  return all.filter(c=>fridge.some(f=>foodMatch(f.name,c)));
+}
+function nbdProtAvail(){
+  return NBD_PROTEINS.filter(cat=>fridge.some(f=>(f.shelf==='Fridge'||f.shelf==='Freezer') && proteinCat(f.name)===cat));
+}
+function foodMatch(a,b){ const x=sing(norm(String(a).split(',')[0])), y=sing(norm(String(b).split(',')[0]));
+  return !!x && !!y && (x===y || x.includes(y) || y.includes(x)); }
+/* Auto-fill from what's in the kitchen, keeping any manual picks. */
+function nbdAuto(p){
+  const out={carb:p.carb||null, protein:p.protein||null, veg:(p.veg||[]).slice(), cook:p.cook||null};
+  const recentSigs=new Set(nbdRecent.map(r=>r.sig));
+  if(!out.carb){
+    const av=nbdCarbAvail();
+    if(av.length) out.carb={kind:av[0]};
+  }
+  if(!out.protein){
+    const av=nbdProtAvail();
+    if(av.length) out.protein={cat:av[0]};
+  }
+  if(!out.veg.length){
+    const vg=nbdVegGroups().filter(g=>g.isVeg);
+    if(vg.length){
+      out.veg=[{ids:vg[0].ids.slice(),name:vg[0].name}];
+      /* nudge off an exact recent repeat if there's another veg to use */
+      if(vg[1] && recentSigs.has(nbdSig(out))) out.veg=[{ids:vg[1].ids.slice(),name:vg[1].name}];
+    }
+  }
+  return out;
+}
+function nbdInst(){ const n=new Date().toISOString();
+  return {tmpl:'nbd',id:NBD_ID,carb:null,protein:null,veg:[],cook:null,fav:null,status:'planned',done:false,created:n,updated:n}; }
+
 function banner(m){ $('#banner-slot').innerHTML='<div class="banner">'+m+'</div>'; }
 let undoSnap=null;
 function snapshot(){ undoSnap={mine:structuredClone(mine),overrides:structuredClone(overrides),
   removed:[...removed],fridge:structuredClone(fridge),grocery:structuredClone(grocery),
   plan:structuredClone(plan),todos:structuredClone(todos),basket:structuredClone(basket),
-  shopHist:structuredClone(shopHist),menu:structuredClone(menu)}; }
+  shopHist:structuredClone(shopHist),menu:structuredClone(menu),nbdRecent:structuredClone(nbdRecent)}; }
 async function doUndo(){
   if(!undoSnap) return;
   ({mine,overrides,fridge,grocery,plan,todos}=structuredClone(undoSnap)); removed=[...undoSnap.removed];
   if(undoSnap.basket) basket=structuredClone(undoSnap.basket);
   if(undoSnap.shopHist) shopHist=structuredClone(undoSnap.shopHist);
   if(undoSnap.menu) menu=structuredClone(undoSnap.menu);
+  if(undoSnap.nbdRecent) nbdRecent=structuredClone(undoSnap.nbdRecent);
   undoSnap=null; rebuild();
-  await saveRecipeStores(); await saveFridge(); await saveGrocery(); await savePlan(); await saveTodos(); await saveBasket(); await saveHist(); await saveMenu();
+  await saveRecipeStores(); await saveFridge(); await saveGrocery(); await savePlan(); await saveTodos(); await saveBasket(); await saveHist(); await saveMenu(); await saveNbdRecent();
   if(currentId&&!find(currentId)) currentId=recipes[0]?.id??null;
   render(); toast('Put back');
 }
@@ -1791,6 +1916,7 @@ function stageLabel(step){
   return v.toLowerCase();
 }
 function buildGrid(r){
+  if((r.tags||[]).includes('Assembly')) return null;   /* build-your-own meals have no real stages */
   const ings=(r.ingredients||[]).filter(i=>i.name&&!isSection(i.name));
   const steps=r.method||[];
   if(!ings.length||steps.length<2) return null;
@@ -1976,7 +2102,9 @@ function renderFridge(){
       const sitting=!f.until&&!f.staple&&f.addedAt&&dayDiff(f.addedAt)<=-10;
       return `<li><button class="item-edit item-name" data-edit="${esc(f.id)}" title="Edit">${esc(f.name)}</button>
         ${f.qty?`<span class="item-qty">${esc(f.qty)}</span>`:''}
+        ${f.opened?'<span class="chip">opened</span>':''}
         ${f.staple?'<span class="chip">staple</span>':(useByChip(f.until)||(sitting?`<span class="chip">in for ${-dayDiff(f.addedAt)} days</span>`:''))}
+        ${s==='Cupboard'?'':`<button class="link-btn low" data-opened="${esc(f.id)}">${f.opened?'seal again':'mark opened'}</button>`}
         <button class="link-btn low" data-low="${esc(f.name)}">running low</button>
         <button class="row-x" data-remove="${esc(f.id)}" aria-label="Remove ${esc(f.name)}">×</button></li>`;}).join('')}</ul></div>`;
   }).join('');
@@ -2073,6 +2201,10 @@ function renderFridge(){
     if(grocery.some(g=>norm(g.name)===norm(n))){ toast('Already on the list'); return; }
     grocery.push({id:'g'+Date.now()+Math.random().toString(36).slice(2,6),name:n,qty:'',done:false,src:'running low'});
     await saveGrocery(); render(); toast('Added to the grocery list');
+  });
+  pane.querySelectorAll('[data-opened]').forEach(b=>b.onclick=async()=>{
+    const it=fridge.find(f=>f.id===b.dataset.opened); if(!it) return;
+    it.opened=!it.opened; await saveFridge(); render();
   });
   pane.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{ openRecipe(b.dataset.open); });
   wirePhotoReview();
@@ -2244,6 +2376,13 @@ function renderPlan(){
       const d=new Date(iso+'T00:00:00');
       const label=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+' '+d.getDate();
       const meals=(plan[iso]||[]).map((p,idx)=>{
+        if(p.tmpl==='nbd'){
+          const miss=nbdMissing(p).length;
+          return `<div class="plan-meal ${p.status==='completed'||p.done?'done':''} ${p.status==='skipped'?'skipped':''}">
+            <button class="pm-name" data-nbd="${iso}|${idx}">No-Brainer Dinner</button>
+            <span class="pm-sub">${esc(nbdSummary(p))}${miss?` <span class="chip soon">${miss} to sort</span>`:''}</span>
+            <button class="row-x" style="font-size:14px" data-unplan="${iso}|${idx}" aria-label="Remove">×</button></div>`;
+        }
         if(p.note!=null && p.id==null){   /* a plain written line — stored as-is for Claude Code to read */
           return `<div class="plan-meal ${p.done?'done':''}">
             <button class="tick-sm" data-note-done="${iso}|${idx}" aria-pressed="${!!p.done}"><span class="box"></span></button>
@@ -2305,10 +2444,20 @@ function renderPlan(){
   pane.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{
     pickDay=pickDay===b.dataset.pick?null:b.dataset.pick; pickQ=''; render(); });
   const pq=$('#pick-q'); if(pq){ pq.oninput=()=>{ pickQ=pq.value; refocus='pick-q'; render(); };
+    pq.onkeydown=e=>{ if(e.key==='Enter'){ const b=$('#pick-note'); if(b) b.click(); } };
     if(refocus==='pick-q'){ refocus=null; pq.focus(); pq.setSelectionRange(pq.value.length,pq.value.length); } }
   pane.querySelectorAll('[data-assign]').forEach(b=>b.onclick=async()=>{
-    plan[pickDay]=plan[pickDay]||[]; plan[pickDay].push({id:b.dataset.assign,done:false});
+    const day=pickDay;
+    if(b.dataset.assign===NBD_ID){                 /* start the build-a-meal flow */
+      plan[day]=plan[day]||[]; plan[day].push(nbdInst());
+      const idx=plan[day].length-1; pickDay=null; pickQ='';
+      await savePlan(); openNbd(day,idx); return;
+    }
+    plan[day]=plan[day]||[]; plan[day].push({id:b.dataset.assign,done:false});
     pickDay=null; pickQ=''; await savePlan(); render(); toast('Planned');
+  });
+  pane.querySelectorAll('[data-nbd]').forEach(b=>b.onclick=()=>{
+    const [iso,idx]=b.dataset.nbd.split('|'); openNbd(iso,+idx);
   });
   const pn=$('#pick-note'); if(pn) pn.onclick=async()=>{
     const v=pickQ.trim(); if(!v||!pickDay) return;
@@ -2363,7 +2512,7 @@ function renderPlan(){
   $('#plan-to-list').onclick=async()=>{
     const wanted=new Map();
     const t0=todayISO();
-    Object.entries(plan).filter(([d])=>d>=t0).flatMap(([,v])=>v).forEach(p=>{ const r=find(p.id); if(!r||p.done) return;
+    Object.entries(plan).filter(([d])=>d>=t0).flatMap(([,v])=>v).forEach(p=>{ if(p.tmpl==='nbd') return; const r=find(p.id); if(!r||p.done) return;
       matchInfo(r).missing.forEach(m=>{ const short=m.split(',')[0].trim(); wanted.set(norm(short),short); }); });
     let n=0;
     wanted.forEach((short,key)=>{
@@ -2375,13 +2524,255 @@ function renderPlan(){
   };
 }
 
+/* ============ No-Brainer Dinner builder ============ */
+function openNbd(iso,idx){
+  userNavigated=true;
+  nbdRef={iso:String(iso),idx:+idx}; nbdCook=null;
+  mode='nbd'; editing=false; draft=null;
+  document.body.dataset.view='detail'; render();
+}
+function nbdCurrent(){
+  if(!nbdRef) return null;
+  const arr=plan[nbdRef.iso]; const p=arr&&arr[nbdRef.idx];
+  return (p&&p.tmpl==='nbd')?p:null;
+}
+async function nbdTouch(p){ p.updated=new Date().toISOString(); await savePlan(); render(); }
+function nbdShop(name){
+  if(!name) return;
+  if(grocery.some(g=>norm(g.name)===norm(name))){ toast('“'+name+'” is already on the list'); return; }
+  grocery.push({id:'g'+Date.now()+Math.random().toString(36).slice(2,6),name,qty:'',done:false,src:'no-brainer dinner'});
+  saveGrocery(); toast('Added “'+name+'” to the shopping list');
+}
+function nbdLoadCombo(p,src){
+  p.carb=src.carb?Object.assign({},src.carb):null;
+  p.protein=src.protein?Object.assign({},src.protein):null;
+  p.cook=src.cook||null;
+  const groups=nbdVegGroups();
+  p.veg=(src.veg||[]).map(v=>{
+    const g=groups.find(g=>sing(norm(g.name))===sing(norm(v.name)));
+    return g?{ids:g.ids.slice(),name:g.name}:{ids:[],name:v.name};   /* ids:[] → flagged unavailable */
+  });
+  p.fav=src.favId||src.id||null;
+}
+async function nbdComplete(p,usedIds){
+  fridge=fridge.filter(f=>!usedIds.includes(f.id));
+  p.status='completed'; p.done=true; p.updated=new Date().toISOString();
+  const sig=nbdSig(p);
+  nbdRecent=[{sig,carb:p.carb,protein:p.protein,veg:(p.veg||[]).map(v=>({name:v.name})),cook:p.cook||null,at:todayISO()},
+    ...nbdRecent.filter(r=>r.sig!==sig)].slice(0,12);
+  nbdCook=null;
+  await savePlan(); await saveFridge(); await saveNbdRecent();
+  mode='plan'; nbdRef=null; render();
+  toast(usedIds.length?usedIds.length+' taken off the fridge list':'Marked as cooked', !!usedIds.length);
+}
+function nbdChips(list,sel,attr,extra){
+  return list.map(o=>{
+    const val=typeof o==='string'?o:o.val, lab=typeof o==='string'?o:o.lab, tag=(typeof o==='object'&&o.tag)||'';
+    return `<button class="ball" data-${attr}="${esc(val)}" aria-pressed="${sel===val}">${esc(lab)}${tag?` <span class="n">${esc(tag)}</span>`:''}</button>`;
+  }).join('')+(extra||'');
+}
+function renderNbd(){
+  const p=nbdCurrent();
+  if(!p){ mode='plan'; nbdRef=null; return renderPlan(); }
+  const iso=nbdRef.iso, res=nbdResolution(p), miss=nbdMissing(p);
+  const carbAvail=nbdCarbAvail(), protAvail=nbdProtAvail(), vg=nbdVegGroups();
+  const vegOn=(p.veg||[]).map(v=>sing(norm(v.name)));
+  const isVegOn=g=>vegOn.includes(sing(norm(g.name)));
+
+  const carbList=[]; const carbAll=NBD_CARBS.concat(menu.filter(m=>m.role==='carb').map(m=>m.name));
+  carbAll.forEach(c=>carbList.push({val:c,lab:c,tag:carbAvail.some(a=>a.toLowerCase()===c.toLowerCase())?'have':''}));
+  carbList.sort((a,b)=>(b.tag?1:0)-(a.tag?1:0));
+  const carbVal=p.carb?(p.carb.name||p.carb.kind):null;
+
+  const protList=NBD_PROTEINS.map(c=>({val:c,lab:c,tag:protAvail.includes(c)?'have':''}))
+    .sort((a,b)=>(b.tag?1:0)-(a.tag?1:0));
+
+  const vegChips=vg.filter(g=>g.isVeg).map(g=>{
+    const marks=[g.soon?'use soon':'',g.opened?'opened':'',g.freezer&&!g.fridge?'freezer':''].filter(Boolean).join(' · ');
+    return `<button class="ball" data-nbdveg="${esc(g.key)}" aria-pressed="${isVegOn(g)}">${esc(g.name)}${marks?` <span class="n">${esc(marks)}</span>`:''}</button>`;
+  }).join('');
+  const unclassified=vg.filter(g=>!g.isVeg && g.recs.every(f=>foodClass(f)==='other'));
+  /* selected veg that no longer resolve to inventory */
+  const orphanVeg=(p.veg||[]).filter(v=>!vg.some(g=>isVegOn(g)&&sing(norm(g.name))===sing(norm(v.name))));
+
+  const cookList=NBD_COOK.map(c=>({val:c,lab:c}));
+
+  pane.innerHTML=`<article class="card">
+    <div class="card-head">
+      <div style="flex:1;min-width:180px"><h2>No-Brainer Dinner</h2>
+        <p class="blurb">${esc(prettyDay(iso))} · ${res==='full'?'ready':res==='partial'?'part chosen':'nothing chosen yet'}. A carb, a protein and one or more vegetables. Change any part on its own — it only affects this planned meal.</p></div>
+      <div class="head-actions"><button class="pill" id="nbd-back">← Plan</button></div>
+    </div>
+    ${nbdCook?`<div class="cookoff">
+      <p class="hint" style="margin:0 0 6px">Tick what you actually used — those come off the fridge. Nothing is removed until you confirm.</p>
+      ${(()=>{ const rows=[]; const seen=new Set();
+        const add=f=>{ if(f&&!seen.has(f.id)){ seen.add(f.id);
+          rows.push(`<label class="cookoff-row"><input type="checkbox" checked data-nbduse="${esc(f.id)}"> ${esc(f.name)}${f.qty?` <span class="item-qty">${esc(f.qty)}</span>`:''}</label>`); } };
+        (p.veg||[]).forEach(v=>(v.ids||[]).forEach(id=>add(fridge.find(x=>x.id===id))));
+        if(p.protein){ const pc=p.protein.name||p.protein.cat;
+          fridge.filter(f=>(f.shelf==='Fridge'||f.shelf==='Freezer')&&(foodMatch(f.name,pc)||proteinCat(f.name)===p.protein.cat)).forEach(add); }
+        return rows.join('')||`<p class="home-none" style="margin:0">No fridge items are linked to this meal — nothing to take off.</p>`;
+      })()}
+      <div class="edit-actions" style="margin-top:12px;padding:0;border:0">
+        <button class="pill solid" id="nbd-cook-go">Confirm cooked</button>
+        <button class="pill" id="nbd-cook-cancel">Cancel</button>
+      </div></div>`:`
+
+    <div class="cook-actions" style="margin:4px 0 16px">
+      <button class="pill solid" id="nbd-auto">Use what I have</button>
+      ${res!=='empty'?`<button class="link-btn" id="nbd-clear-all">Start over</button>`:''}
+    </div>
+
+    ${nbdFav.length?`<div class="shop-usuals" style="margin-top:0"><h4>Favourites</h4><div class="usual-chips">
+      ${nbdFav.map(f=>`<button class="ball" data-nbdfav="${esc(f.id)}">${esc(nbdSummary(f))}</button>`).join('')}</div></div>`:''}
+    ${nbdRecent.length?`<div class="shop-usuals"><h4>Recent</h4><div class="usual-chips">
+      ${nbdRecent.slice(0,6).map((r,i)=>`<button class="ball" data-nbdrecent="${i}">${esc(nbdSummary(r))}</button>`).join('')}</div></div>`:''}
+
+    <h3 class="section-title" style="margin-top:22px">Carbohydrate</h3><div class="section-rule"></div>
+    <div class="usual-chips">${nbdChips(carbList,carbVal,'nbdcarb')}
+      ${carbVal?`<button class="ball" data-nbdcarbx="1">clear</button>`:''}</div>
+    ${carbVal&&!carbAvail.some(a=>a.toLowerCase()===carbVal.toLowerCase())?`<p class="hint" style="margin-top:6px">${esc(carbVal)} isn't in the kitchen. <button class="link-btn" data-nbdshop="${esc(carbVal)}">Add to shopping list</button></p>`:''}
+    <div class="add-item" style="grid-template-columns:1fr auto;margin-top:8px">
+      <label><span class="picker-label">Add another carb</span><input id="nbd-carb-custom" placeholder="Tortilla" autocomplete="off"></label>
+      <button class="pill" id="nbd-carb-add" style="align-self:end;padding:9px 13px">Add</button>
+    </div>
+
+    <h3 class="section-title" style="margin-top:22px">Protein</h3><div class="section-rule"></div>
+    <div class="usual-chips">${nbdChips(protList,p.protein&&p.protein.cat,'nbdprot')}
+      ${p.protein?`<button class="ball" data-nbdprotx="1">clear</button>`:''}</div>
+    ${p.protein?`<div class="add-item" style="grid-template-columns:1fr;margin-top:8px">
+      <label><span class="picker-label">Specific, optional — e.g. salmon, mince</span>
+        <input id="nbd-prot-spec" value="${esc(p.protein.name||'')}" placeholder="${esc(p.protein.cat)}" autocomplete="off"></label></div>`:''}
+    ${p.protein&&!protAvail.includes(p.protein.cat)?`<p class="hint" style="margin-top:6px">No ${esc(p.protein.cat.toLowerCase())} in the fridge or freezer. <button class="link-btn" data-nbdshop="${esc(p.protein.name||p.protein.cat)}">Add to shopping list</button></p>`:''}
+
+    <h3 class="section-title" style="margin-top:22px">Vegetables</h3><div class="section-rule"></div>
+    ${vegChips?`<div class="usual-chips">${vegChips}</div>`:
+      `<div class="useup" style="margin-top:0"><p style="margin:0 0 8px;font-size:14px">Nothing in the fridge or freezer is classed as a vegetable right now.</p>
+        <div class="cook-actions" style="margin:0">
+          <button class="link-btn" data-go2="fridge">Add a vegetable to the fridge</button>
+          <button class="link-btn" id="nbd-veg-toshop">Put vegetables on the shopping list</button>
+          <button class="link-btn" id="nbd-back2">Save and decide later</button>
+        </div></div>`}
+    ${orphanVeg.length?`<p class="hint" style="margin-top:6px">Chosen but no longer available: ${orphanVeg.map(v=>`<b>${esc(v.name)}</b> <button class="link-btn" data-nbdshop="${esc(v.name)}">to shopping list</button> · <button class="link-btn" data-nbdvegrm="${esc(v.name)}">drop</button>`).join(' · ')}</p>`:''}
+    ${unclassified.length?`<p class="hint" style="margin-top:8px">Not classified — tap to treat as a vegetable in future:
+      <span class="ing-opt-picks">${unclassified.slice(0,12).map(g=>`<button class="ball" data-nbdclassify="${esc(g.key)}" style="padding:4px 10px;font-size:12px">${esc(g.name)}</button>`).join('')}</span></p>`:''}
+    <div class="add-item" style="grid-template-columns:1fr auto;margin-top:8px">
+      <label><span class="picker-label">A veg you don't have — add to shopping list</span><input id="nbd-veg-shop" placeholder="Broccoli" autocomplete="off"></label>
+      <button class="pill" id="nbd-veg-shop-add" style="align-self:end;padding:9px 13px">Add</button>
+    </div>
+
+    <h3 class="section-title" style="margin-top:22px">Cooking direction <span style="text-transform:none;letter-spacing:0">— optional</span></h3><div class="section-rule"></div>
+    <div class="usual-chips">${nbdChips(cookList,p.cook,'nbdcook')}
+      ${p.cook?`<button class="ball" data-nbdcookx="1">none</button>`:''}</div>
+    <div class="add-item" style="grid-template-columns:1fr auto;margin-top:8px">
+      <label><span class="picker-label">Or your own</span><input id="nbd-cook-custom" placeholder="Miso butter" autocomplete="off"></label>
+      <button class="pill" id="nbd-cook-add" style="align-self:end;padding:9px 13px">Set</button>
+    </div>
+
+    <div class="edit-actions">
+      <button class="pill solid" id="nbd-done">Done</button>
+      ${res==='full'?`<button class="pill" id="nbd-fav">Save as favourite</button>`:''}
+      ${p.status==='planned'?`<button class="pill" id="nbd-cooked">Mark cooked</button><button class="pill" id="nbd-skip">Skip</button>`:''}
+      ${p.status==='skipped'?`<button class="pill" id="nbd-unskip">Un-skip</button>`:''}
+      ${p.status==='completed'?`<span class="chip">cooked</span> <button class="pill" id="nbd-reopen">Reopen</button>`:''}
+      <button class="pill danger" id="nbd-remove">Remove</button>
+    </div>`}
+  </article>`;
+
+  const toPlan=()=>{ mode='plan'; nbdRef=null; render(); };
+  const bk=$('#nbd-back'); if(bk) bk.onclick=toPlan;
+  const bk2=$('#nbd-back2'); if(bk2) bk2.onclick=toPlan;
+  const dn=$('#nbd-done'); if(dn) dn.onclick=toPlan;
+  pane.querySelectorAll('[data-go2]').forEach(b=>b.onclick=()=>{ mode=b.dataset.go2; nbdRef=null; render(); });
+
+  pane.querySelectorAll('[data-nbdcarb]').forEach(b=>b.onclick=()=>{ p.carb={kind:b.dataset.nbdcarb}; nbdTouch(p); });
+  const cx=$('[data-nbdcarbx]'); if(cx) cx.onclick=()=>{ p.carb=null; nbdTouch(p); };
+  const ca=$('#nbd-carb-add'); if(ca) ca.onclick=async()=>{
+    const el=$('#nbd-carb-custom'); const v=el.value.trim(); if(!v) return;
+    if(!menu.some(m=>m.role==='carb'&&norm(m.name)===norm(v)) && !NBD_CARBS.some(c=>norm(c)===norm(v)))
+      { menu.push({id:'m'+Date.now()+Math.random().toString(36).slice(2,6),name:v,role:'carb',note:''}); await saveMenu(); }
+    p.carb={kind:v}; nbdTouch(p);
+  };
+  const cci=$('#nbd-carb-custom'); if(cci) cci.onkeydown=e=>{ if(e.key==='Enter') ca.click(); };
+
+  pane.querySelectorAll('[data-nbdprot]').forEach(b=>b.onclick=()=>{
+    p.protein={cat:b.dataset.nbdprot}; nbdTouch(p); });
+  const px=$('[data-nbdprotx]'); if(px) px.onclick=()=>{ p.protein=null; nbdTouch(p); };
+  const psp=$('#nbd-prot-spec'); if(psp) psp.onblur=()=>{ if(!p.protein) return;
+    const v=psp.value.trim(); const nv=v||undefined;
+    if((p.protein.name||undefined)!==nv){ if(v) p.protein.name=v; else delete p.protein.name; nbdTouch(p); } };
+
+  pane.querySelectorAll('[data-nbdveg]').forEach(b=>b.onclick=()=>{
+    const g=vg.find(x=>x.key===b.dataset.nbdveg); if(!g) return;
+    const k=sing(norm(g.name));
+    if(vegOn.includes(k)) p.veg=(p.veg||[]).filter(v=>sing(norm(v.name))!==k);
+    else (p.veg=p.veg||[]).push({ids:g.ids.slice(),name:g.name});
+    nbdTouch(p);
+  });
+  pane.querySelectorAll('[data-nbdvegrm]').forEach(b=>b.onclick=()=>{
+    const k=sing(norm(b.dataset.nbdvegrm));
+    p.veg=(p.veg||[]).filter(v=>sing(norm(v.name))!==k); nbdTouch(p);
+  });
+  pane.querySelectorAll('[data-nbdclassify]').forEach(b=>b.onclick=async()=>{
+    const g=vg.find(x=>x.key===b.dataset.nbdclassify); if(!g) return;
+    g.recs.forEach(f=>{ f.class='veg'; });
+    await saveFridge(); render();
+  });
+  const vsa=$('#nbd-veg-shop-add'); if(vsa) vsa.onclick=()=>{ const el=$('#nbd-veg-shop'); if(el.value.trim()){ nbdShop(el.value.trim()); el.value=''; } };
+  const vsi=$('#nbd-veg-shop'); if(vsi) vsi.onkeydown=e=>{ if(e.key==='Enter') vsa.click(); };
+  const vts=$('#nbd-veg-toshop'); if(vts) vts.onclick=()=>{ const el=$('#nbd-veg-shop'); if(el&&el.value.trim()){ nbdShop(el.value.trim()); el.value=''; } else toast('Type a vegetable above, then Add'); };
+
+  pane.querySelectorAll('[data-nbdcook]').forEach(b=>b.onclick=()=>{ p.cook=b.dataset.nbdcook; nbdTouch(p); });
+  const ckx=$('[data-nbdcookx]'); if(ckx) ckx.onclick=()=>{ p.cook=null; nbdTouch(p); };
+  const cka=$('#nbd-cook-add'); if(cka) cka.onclick=()=>{ const el=$('#nbd-cook-custom'); if(el.value.trim()){ p.cook=el.value.trim(); nbdTouch(p); } };
+  const cku=$('#nbd-cook-custom'); if(cku) cku.onkeydown=e=>{ if(e.key==='Enter') cka.click(); };
+
+  pane.querySelectorAll('[data-nbdshop]').forEach(b=>b.onclick=()=>nbdShop(b.dataset.nbdshop));
+
+  const auto=$('#nbd-auto'); if(auto) auto.onclick=()=>{
+    const a=nbdAuto(p); Object.assign(p,{carb:a.carb,protein:a.protein,veg:a.veg,cook:a.cook});
+    const gaps=[!p.carb&&'a carb',!p.protein&&'a protein',!(p.veg&&p.veg.length)&&'a vegetable'].filter(Boolean);
+    nbdTouch(p);
+    toast(gaps.length?'Filled what I could — still need '+gaps.join(' and '):'Built from what you have');
+  };
+  const clr=$('#nbd-clear-all'); if(clr) clr.onclick=()=>{ p.carb=null;p.protein=null;p.veg=[];p.cook=null;p.fav=null; nbdTouch(p); };
+
+  pane.querySelectorAll('[data-nbdfav]').forEach(b=>b.onclick=()=>{
+    const f=nbdFav.find(x=>x.id===b.dataset.nbdfav); if(!f) return;
+    nbdLoadCombo(p,f); nbdTouch(p);
+    const m=nbdMissing(p); toast(m.length?'Loaded — '+m.length+' part'+(m.length===1?'':'s')+' need sorting':'Loaded');
+  });
+  pane.querySelectorAll('[data-nbdrecent]').forEach(b=>b.onclick=()=>{
+    const r=nbdRecent[+b.dataset.nbdrecent]; if(!r) return; nbdLoadCombo(p,r); nbdTouch(p);
+  });
+
+  const fav=$('#nbd-fav'); if(fav) fav.onclick=async()=>{
+    nbdFav.push({id:'fav'+Date.now()+Math.random().toString(36).slice(2,6),
+      carb:p.carb,protein:p.protein,veg:(p.veg||[]).map(v=>({name:v.name})),cook:p.cook||null});
+    await saveNbdFav(); render(); toast('Saved to favourites');
+  };
+  const skip=$('#nbd-skip'); if(skip) skip.onclick=async()=>{ p.status='skipped'; p.updated=new Date().toISOString(); await savePlan(); toPlan(); toast('Skipped'); };
+  const unskip=$('#nbd-unskip'); if(unskip) unskip.onclick=()=>{ p.status='planned'; nbdTouch(p); };
+  const reopen=$('#nbd-reopen'); if(reopen) reopen.onclick=()=>{ p.status='planned'; p.done=false; nbdTouch(p); };
+  const cooked=$('#nbd-cooked'); if(cooked) cooked.onclick=()=>{ nbdCook={iso:nbdRef.iso,idx:nbdRef.idx}; render(); };
+  const cg=$('#nbd-cook-go'); if(cg) cg.onclick=()=>{
+    const used=[...pane.querySelectorAll('[data-nbduse]:checked')].map(x=>x.dataset.nbduse);
+    snapshot(); nbdComplete(p,used);
+  };
+  const cc=$('#nbd-cook-cancel'); if(cc) cc.onclick=()=>{ nbdCook=null; render(); };
+  const rm=$('#nbd-remove'); if(rm) rm.onclick=e=>arm(e.currentTarget,'Remove this meal?',async()=>{
+    const arr=plan[nbdRef.iso]; if(arr){ arr.splice(nbdRef.idx,1); if(!arr.length) delete plan[nbdRef.iso]; }
+    await savePlan(); toPlan(); toast('Removed');
+  });
+}
+
 /* ============ home ============ */
 function renderHome(){
   const t0=todayISO();
   const d=new Date(); const hr=d.getHours();
   const greet=hr<11?'Morning':hr<17?'Afternoon':'Evening';
   const urgent=urgentItems();
-  const today=(plan[t0]||[]).map(p=>({p,r:find(p.id)})).filter(x=>x.r||x.p.note!=null);
+  const today=(plan[t0]||[]).map((p,i)=>({p,i,r:find(p.id)})).filter(x=>x.r||x.p.note!=null);
   const cook=recipes.map(r=>({r,mi:matchInfo(r),urg:usedItems(r).filter(f=>urgent.includes(f)).length}))
     .filter(x=>x.mi.have.length>0)
     .sort((a,b)=>b.urg-a.urg||a.mi.missing.length-b.mi.missing.length).slice(0,3);
@@ -2435,7 +2826,12 @@ function renderHome(){
 
     <section class="home-block">
       <h3 class="home-h">Today</h3>
-      ${today.length?`<ul class="home-today">${today.map(x=>x.r?`
+      ${today.length?`<ul class="home-today">${today.map(x=>
+        x.p.tmpl==='nbd'?`<li class="${x.p.status==='completed'||x.p.done?'done':''}"><span class="ht-art">${art(x.r)}</span>
+          <button class="link-btn ht-name" data-nbd2="${esc(t0)}|${x.i}">No-Brainer Dinner</button>
+          <span class="item-qty">${esc(nbdSummary(x.p))}</span>
+          ${x.p.status==='completed'?'<span class="chip">cooked</span>':x.p.status==='skipped'?'<span class="chip">skipped</span>':''}</li>`
+        :x.r?`
         <li class="${x.p.done?'done':''}"><span class="ht-art">${art(x.r)}</span>
           <button class="link-btn ht-name" data-open="${esc(x.r.id)}">${esc(x.r.name)}</button>
           ${perServing(x.r)?`<span class="item-qty">${perServing(x.r)} kcal a serving</span>`:''}
@@ -2447,6 +2843,7 @@ function renderHome(){
   </article>`;
 
   pane.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openRecipe(b.dataset.open));
+  pane.querySelectorAll('[data-nbd2]').forEach(b=>b.onclick=()=>{ const [iso,idx]=b.dataset.nbd2.split('|'); openNbd(iso,+idx); });
   pane.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{ mode=b.dataset.go; render(); });
 
   const ti=$('#todo-in');
@@ -2519,19 +2916,20 @@ async function loadAllCatalogues(){
   await Promise.all(STORES.map(async ([slug,name])=>{
     try{
       let items=null;
-      /* the CSV export is the current data; the JSON is a fallback for stores
-         not re-exported yet (e.g. Bayley & Sage) */
+      /* Bulk compare: read the pre-parsed JSON (kept current by
+         scripts/csv-to-json.py) so the browser doesn't parse ~14 MB of CSV.
+         The CSV is the fallback if a JSON is missing (e.g. Bayley & Sage). */
       try{
-        const rc=await fetch(base+slug+'.csv');
-        if(rc.ok){ const p=parseShopCsv(await rc.text());
-          if(p) items=p.items.map(i=>({...i,slug,store:p.store||name})); }
+        const r=await fetch(base+slug+'.json');
+        if(r.ok){ const j=await r.json();
+          items=j.items.map(a=>({name:a[0],price:a[1],cat:a[2],size:a[3],slug,store:j.store})); }
       }catch(e){}
       if(!items){
-        const r=await fetch(base+slug+'.json'); if(!r.ok) return;
-        const j=await r.json();
-        items=j.items.map(a=>({name:a[0],price:a[1],cat:a[2],size:a[3],slug,store:j.store}));
+        const rc=await fetch(base+slug+'.csv'); if(!rc.ok) return;
+        const p=parseShopCsv(await rc.text());
+        if(p) items=p.items.map(i=>({...i,slug,store:p.store||name}));
       }
-      out[slug]=items;
+      if(items) out[slug]=items;
     }catch(e){}
   }));
   allCat=Object.keys(out).length?out:null;
@@ -2620,7 +3018,11 @@ async function loadBootsProducts(){
       try{ const r=await fetch(base+f); if(!r.ok) continue;
         const p=parseShopCsv(await r.text()); if(p){ parsed=p; break; } }catch(e){}
     }
-    if(!parsed) throw new Error('no boots csv');
+    if(!parsed){                                   /* CSV unreachable — try the generated JSON */
+      try{ const r=await fetch(base+'boots.json'); if(r.ok){ const j=await r.json();
+        parsed={store:j.store,items:j.items.map(a=>({name:a[0],price:a[1],cat:a[2],size:a[3]}))}; } }catch(e){}
+    }
+    if(!parsed) throw new Error('no boots data');
     bootsCat={slug:BOOTS_SLUG,store:parsed.store||'Boots Borehamwood',items:parsed.items};
     shopCat=bootsCat;
   }catch(e){
@@ -2743,7 +3145,7 @@ function renderShop(){
     </div>
     ${shopBusy?`<p class="home-none">Loading the price list…</p>`:''}
     ${shopErr?`<div class="banner" style="margin-bottom:14px">${esc(shopErr)}</div>`:''}
-    <input class="search" id="shop-q" type="search" placeholder="${shopScope==='baskets'?'Search your baskets':'Search every shop'}" autocomplete="off" value="${esc(shopQ)}">
+    <input class="search" id="shop-q" type="search" placeholder="${shopScope==='baskets'?'Search your baskets':shopScope==='store'?'Search '+esc(shopStore===BOOTS_SLUG?'Boots Borehamwood':(shopCat?shopCat.store:'this shop')):'Search every shop'}" autocomplete="off" value="${esc(shopQ)}">
     ${results.length?(()=>{
       const groups=new Map();
       results.forEach(i=>{ const f=famOf(i.cat);
@@ -2967,7 +3369,7 @@ function renderShop(){
 function renderSettings(){
   const counts=[['Recipes',recipes.length],['In the fridge',fridge.length],
     ['On the grocery list',grocery.length],['Planned meals',Object.values(plan).reduce((a,v)=>a+v.length,0)],
-    ['To do',todos.length],['Menu items',menu.length],['Baskets',Object.values(basket).reduce((a,v)=>a+v.length,0)]];
+    ['To do',todos.length],['Menu items',menu.length],['NBD favourites',nbdFav.length],['Baskets',Object.values(basket).reduce((a,v)=>a+v.length,0)]];
   pane.innerHTML=`<article class="card">
     <div class="card-head">
       <div style="flex:1;min-width:180px"><h2>Settings</h2>
@@ -3099,7 +3501,7 @@ let routing=false;                    /* guards against hashchange feedback loop
 
 function hashFor(){
   if(SHARE) return null;
-  if(editing||mode==='paste') return null;   /* transient states — leave the URL where it was */
+  if(editing||mode==='paste'||mode==='nbd') return null;   /* transient states — leave the URL where it was */
   if(mode==='recipe'&&currentId) return '#/recipe/'+encodeURIComponent(currentId);
   if(mode==='home') return '#/';
   return ROUTES.includes(mode)?'#/'+mode:'#/';
@@ -3152,6 +3554,7 @@ function renderBody(){
   if(mode==='grocery'&&!SHARE){ renderGrocery(); return; }
   if(mode==='plan'&&!SHARE){ renderPlan(); return; }
   if(mode==='paste'&&!SHARE){ renderPaste(); return; }
+  if(mode==='nbd'&&!SHARE){ renderNbd(); return; }
   if(mode==='settings'&&!SHARE){ renderSettings(); return; }
   if(mode==='shop'&&!SHARE){ renderShop(); return; }
   if(mode==='home'&&!SHARE){ renderHome(); return; }
@@ -3161,7 +3564,7 @@ function renderBody(){
 
 $('#logo').innerHTML=`<img src="${LOGO}" alt="Half Baked Society">`;
 $('#logo').style.cursor='pointer'; $('#logo').title='Home';
-const goMode=m=>()=>{ userNavigated=true; mode=m; editing=false; draft=null; cookOff=false; putAway=null; pickDay=null; editItem=null; formDate='';
+const goMode=m=>()=>{ userNavigated=true; mode=m; editing=false; draft=null; cookOff=false; putAway=null; pickDay=null; editItem=null; formDate=''; nbdRef=null; nbdCook=null;
   if(m!=='recipes'){ searchQ=''; tagFilter=''; }
   document.body.dataset.view='detail'; render(); };
 const on=(sel,ev,fn)=>{ const el=$(sel); if(el) el.addEventListener(ev,fn); };
@@ -3196,7 +3599,7 @@ $('#doodle-file').onchange=e=>{
   e.target.value='';
 };
 function doBackup(){
-  const blob=new Blob([JSON.stringify({v:APP_VERSION,mine,overrides,removed,fridge,grocery,plan,todos,menu,foodPrefs,basket,shopHist},null,2)],{type:'application/json'});
+  const blob=new Blob([JSON.stringify({v:APP_VERSION,mine,overrides,removed,fridge,grocery,plan,todos,menu,nbdFav,nbdRecent,foodPrefs,basket,shopHist},null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='half-baked-'+todayISO()+'.json';
   a.click(); URL.revokeObjectURL(a.href);
@@ -3219,11 +3622,13 @@ $('#import-file').onchange=e=>{
       if(d.fridge) fridge=d.fridge; if(d.grocery) grocery=d.grocery;
       if(d.plan) plan=d.plan; if(d.todos) todos=d.todos; if(d.foodPrefs) foodPrefs=d.foodPrefs;
       if(d.menu) menu=d.menu;
+      if(d.nbdFav) nbdFav=d.nbdFav; if(d.nbdRecent) nbdRecent=d.nbdRecent;
       if(d.basket) basket=d.basket; if(d.shopHist) shopHist=d.shopHist;
       rebuild(); currentId=recipes[0]?.id??null;
   editing=false; mode='recipes';
       await saveRecipeStores(); await saveFridge(); await saveGrocery();
       await savePlan(); await saveTodos(); await savePrefs(); await saveMenu();
+      await saveNbdFav(); await saveNbdRecent();
       render(); toast('Restored '+recipes.length+' recipes');
     }catch(err){ banner('That file is not a Half Baked backup. Pick the .json you downloaded from here.'); }
   };
@@ -3257,13 +3662,14 @@ async function doReset(){
      eleven sequential round-trips were the reason startup felt slow. */
   /* In share mode fetch ONLY the three recipe keys. The fridge, grocery list,
      meal plan, baskets and purchase history are never requested at all. */
-  const [_mine,_over,_rem,_fri,_gro,_pl,_td,_bk,_hs,_pr,_mn,meta] = SHARE
+  const [_mine,_over,_rem,_fri,_gro,_pl,_td,_bk,_hs,_pr,_mn,_nf,_nr,meta] = SHARE
     ? [...await Promise.all([sget(S.mine), sget(S.overrides), sget(S.removed)]),
-       null,null,null,null,null,null,null,null,null]
+       null,null,null,null,null,null,null,null,null,null,null]
     : await Promise.all([
         sget(S.mine), sget(S.overrides), sget(S.removed), sget(S.fridge),
         sget(S.grocery), sget(S.plan), sget(S.todos), sget(S.basket),
-        sget(S.hist), sget(S.prefs), sget(S.menu), sget(S.meta)
+        sget(S.hist), sget(S.prefs), sget(S.menu), sget(S.nbdfav),
+        sget(S.nbdrecent), sget(S.meta)
       ]);
   mine      = _mine || [];
   overrides = _over || {};
@@ -3276,6 +3682,8 @@ async function doReset(){
   shopHist  = _hs   || {};
   foodPrefs = _pr   || {};
   menu      = _mn   || [];
+  nbdFav    = _nf   || [];
+  nbdRecent = _nr   || [];
 
   /* one-time lift from the old single-blob store into the split stores */
   if(!meta && !API_BASE){
