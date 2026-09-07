@@ -490,7 +490,7 @@ const API_BASE = '/api/kv';                    /* '' = this device · '/api/kv' 
    (api/ai.js) so the API key never reaches the browser. The direct endpoint is
    only a fallback for running with no server, where the feature cannot work.  */
 const AI_ENDPOINT = API_BASE ? '/api/ai' : 'https://api.anthropic.com/v1/messages';
-const APP_VERSION = 7;                  /* bump when shipping new seed recipes  */
+const APP_VERSION = 8;                  /* bump when shipping new seed recipes  */
 
 const S = {
   mine:      'hbs:recipes.mine',        /* recipes you created                  */
@@ -938,7 +938,7 @@ function seed(){return [
   'Reduce the heat to low and pour in the cream. Let the sauce thicken to a gravy consistency and adjust the salt.',
   'Stir through finely chopped parsley, then toss in the butter and swirl the pan to combine. Cut the heat.',
   'Spoon a generous pool of sauce onto the plate, slice the steak over it, and spoon more sauce to finish.']},
-{id:'chicken-rice',name:'Chicken Rice',icon:'chickenrice',cuisine:'Singaporean',tags:['Main','Comfort'],kcal:2300,blurb:'',makesQty:2,makesUnit:'servings',
+{id:'chicken-rice',name:'Singaporean Chicken and Rice',icon:'chickenrice',cuisine:'Singaporean',tags:['Main','Comfort'],kcal:2300,blurb:'',makesQty:2,makesUnit:'servings',
  ingredients:[{qty:2,unit:'',name:'Chicken legs'},{qty:60,unit:'ml',name:'Shaoxing wine'},{qty:12,unit:'g',name:'Garlic'},
   {qty:30,unit:'g',name:'Ginger'},{qty:2,unit:'',name:'Scallions'},{qty:1,unit:'',name:'Thai chilli'},
   {qty:45,unit:'ml',name:'Dark soy'},{qty:30,unit:'ml',name:'Lime juice'},{qty:12,unit:'g',name:'Sugar'},
@@ -1004,21 +1004,38 @@ function seed(){return [
     'Transfer to freezer. To serve at original consistency, remove 5-10 minutes before eating. Makes approximately 2 pints (950ml).'
   ]
 },
-{id:'bibimbap',name:'Bibimbap',icon:'chickenrice',cuisine:'Korean',tags:['Main','Assembly','Rice'],kcal:2400,
- blurb:'Not a fixed recipe — warm rice under whatever banchan are around, a meat, a fried egg and gochujang. Build it from the carb / veg side / meat menu on the meal plan.',
+{id:'no-brainer-dinner',name:'No-Brainer Dinner',icon:'chickenrice',cuisine:'Korean',tags:['Main','Assembly','Rice'],kcal:2000,
+ blurb:'The default: a carb, a veg side and a meat on one plate. Rice as the carb, one or two things off the veg-side menu, a quick protein. Load on three or four veg sides and a fried egg with gochujang and it is bibimbap.',
  makesQty:2,makesUnit:'servings',
  ingredients:[{qty:null,unit:'',name:'Carb:'},
-  {qty:300,unit:'g',name:'Short-grain rice, cooked'},
-  {qty:null,unit:'',name:'Veg sides — pick three or four:'},
+  {qty:300,unit:'g',name:'Rice, cooked'},
+  {qty:null,unit:'',name:'Veg side — one or two (three or four makes it bibimbap):'},
   {qty:null,unit:'',name:'Sigeumchi-namul, kongnamul, musaengchae, kimchi, gosari, seasoned courgette'},
   {qty:null,unit:'',name:'Meat:'},
   {qty:200,unit:'g',name:'Bulgogi, or minced beef fried with soy and sugar'},
-  {qty:null,unit:'',name:'To finish:'},
+  {qty:null,unit:'',name:'To finish, optional:'},
   {qty:2,unit:'',name:'Eggs, fried'},{qty:null,unit:'',name:'Gochujang, sesame oil, toasted sesame seeds'}],
- method:['Warm the rice into deep bowls.',
-  'Arrange the veg sides around the edge and the meat in the middle.',
-  'Fry an egg per bowl, sunny side up, and set it on top.',
-  'Serve with gochujang and a drizzle of sesame oil — mix it all together at the table.']}
+ method:['Warm the rice into bowls or onto plates.',
+  'Set the meat alongside and the veg sides around it.',
+  'For the bibimbap version: pile on more veg sides, top each with a fried egg, and serve with gochujang and a drizzle of sesame oil to mix in at the table.']}
+,
+{id:'tamagoyaki',name:'Tamagoyaki',icon:'soft-eggs',cuisine:'Japanese',tags:['Side','Eggs','Pan-fried'],kcal:350,
+ blurb:'Dashimaki tamagoyaki — a rolled Japanese omelette built layer on layer, seasoned with dashi so it stays soft and just barely sweet. The watery dashi batter is the trickier one to roll.',
+ makesQty:4,makesUnit:'slices',
+ ingredients:[{qty:3,unit:'',name:'Eggs, large (about 50 g each without shell)'},
+  {qty:45,unit:'ml',name:'Dashi, or water steeped with a dashi packet'},
+  {qty:2,unit:'tsp',name:'Sugar'},
+  {qty:1,unit:'tsp',name:'Soy sauce'},
+  {qty:1,unit:'tsp',name:'Mirin'},
+  {qty:2,unit:'pinch',name:'Kosher salt'},
+  {qty:2,unit:'Tbsp',name:'Neutral oil, for the pan'}],
+ method:['Crack the eggs into a bowl and cut through them with chopsticks in a zig-zag — mix just enough to combine, not until frothy.',
+  'Stir the dashi, sugar, soy sauce, mirin and salt together in a second bowl until the sugar dissolves, then whisk into the eggs without overmixing. Pour into a jug or measuring cup with a spout.',
+  'Heat a tamagoyaki pan, or a small non-stick, over medium. Fold a paper towel into a pad, dip it in the oil and wipe the pan — keep this oiled pad to use between every layer.',
+  'Pour in a thin layer of egg, tilting to cover the base. Pop any large bubbles. When the surface is just set but still glossy, roll it away from you into a log at the far side of the pan.',
+  'Wipe the pan with the oil pad, including under the roll. Pour in the next thin layer, lifting the roll so raw egg runs underneath. Let it set, then roll it back over the new layer.',
+  'Repeat until the egg is used up — four or five layers. Keep the heat moderate so it stays pale and tender.',
+  'Turn out onto a bamboo mat or paper towel, wrap and press into a neat rectangle, and rest a couple of minutes. Slice into thick pieces.']}
 ];}
 
 /* ============ state ============ */
@@ -1083,8 +1100,8 @@ const saveFridge=()=>sset(S.fridge,fridge), saveGrocery=()=>sset(S.grocery,groce
 const save=saveRecipeStores;
 
 /* Mix-and-match menu: dishes tagged by the part of the plate they cover, so a
-   bibimbap-style meal is "pick a carb, a couple of veg sides and a meat".
-   Fixed order so the panel doesn't reshuffle as items are added. */
+   No-Brainer Dinner is "pick a carb, a veg side and a meat" (more veg sides =
+   bibimbap). Fixed order so the panel doesn't reshuffle as items are added. */
 const ROLES=[['carb','Carb'],['veg','Veg side'],['meat','Meat'],['other','Other']];
 function roleLabel(k){ const r=ROLES.find(x=>x[0]===k); return r?r[1]:k; }
 
@@ -2256,7 +2273,7 @@ function renderPlan(){
 
     <div class="useup" style="margin-top:22px">
       <h4>Mix &amp; match menu</h4>
-      <p class="hint" style="margin:0 0 10px">Dishes you rotate through, by the part of the plate they cover — a bibimbap-style meal is a carb, a couple of veg sides and a meat. ${pickDay?'Tap one to write it into the open day.':'Open a day above, then tap — or “+ today”.'}</p>
+      <p class="hint" style="margin:0 0 10px">Dishes you rotate through, by the part of the plate they cover — a No-Brainer Dinner is a carb, a veg side and a meat; a few more veg sides makes it bibimbap. ${pickDay?'Tap one to write it into the open day.':'Open a day above, then tap — or “+ today”.'}</p>
       ${ROLES.map(([key,label])=>{
         const items=menu.filter(m=>m.role===key);
         if(!items.length) return '';
