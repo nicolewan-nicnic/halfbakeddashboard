@@ -93,6 +93,10 @@ button{cursor:pointer}
 .section-rule{height:6px;background:var(--wave) repeat-x left center;margin-bottom:14px}
 .ing-list,.steps{list-style:none;margin:0;padding:0}
 .steps{counter-reset:step}
+/* shared, read-only view: hide everything that leads to or edits the owner's data */
+body.shared #nav, body.shared #shelf, body.shared .back-only, body.shared #logo{display:none!important}
+body.shared .owner-only{display:none!important}
+body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
 .tick{width:100%;display:flex;gap:12px;align-items:flex-start;text-align:left;background:none;border:0;padding:7px 6px 7px 0;border-radius:9px}
 .tick:hover{background:var(--beige)}
 .box{width:18px;height:18px;flex:none;margin-top:3px;border:2.5px solid var(--crumb);border-radius:7px 5px 8px 5px/5px 8px 5px 7px;background:var(--ivory);position:relative}
@@ -306,6 +310,25 @@ button{cursor:pointer}
 .toast-undo{background:none;border:1.5px solid var(--ivory);border-radius:7px 5px 8px 5px/5px 8px 5px 7px;color:var(--ivory);font:inherit;font-size:12.5px;padding:2px 10px;cursor:pointer}
 .toast-undo:hover{background:var(--ivory);color:var(--sage)}
 .shelf .areas{margin-bottom:0}
+.tinplan{margin-top:16px;border-top:2.5px solid var(--crumb);padding-top:14px}
+.tinlist{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}
+.tinrow{background:var(--beige);border-radius:var(--wob2);padding:10px 12px}
+.tinrow-in{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tinrow-in input{width:64px}
+.tinrow-in select{font:inherit;font-size:13px;padding:4px 6px;border:2.5px solid var(--crumb);border-radius:var(--wob3);background:var(--ivory)}
+.tinrow-out{margin-top:8px;font-size:13px;color:var(--rye)}
+.tinrow-out b{color:var(--crumb);font-weight:500}
+.tinnote{display:block;font-size:12px;opacity:.75;margin-top:2px}
+.tinrow-out.ok .tinnote{color:var(--sage)}
+.tinrow-out.idle{opacity:.5}
+.tinrow-out.note .tinnote{color:var(--rye)}
+.tinrow-out.warn{color:var(--tomato)}
+.tinrow-out.warn b{color:var(--tomato)}
+.tinfoot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:12px;flex-wrap:wrap}
+.tinover{font-size:12.5px;color:var(--tomato)}
+.ing-opt{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0 4px}
+.ing-opt-label{font-size:12.5px;color:var(--rye);opacity:.75}
+.ing-opt-picks{display:flex;gap:6px;flex-wrap:wrap}
 .pantry-line{font-size:13px;color:var(--rye);margin:12px 0 0}
 .pantry-line b{color:var(--sage);font-weight:500}
 .cook-actions{display:flex;gap:8px 18px;flex-wrap:wrap;margin-top:12px}
@@ -478,6 +501,15 @@ const S = {
 const LEGACY='recipe-ledger:v1';
 
 let apiDown=false;
+
+/* ---------- share mode ----------------------------------------------------
+   Reached via #/share (whole collection) or #/share/<recipe-id> (one recipe).
+   In this mode the app loads ONLY recipe data, every write is disabled, and
+   anything that reveals or edits personal data is hidden. Ticks still work for
+   whoever is reading, but they were always memory-only so nothing is saved. */
+const SHARE = /^#\/share(\/|$)/.test(location.hash);
+const SHARE_ID = SHARE ? decodeURIComponent((location.hash.match(/^#\/share\/(.+)$/)||[])[1]||'') : '';
+
 function localGet(k){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){ return null; } }
 function localSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); return true; }catch(e){ return false; } }
 
@@ -500,6 +532,10 @@ async function sget(k){
   return localGet(k);
 }
 async function sset(k,v){
+  /* Read-only: a visitor on a shared link must never be able to write to the
+     owner's store, whatever they click. This is the single choke point for
+     every save in the app, so guarding here covers all of them. */
+  if(SHARE) return;
   if(API_BASE && !apiDown){
     try{
       const r=await fetch(API_BASE,{method:'PUT',headers:{'Content-Type':'application/json'},
@@ -620,19 +656,22 @@ function shelfFor(name){ const f=foodInfo(name); return f?f.shelf:'Fridge'; }
 /* ============ seed recipes ============ */
 function seed(){return [
 {id:'pistachio-basque',name:'Basque Cheesecake',icon:'basque-cheesecake',cuisine:'Western',tags:['Dessert','Make-ahead','Baking'],kcal:7200,
- calc:{kind:'anchor',name:'Cream cheese',base:1000,unit:'g',tin:22,sharedG:1647,eggG:300,
-   options:[{k:'hojicha',label:'Hojicha',items:[['Hojicha powder',30],['Sugar',230]],cornstarch:40,cream:330},
-            {k:'praline',label:'Black sesame praline',items:[['Black sesame praline',200],['Sugar',200]],cornstarch:40,cream:300}]},
  prep:'It needs a night in the fridge after baking, so make it the day before you want to eat it.',
  blurb:'Burnt on the outside, barely set in the middle. Built for a 22 cm ring — use the scaler if your cream cheese tub is a different size. Hojicha or black sesame praline.',
  makesQty:12,makesUnit:'slices',
+ calc:{kind:'anchor',name:'Cream cheese',base:1000,unit:'g',tin:22,sharedG:1647,eggG:300,
+   options:[{k:'hojicha',label:'Hojicha',items:[['Hojicha powder',30],['Sugar',230]],cornstarch:40,cream:330},
+            {k:'praline',label:'Black sesame praline',items:[['Black sesame praline',200],['Sugar',200]],cornstarch:40,cream:300}]},
  ingredients:[{qty:1000,unit:'g',name:'Cream cheese, at least 32% fat'},
   {qty:40,unit:'g',name:'Cornflour'},{qty:5,unit:'g',name:'Vanilla paste, or 1 pod scraped'},
-  {qty:2,unit:'g',name:'Salt'},{qty:300,unit:'g',name:'Double cream'},
+  {qty:2,unit:'g',name:'Salt'},
   {qty:300,unit:'g',name:'Egg, about 6 large, weighed out of the shell'},
-  {qty:null,unit:'',name:'Then one of these two:'},
-  {qty:30,unit:'g',name:'Hojicha powder — with 230 g sugar, 40 g cornflour, 330 g cream'},
-  {qty:200,unit:'g',name:'Black sesame praline — with 200 g sugar, 40 g cornflour, 300 g cream'}],
+  {qty:30,unit:'g',name:'Hojicha powder',opt:'hojicha'},
+  {qty:230,unit:'g',name:'Sugar',opt:'hojicha'},
+  {qty:330,unit:'g',name:'Double cream',opt:'hojicha'},
+  {qty:200,unit:'g',name:'Black sesame praline',opt:'praline'},
+  {qty:200,unit:'g',name:'Sugar',opt:'praline'},
+  {qty:300,unit:'g',name:'Double cream',opt:'praline'}],
  method:['Heat the oven to 240°C, top and bottom heat.',
   'Line a 22 cm ring with parchment, sides and base.',
   'Beat the cream cheese with the sugar for whichever option you are making, along with the cornflour, salt and vanilla, until smooth.',
@@ -878,7 +917,57 @@ function seed(){return [
 {id:'viet-coffee',name:'Vietnamese Coffee',icon:'icedcoffee',cuisine:'Vietnamese',tags:['Drink','Quick'],kcal:135,blurb:'',makesQty:220,makesUnit:'ml',
  ingredients:[{qty:20,unit:'g',name:'Vietnamese coffee'},{qty:40,unit:'g',name:'Condensed milk'},
   {qty:200,unit:'ml',name:'Water'},{qty:null,unit:'',name:'Ice'}],
- method:[]}
+ method:[]},
+{id:'matcha-gelato',name:'Matcha Gelato - Chef Mian',icon:'icedcoffee',kcal:250,blurb:'Silky, intensely bitter Japanese matcha gelato by Chef Mian. Aged base with fresh matcha added post-heat to preserve color and aroma. For hardcore bitter-matcha lovers.',makesQty:500,makesUnit:'ml',cuisine:'Japanese',tags:['Dessert','Make-ahead','Dairy'],
+  ingredients:[
+    {qty:22,unit:'g',name:'Matcha powder'},
+    {qty:60,unit:'ml',name:'Whole milk (for dissolving matcha)'},
+    {qty:300,unit:'ml',name:'Whole milk'},
+    {qty:65,unit:'ml',name:'Heavy cream'},
+    {qty:20,unit:'g',name:'Milk powder'},
+    {qty:4,unit:'g',name:'Tapioca starch'},
+    {qty:27.5,unit:'g',name:'Sugar'},
+    {qty:null,unit:'',name:'Salt, a small pinch (optional)'},
+    {qty:2.5,unit:'g',name:'Gelatin sheets'},
+    {qty:30,unit:'g',name:'Condensed milk'}
+  ],
+  method:[
+    'Whisk the matcha powder with 60ml milk until completely smooth. Set aside.',
+    'In a bowl, combine milk powder, tapioca starch, sugar, and salt. Add the remaining 300ml milk, heavy cream, and condensed milk, then whisk until fully incorporated.',
+    'Transfer to a saucepan and cook over medium heat, stirring constantly. Once the mixture lightly coats the spatula (reaches custard-like consistency), remove from heat and stir in softened gelatin until dissolved.',
+    'Add the prepared matcha-milk mixture and mix until smooth. Avoid excessive whisking to prevent incorporating too much air.',
+    'Immediately place the saucepan in an ice-water bath and stir occasionally until the temperature drops below 4°C. Rapid chilling preserves the fresh matcha aroma and vibrant green color.',
+    'Press plastic wrap directly onto the surface of the base before refrigerating to prevent a milk skin and reduce condensation. Refrigerate for at least 6 hours (aging is important for texture and flavor).',
+    'Churn in an ice cream maker according to manufacturer instructions. Transfer to a container and press plastic wrap directly onto the surface to minimize air exposure before freezing.',
+    'Freeze for about 2 hours before serving. For best results, use high-grade Japanese matcha — quality makes a significant difference in color, umami, and flavor complexity.'
+  ]
+},
+{id:'matcha-hojicha-rice-ice-cream',name:'Matcha & Hojicha Rice Ice Cream',icon:'icedcoffee',kcal:280,blurb:'Creamy rice-based ice cream with two flavors: bright matcha and toasty hojicha. Jasmine rice powder adds subtle floral complexity. By Elanne Boake.',makesQty:950,makesUnit:'ml',cuisine:'Japanese',tags:['Dessert','Make-ahead','Dairy','Two-Flavor'],
+  ingredients:[
+    {qty:250,unit:'ml',name:'Heavy cream (per base)'},
+    {qty:400,unit:'ml',name:'2% milk (per base)'},
+    {qty:60,unit:'g',name:'Skim milk powder (per base)'},
+    {qty:50,unit:'g',name:'Granulated sugar (per base)'},
+    {qty:75,unit:'ml',name:'Corn syrup (per base)'},
+    {qty:0.8,unit:'g',name:'Xanthan gum (per base, precisely measured)'},
+    {qty:1,unit:'g',name:'Salt (per base)'},
+    {qty:20,unit:'g',name:'Jasmine rice, toasted & ground (per base)'},
+    {qty:25,unit:'g',name:'Matcha powder (for matcha base)'},
+    {qty:25,unit:'g',name:'Hojicha powder (for hojicha base)'}
+  ],
+  method:[
+    'Toast 20g jasmine rice in a pan over medium heat for 5-8 minutes until golden and fragrant, shaking often. Grind in a coffee grinder or mortar and pestle into powder.',
+    'In a small bowl, combine skim milk powder, sugar, and xanthan gum (measured precisely), stirring to disperse the xanthan gum. This prevents clumping.',
+    'In a medium saucepan, combine heavy cream, milk, ground toasted rice, skim milk powder mixture, and corn syrup. Bring to a gentle simmer, whisking to dissolve (about 8 minutes).',
+    'Measure out your matcha powder into a small bowl. Add about 1 cup of the hot milk mixture to the matcha and whisk until no lumps remain.',
+    'Transfer the matcha mixture back to the pot, add salt, and stir to combine. Pass through a sieve into a bowl, discarding any solids.',
+    'Repeat the entire process with hojicha powder to create the second base (toasted rice, dairy, hojicha mixture, sieving).',
+    'Cover both bowls with plastic wrap touching the surface of the custard to prevent skin formation. Allow flavors to infuse in the fridge for 5-6 hours.',
+    'Churn matcha base in ice cream maker for ~20 minutes until thick and smooth. Repeat with hojicha base.',
+    'For a swirled pint: while second base churns, store first in freezer. When both ready, alternate flavors and swirl together in one container.',
+    'Transfer to freezer. To serve at original consistency, remove 5-10 minutes before eating. Makes approximately 2 pints (950ml).'
+  ]
+}
 ];}
 
 /* ============ state ============ */
@@ -891,6 +980,10 @@ let calcCoco=null, refocus=null, searchQ='', pickQ='', todoText='', tagFilter=''
 let gridView=false;
 let eggAir=null, eggStart=4, eggTarget=65, eggSize=57;
 let anchorOpt=null;
+/* Tin planner: the containers you are actually going to pour into.
+   Depth is what decides whether a deep bake sets, so everything works
+   backwards from the depth the recipe was written for. */
+let tins=null, tinMode='even';
 let shopStore='waitrose-barnet', shopCat=null, shopQ='', shopBusy=false, shopErr='';
 let basket={}, shopHist={}, shopSplit=null, shopFam='';
 let shopScope='store', allCat=null, allBusy=false, topsOpen=false;
@@ -901,6 +994,7 @@ const STORES=[
   ['co-op','Co-op',0],['asda-colindale','Asda Colindale',0],['asda-express','Asda Express',0],
   ['bayley-sage','Bayley & Sage',0]];
 const MIN_ORDER=15;
+const BOOTS_SLUG='boots';  /* Boots: searchable but not in baskets/fridge */
 const SHELVES=['Fridge','Freezer','Cupboard'];
 const ticked={ing:new Set(), step:new Set()};
 const $=s=>document.querySelector(s);
@@ -1013,6 +1107,7 @@ function fridgeMatch(ingName){
 }
 function inFridge(n){ return !!fridgeMatch(n); }
 function matchInfo(r){
+  if(SHARE) return {total:0,have:[],missing:[]};   /* never inspect the fridge on a shared link */
   const have=[],missing=[];
   (r.ingredients||[]).forEach(i=>{ if(!i.name||isAssumed(i.name)||isSection(i.name)) return;
     (fridgeMatch(i.name)?have:missing).push(i.name); });
@@ -1077,6 +1172,7 @@ function wireCal(idPrefix,onPick){
 
 /* ============ nav ============ */
 function renderNav(){
+  if(SHARE) return;              /* no dashboard nav on a shared link */
   const soon=urgentItems().length;
   const gN=grocery.filter(g=>!g.done).length;
   const t0=todayISO();
@@ -1130,9 +1226,9 @@ function renderRecipes(){
 
   pane.innerHTML=`<article class="card">
     <div class="card-head">
-      <div style="flex:1;min-width:180px"><h2>The recipe drawer</h2>
+      <div style="flex:1;min-width:180px"><h2>${SHARE?'Recipes':'The recipe drawer'}</h2>
         <p class="blurb">${recipes.length} recipe${recipes.length===1?'':'s'}. Search by name or by an ingredient you fancy using.</p></div>
-      <div class="head-actions"><button class="pill back-only" id="back">← Home</button></div>
+      <div class="head-actions">${SHARE?'':'<button class="pill back-only" id="back">← Home</button>'}</div>
     </div>
     <input class="search" id="search" type="search" placeholder="Search recipes or ingredients" autocomplete="off" value="${esc(searchQ)}" style="margin-top:18px">
     ${allTags.length?`<div class="tagrow">
@@ -1140,21 +1236,21 @@ function renderRecipes(){
       ${allTags.map(t=>`<button class="tagpill ${tagFilter===t?'on':''}" data-tag="${esc(t)}">${esc(t)}</button>`).join('')}
     </div>`:''}
     ${body}
-    <ul class="tiles" style="margin-top:16px">
+    ${SHARE?'':`<ul class="tiles" style="margin-top:16px">
       <li><button class="tile add" id="new-btn"><span class="plus">+</span><span>Add a recipe</span></button></li>
       <li><button class="tile add" id="paste-btn"><span class="plus">✂</span><span>Paste a recipe</span></button></li>
-    </ul>
+    </ul>`}
   </article>`;
   const back=$('#back'); if(back) back.onclick=()=>{ mode='home'; render(); };
   const s=$('#search');
   s.oninput=()=>{ searchQ=s.value; refocus='search'; render(); };
   pane.querySelectorAll('.tagpill').forEach(b=>b.onclick=()=>{ tagFilter=b.dataset.tag||''; render(); });
-  $('#new-btn').onclick=()=>{
+  const nb=$('#new-btn'); if(nb) nb.onclick=()=>{
     editing=true; mode='recipe'; cookOff=false;
     draft={_isNew:true,name:'',blurb:'',prep:'',icon:'croissant',img:null,cuisine:'',tags:[],kcal:null,makesQty:2,makesUnit:'servings',ingredients:[{qty:null,unit:'',name:''}],method:[]};
     render();
   };
-  $('#paste-btn').onclick=()=>{ mode='paste'; editing=false; draft=null; pasteBusy=false; render(); };
+  const pb=$('#paste-btn'); if(pb) pb.onclick=()=>{ mode='paste'; editing=false; draft=null; pasteBusy=false; render(); };
   pane.querySelectorAll('.tile[data-id]').forEach(b=>b.onclick=()=>openRecipe(b.dataset.id));
   if(refocus==='search'){ refocus=null; const n=$('#search'); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } }
 }
@@ -1165,12 +1261,23 @@ function renderRecipe(){
   if(!r){ pane.innerHTML=`<div class="card"><div class="empty-state"><div class="thumb">${artByName('croissant')}</div>
     <p class="empty">Nothing picked yet. Choose something from the drawer, or start a new one.</p></div></div>`; return; }
   const mi=matchInfo(r);
-  const ings=r.ingredients.map((i,n)=>{
+  /* Some recipes have either/or ingredient groups (tagged with .opt). Show only
+     the group that is currently selected, so the list reads as one clean recipe
+     rather than two interleaved ones. */
+  const optKeys=[...new Set(r.ingredients.filter(i=>i.opt).map(i=>i.opt))];
+  const optLabel=k=>{
+    const o=r.calc&&r.calc.options&&r.calc.options.find(x=>x.k===k);
+    return o?o.label:k.charAt(0).toUpperCase()+k.slice(1);
+  };
+  const curOpt=optKeys.length?(optKeys.includes(anchorOpt)?anchorOpt:optKeys[0]):null;
+  const ings=r.ingredients.map((i,n)=>({i,n}))
+    .filter(({i})=>!i.opt||i.opt===curOpt)
+    .map(({i,n})=>{
     const free=i.qty===null||i.qty===undefined||i.qty==='';
     return `<li><button class="tick ${free?'freeform':''}" data-kind="ing" data-n="${n}" aria-pressed="${ticked.ing.has(n)}">
       <span class="box"></span>
       <span class="qty">${free?'—':esc(fmt(i.qty*scale))+`<span class="unit">${esc(i.unit||'')}</span>`}</span>
-      <span class="ing-name">${esc(i.name)}${inFridge(i.name)?'<span class="have">in fridge</span>':''}</span></button></li>`;}).join('');
+      <span class="ing-name">${esc(i.name)}${!SHARE&&inFridge(i.name)?'<span class="have">in fridge</span>':''}</span></button></li>`;}).join('');
   const steps=r.method.length?`<ol class="steps">${r.method.map((s,n)=>`
     <li><button class="tick" data-kind="step" data-n="${n}" aria-pressed="${ticked.step.has(n)}">
       <span class="box"></span><span class="step-no">${String(n+1).padStart(2,'0')}</span>
@@ -1189,9 +1296,9 @@ function renderRecipe(){
         </div>`:''}
       </div>
       <div class="head-actions">
-        <button class="pill" id="back">← Recipes</button>
-        <button class="pill" id="edit">Edit</button>
-        <button class="pill danger" id="delete">Delete</button>
+        ${SHARE&&SHARE_ID?'':'<button class="pill" id="back">← Recipes</button>'}
+        <button class="pill owner-only" id="edit">Edit</button>
+        <button class="pill danger owner-only" id="delete">Delete</button>
       </div>
     </div>
     <div class="batch">
@@ -1210,12 +1317,17 @@ function renderRecipe(){
     ${gridView?gridHTML(r):`<div class="cols">
       <section>
         <h3 class="section-title">Ingredients</h3><div class="section-rule"></div>
+        ${optKeys.length>1?`<div class="ing-opt">
+          <span class="ing-opt-label">Made with</span>
+          <div class="ing-opt-picks">${optKeys.map(k=>`
+            <button class="ball" data-iopt="${esc(k)}" aria-pressed="${k===curOpt}">${esc(optLabel(k))}</button>`).join('')}</div>
+        </div>`:''}
         <ul class="ing-list">${ings}</ul>
-        ${mi.total?`<p class="pantry-line">${mi.have.length?`In the house: <b>${mi.have.length} of ${mi.total}</b>`:`Nothing for this in the fridge yet`}${!mi.missing.length&&mi.have.length?` — ready to go`:''}${mi.missing.length&&mi.have.length?` · short of ${esc(mi.missing.slice(0,3).map(m=>m.split(',')[0]).join(', '))}${mi.missing.length>3?' and '+(mi.missing.length-3)+' more':''}`:''}</p>`:''}
+        ${!SHARE&&mi.total?`<p class="pantry-line">${mi.have.length?`In the house: <b>${mi.have.length} of ${mi.total}</b>`:`Nothing for this in the fridge yet`}${!mi.missing.length&&mi.have.length?` — ready to go`:''}${mi.missing.length&&mi.have.length?` · short of ${esc(mi.missing.slice(0,3).map(m=>m.split(',')[0]).join(', '))}${mi.missing.length>3?' and '+(mi.missing.length-3)+' more':''}`:''}</p>`:''}
         <div class="cook-actions">
           ${r.ingredients.length?`<button class="link-btn" id="clear-ticks">Clear ticks</button>`:''}
-          ${mi.missing.length?`<button class="link-btn" id="add-missing">Add missing to grocery list</button><button class="link-btn" id="copy-missing">copy instead</button>`:''}
-          ${mi.have.length?`<button class="link-btn" id="cooked-this">I cooked this</button>`:''}
+          ${!SHARE&&mi.missing.length?`<button class="link-btn" id="add-missing">Add missing to grocery list</button><button class="link-btn" id="copy-missing">copy instead</button>`:''}
+          ${!SHARE&&mi.have.length?`<button class="link-btn" id="cooked-this">I cooked this</button>`:''}
         </div>
         ${cookOff?`<div class="cookoff">
           <p class="hint" style="margin:0 0 6px">Tick whatever got used up and it comes off the fridge list. Untick things you still have some of.</p>
@@ -1240,7 +1352,7 @@ function renderRecipe(){
     currentId=recipes[0]?.id??null;
     mode='recipes'; await saveRecipeStores(); await savePlan(); render(); toast('Recipe deleted', true);
   });
-  $('#back').onclick=()=>{ mode='recipes'; render(); };
+  const bk=$('#back'); if(bk) bk.onclick=()=>{ mode='recipes'; render(); };
   pane.querySelectorAll('.batch .ball').forEach(b=>b.onclick=()=>{scale=Number(b.dataset.scale);render();});
   $('#custom').onchange=e=>{const v=Number(e.target.value); if(v>0){scale=v;render();}};
   pane.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{ gridView=b.dataset.view==='grid'; render(); });
@@ -1269,18 +1381,26 @@ function renderRecipe(){
     await saveFridge(); render(); toast(ids.length?ids.length+' taken off the fridge list':'Nothing removed', !!ids.length);
   };
   const cc=$('#cookoff-cancel'); if(cc) cc.onclick=()=>{ cookOff=false; render(); };
-  wireCalc(r);
-  if(refocus){ const el=$('#'+refocus); refocus=null;
-    if(el){ el.focus(); if(el.setSelectionRange) el.setSelectionRange(el.value.length,el.value.length); } }
+  /* Bind the ticks BEFORE the optional extras. They are the core of the page,
+     so a failure in the batch calculator must never leave them unresponsive. */
+  pane.querySelectorAll('[data-iopt]').forEach(b=>b.onclick=()=>{
+    anchorOpt=b.dataset.iopt;
+    ticked.ing.clear();        /* the visible rows change, so old ticks no longer line up */
+    render();
+  });
   pane.querySelectorAll('.tick').forEach(b=>b.onclick=()=>{
     const set=ticked[b.dataset.kind], n=Number(b.dataset.n);
     set.has(n)?set.delete(n):set.add(n);
     b.setAttribute('aria-pressed',set.has(n));
   });
+  try{ wireCalc(r); }catch(e){ console.error('calculator failed to wire',e); }
+  if(refocus){ const el=$('#'+refocus); refocus=null;
+    if(el){ el.focus(); if(el.setSelectionRange) el.setSelectionRange(el.value.length,el.value.length); } }
 }
 
 /* ============ batter calculator ============ */
 function calcHTML(r){
+  if(!r.calc || typeof r.calc!=='object' || Array.isArray(r.calc)) return '';
   if(r.calc.kind==='egg') return eggHTML(r);
   if(r.calc.kind==='anchor') return anchorHTML(r);
   const c=r.calc, per=c.dryPerCrepe||36;
@@ -1316,7 +1436,9 @@ function calcHTML(r){
   </div>`;
 }
 function wireCalc(r){
-  if(!r.calc) return;
+  /* an empty array is truthy, so guard on shape rather than truthiness —
+     a malformed calc block used to throw here and kill every later handler */
+  if(!r.calc || typeof r.calc!=='object' || Array.isArray(r.calc)) return;
   if(r.calc.kind==='egg') return wireEgg(r);
   if(r.calc.kind==='anchor') return wireAnchor(r);
   const c=r.calc, per=c.dryPerCrepe||36;
@@ -1336,6 +1458,99 @@ function wireCalc(r){
    You rarely have exactly 1 kg of cream cheese. Type what you actually have
    and everything else follows, including the tin that keeps the same depth
    (diameter grows with the square root of the batch, so the bake time holds). */
+
+/* ---- tin / container planner --------------------------------------------
+   Batter is treated as ~1 g per ml, which is close enough for a cheesecake
+   batter and keeps the maths legible. Area is what matters: pour the same
+   grams per square centimetre and you get the same depth, so the bake
+   behaves the same whatever you pour it into. */
+function tinArea(t){
+  if(t.shape==='round')  return Math.PI*Math.pow((t.d||0)/2,2);
+  if(t.shape==='square') return Math.pow(t.d||0,2);
+  return (t.l||0)*(t.w||0);
+}
+function tinName(t){
+  if(t.shape==='round')  return 'Round '+(t.d||0)+' cm';
+  if(t.shape==='square') return 'Square '+(t.d||0)+' cm';
+  return 'Tray '+(t.l||0)+'×'+(t.w||0)+' cm';
+}
+function defaultTins(r){
+  const d=(r.calc&&r.calc.tin)||20;
+  return [{shape:'round',d,n:1}];
+}
+/* Split `total` grams across the containers.
+   even : same depth everywhere — pour proportional to area
+   first: fill the first container to the recipe depth, remainder to the rest */
+function tinSplit(total,list,refDepth,mode){
+  const rows=list.map(t=>({t,area:tinArea(t)*(t.n||1)})).filter(r=>r.area>0);
+  if(!rows.length) return [];
+  if(mode==='first'&&rows.length>1){
+    const want=Math.min(total,rows[0].area*refDepth);
+    const rest=Math.max(0,total-want);
+    const restArea=rows.slice(1).reduce((a,r)=>a+r.area,0);
+    return rows.map((r,i)=>{
+      const g=i===0?want:(restArea?rest*(r.area/restArea):0);
+      return {...r,g,depth:g/r.area};
+    });
+  }
+  const area=rows.reduce((a,r)=>a+r.area,0);
+  return rows.map(r=>({...r,g:total*(r.area/area),depth:total/area}));
+}
+function depthNote(depth,ref){
+  if(depth<=0.05) return {cls:'idle',msg:'not needed — the first tin takes it all'};
+  const p=depth/ref;
+  if(p<0.3) return {cls:'note',msg:'barely covers the base — bake it separately and check very early'};
+  if(p<0.6) return {cls:'warn',msg:'much shallower than the recipe — it will bake far faster and can dry out'};
+  if(p<0.85)return {cls:'note',msg:'shallower than the recipe — start checking early'};
+  if(p<=1.15)return {cls:'ok',  msg:'about the depth the recipe is built for'};
+  if(p<=1.4) return {cls:'note',msg:'deeper than the recipe — give it longer and drop the heat if it colours fast'};
+  return {cls:'warn',msg:'much deeper than the recipe — the middle may not set'};
+}
+
+function tinPlannerHTML(r,total){
+  const c=r.calc;
+  const refDepth=(c.base?( (c.sharedG-40-300+ (c.options[0].cornstarch||40) + (c.options[0].cream||300)
+      + c.options[0].items.reduce((a,[,g])=>a+g,0)) / (Math.PI*Math.pow(c.tin/2,2)) ):5);
+  if(!tins) tins=defaultTins(r);
+  const rows=tinSplit(total,tins,refDepth,tinMode);
+  const poured=rows.reduce((a,x)=>a+x.g,0);
+  const over=total-poured;
+  return `<div class="tinplan">
+    <div class="calc-head"><span class="batch-label">Tins and containers</span>
+      <span class="calc-rule">this recipe is built for a ${refDepth.toFixed(1)} cm depth</span></div>
+    <div class="calc-row" style="margin-bottom:6px">
+      <div class="calc-presets">
+        <button class="ball" data-tmode="even" aria-pressed="${tinMode==='even'}">Same depth in each</button>
+        <button class="ball" data-tmode="first" aria-pressed="${tinMode==='first'}">Fill the first, rest over</button>
+      </div>
+    </div>
+    <ul class="tinlist">${tins.map((t,i)=>{
+      const row=rows.find(x=>x.t===t);
+      const note=row&&row.area?depthNote(row.depth,refDepth):null;
+      return `<li class="tinrow">
+        <div class="tinrow-in">
+          <select data-tshape="${i}">
+            <option value="round"  ${t.shape==='round'?'selected':''}>Round</option>
+            <option value="square" ${t.shape==='square'?'selected':''}>Square</option>
+            <option value="tray"   ${t.shape==='tray'?'selected':''}>Tray</option>
+          </select>
+          ${t.shape==='tray'
+            ? `<input type="number" min="1" step="0.5" value="${t.l||20}" data-tl="${i}" aria-label="Length cm"><span class="calc-unit">×</span>
+               <input type="number" min="1" step="0.5" value="${t.w||10}" data-tw="${i}" aria-label="Width cm"><span class="calc-unit">cm</span>`
+            : `<input type="number" min="1" step="0.5" value="${t.d||20}" data-td="${i}" aria-label="Size cm"><span class="calc-unit">cm</span>`}
+          <span class="calc-unit">×</span><input type="number" min="1" step="1" value="${t.n||1}" data-tn="${i}" aria-label="How many" style="width:52px">
+          ${tins.length>1?`<button class="link-btn" data-trm="${i}">remove</button>`:''}
+        </div>
+        ${row&&row.area?`<div class="tinrow-out ${note.cls}">
+          <b>${Math.round(row.g/(t.n||1)).toLocaleString()}</b> g ${(t.n||1)>1?'in each':'in'} · <b>${row.depth.toFixed(1)}</b> cm deep
+          <span class="tinnote">${note.msg}</span></div>`:''}
+      </li>`;}).join('')}</ul>
+    <div class="tinfoot">
+      <button class="link-btn" id="tin-add">+ Add a container</button>
+      ${Math.abs(over)>1?`<span class="tinover">${over>0?Math.round(over).toLocaleString()+' g left over':''}</span>`:''}
+    </div>
+  </div>`;
+}
 function anchorHTML(r){
   const c=r.calc;
   const have=Math.round(c.base*scale);
@@ -1367,6 +1582,7 @@ function anchorHTML(r){
       <div class="co"><b>${Math.round(cf*scale)}</b><span>g cornflour</span></div>
       <div class="co"><b>${(total/1000).toFixed(2)}</b><span>kg of batter</span></div>
     </div>
+    ${tinPlannerHTML(r,total)}
     <p class="hint" style="margin-top:8px">Weigh the eggs rather than counting them — six large is about ${c.eggG} g out of the shell, and shell weights vary more than you would think. Bake time stays about the same as long as the depth does.</p>
   </div>`;
 }
@@ -1379,6 +1595,30 @@ function wireAnchor(r){
   if(el){ el.oninput=()=>{ if(!el.value) return; const v=Number(el.value);
     if(v>0){ scale=v/c.base; refocus='a-have'; render(); } };
     el.onblur=()=>{ if(!el.value) render(); }; }
+
+  /* --- tin planner --- */
+  if(!tins) tins=defaultTins(r);
+  pane.querySelectorAll('[data-tmode]').forEach(b=>b.onclick=()=>{ tinMode=b.dataset.tmode; render(); });
+  const add=$('#tin-add');
+  if(add) add.onclick=()=>{ tins=[...tins,{shape:'round',d:12,n:1}]; render(); };
+  pane.querySelectorAll('[data-trm]').forEach(b=>b.onclick=()=>{
+    tins=tins.filter((_,i)=>i!==Number(b.dataset.trm)); render(); });
+  pane.querySelectorAll('[data-tshape]').forEach(s=>s.onchange=()=>{
+    const i=Number(s.dataset.tshape); const t={...tins[i],shape:s.value};
+    if(s.value==='tray'){ t.l=t.l||20; t.w=t.w||10; } else { t.d=t.d||20; }
+    tins=tins.map((x,j)=>j===i?t:x); render(); });
+  const num=(sel,key)=>pane.querySelectorAll(sel).forEach(inp=>{
+    inp.oninput=()=>{ const i=Number(inp.dataset[key.attr]); const v=Number(inp.value);
+      if(!(v>0)) return;
+      tins=tins.map((x,j)=>j===i?{...x,[key.field]:v}:x);
+      refocus=null; render();
+      const again=pane.querySelector(sel.replace(']','="'+i+'"]'));
+      if(again){ again.focus(); again.setSelectionRange(again.value.length,again.value.length); } };
+  });
+  num('[data-td]',{attr:'td',field:'d'});
+  num('[data-tl]',{attr:'tl',field:'l'});
+  num('[data-tw]',{attr:'tw',field:'w'});
+  num('[data-tn]',{attr:'tn',field:'n'});
 }
 
 /* ---- egg timer ------------------------------------------------------------
@@ -2151,6 +2391,53 @@ function unbump(slug,name,n){
   e.a=Math.max(0,(e.a||0)-(n||1));
   if(!e.a && !e.b) delete h[name];
 }
+let bootsCat=null;   /* cached Boots catalogue, loaded on demand from CSV */
+/* Boots is a plain CSV rather than a Deliveroo JSON price list, so it gets its
+   own loader — but it must produce the same {slug,store,items[]} shape that the
+   rest of the shop UI reads, otherwise it loads and then renders nothing. */
+function parseCsvLine(line){
+  const out=[]; let cur='', q=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(ch==='"'){ if(q && line[i+1]==='"'){ cur+='"'; i++; } else q=!q; }
+    else if(ch===',' && !q){ out.push(cur); cur=''; }
+    else cur+=ch;
+  }
+  out.push(cur); return out.map(s=>s.trim());
+}
+async function loadBootsProducts(){
+  if(shopCat && shopCat.slug===BOOTS_SLUG) return;
+  if(bootsCat){ shopCat=bootsCat; render(); return; }
+  shopBusy=true; shopErr=''; render();
+  try{
+    const path=API_BASE?'/data/boots_borehamwood_products.csv':'data/boots_borehamwood_products.csv';
+    const r=await fetch(path);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const rows=(await r.text()).trim().split(/\r?\n/);
+    /* strip the UTF-8 BOM, or the first column name never matches */
+    const head=parseCsvLine(rows[0].replace(/^\uFEFF/,'')).map(h=>h.toLowerCase());
+    const col=(...names)=>{ for(const n of names){ const i=head.indexOf(n); if(i>=0) return i; } return -1; };
+    const iName=col('product_name','name','product');
+    const iPrice=col('price_gbp','price');          /* exact, so unit_price/was_price can't win */
+    const iCat=col('subcategory','category');
+    const iSize=col('pack_size','size');
+    if(iName<0||iPrice<0) throw new Error('unexpected CSV columns');
+    const items=[];
+    rows.slice(1).forEach(line=>{
+      const c=parseCsvLine(line);
+      const name=(c[iName]||'').replace(/^"|"$/g,'');
+      const price=parseFloat(String(c[iPrice]||'').replace(/[^0-9.]/g,''));
+      if(name && !isNaN(price)) items.push({name,price,cat:c[iCat]||'Boots',size:c[iSize]||''});
+    });
+    if(!items.length) throw new Error('no rows parsed');
+    bootsCat={slug:BOOTS_SLUG,store:'Boots Borehamwood',items};
+    shopCat=bootsCat;
+  }catch(e){
+    shopCat=null;
+    shopErr='The Boots product list is not available here — add items by hand below and the £'+MIN_ORDER+' maths still works.';
+  }
+  shopBusy=false; render();
+}
 async function loadCatalogue(slug){
   if(shopCat&&shopCat.slug===slug) return;
   shopBusy=true; shopErr=''; render();
@@ -2241,16 +2528,15 @@ function renderShop(){
     </div>
 
 
-    <div class="shop-stores">
-
     <div class="shop-stores">${STORES.map(([slug,name,fav])=>`
-      <button class="ball ${fav?'fav':''}" data-store="${slug}" aria-pressed="${shopStore===slug}">${esc(name)}</button>`).join('')}</div>
-
+      <button class="ball ${fav?'fav':''}" data-store="${slug}" aria-pressed="${shopStore===slug}">${esc(name)}</button>`).join('')}
+      <button class="ball" data-store="boots" aria-pressed="${shopStore==='boots'}">Boots Borehamwood</button>
+    </div>
 
     <h3 class="section-title" style="margin-top:20px">Search</h3><div class="section-rule"></div>
     <div class="scope">
       <button class="ball" data-scope="all" aria-pressed="${shopScope==='all'}">Every shop</button>
-      <button class="ball" data-scope="store" aria-pressed="${shopScope==='store'}">${esc(shopCat?shopCat.store:'This shop')} only</button>
+      <button class="ball" data-scope="store" aria-pressed="${shopScope==='store'}">${esc(shopStore==='boots'?'Boots Borehamwood':(shopCat?shopCat.store:'This shop'))} only</button>
       <button class="ball" data-scope="baskets" aria-pressed="${shopScope==='baskets'}">In my baskets</button>
       ${shopScope==='all'?`<span class="calc-sync">${allBusy?'loading every price list…':(allCat?'all nine shops · cheapest per kilo first':'')}</span>`:''}
     </div>
@@ -2372,7 +2658,8 @@ function renderShop(){
   pane.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>{
     shopStore=b.dataset.jump; basketQ=''; shopSplit=null; shopCat=null; loadCatalogue(shopStore); });
   pane.querySelectorAll('[data-store]').forEach(b=>b.onclick=()=>{
-    shopStore=b.dataset.store; shopQ=''; shopSplit=null; loadCatalogue(shopStore); });
+    shopStore=b.dataset.store; shopQ=''; shopSplit=null;
+    if(shopStore===BOOTS_SLUG){ shopCat=null; loadBootsProducts(); } else loadCatalogue(shopStore); });
   const sq=$('#shop-q');
   if(sq){ sq.oninput=()=>{ shopQ=sq.value; shopFam=''; refocus='shop-q'; render(); }; }
   pane.querySelectorAll('[data-fam]').forEach(b=>b.onclick=()=>{ shopFam=b.dataset.fam; render(); });
@@ -2451,8 +2738,11 @@ function renderShop(){
   const pc2=$('#pl-skip'); if(pc2) pc2.onclick=()=>{ putAwayList=null; render(); };
   const sd=$('#shop-done'); if(sd) sd.onclick=async()=>{
     const n=bask().length;
-    putAwayList=bask().map(i=>({name:i.name,qty:(i.qty>1?i.qty+'× ':'')+(i.size||''),shelf:shelfFor(i.name),
-      until:sugDate(i.name,shelfFor(i.name)),on:true}));
+    /* Boots is toiletries and pharmacy, not food — it still counts toward the
+       £15 minimum, but nothing from it should be offered for the fridge. */
+    putAwayList=(shopStore===BOOTS_SLUG?[]:bask().map(i=>({name:i.name,qty:(i.qty>1?i.qty+'× ':'')+(i.size||''),shelf:shelfFor(i.name),
+      until:sugDate(i.name,shelfFor(i.name)),on:true})));
+    if(!putAwayList.length) putAwayList=null;
     bask().forEach(i=>{ for(let k=0;k<i.qty;k++) bump(shopStore,i.name,'b'); });
     snapshot(); basket[shopStore]=[];
     await saveBasket(); await saveHist(); render();
@@ -2462,6 +2752,7 @@ function renderShop(){
     bask().forEach(i=>unbump(shopStore,i.name,i.qty));
     basket[shopStore]=[]; await saveBasket(); await saveHist(); render(); toast('Basket emptied', true); };
   const st=$('#shop-tolist'); if(st) st.onclick=async()=>{
+    if(shopStore===BOOTS_SLUG){ toast('Boots items stay out of the grocery list'); return; }
     let n=0;
     bask().forEach(i=>{ if(!grocery.some(g=>norm(g.name)===norm(i.name))){
       grocery.push({id:'g'+Date.now()+Math.random().toString(36).slice(2,6),
@@ -2493,6 +2784,11 @@ function renderSettings(){
     })()}</p>
     <p style="margin-top:8px"><button class="pill" id="reset-icons">Reset all icons to shipped defaults</button></p>
 
+    <h3 class="section-title" style="margin-top:22px">Share recipes</h3><div class="section-rule"></div>
+    <p class="hint" style="margin-top:8px">A read-only view with no link back to your dashboard. Ticks work for whoever is reading but nothing they do is saved, and the fridge, grocery list, meal plan and baskets are never loaded.</p>
+    <p style="margin-top:10px"><button class="pill" id="share-all">Copy link to all recipes</button>
+      <button class="pill" id="share-one">Copy link to the recipe you last opened</button></p>
+
     <h3 class="section-title" style="margin-top:26px">Backup</h3><div class="section-rule"></div>
     <p class="hint" style="margin:0 0 10px">A backup is one file holding everything — recipes, fridge, list, plan, to-dos, baskets and shopping history. Worth taking before you move the app anywhere.</p>
     <div class="cook-actions">
@@ -2507,6 +2803,16 @@ function renderSettings(){
   const back=$('#back'); if(back) back.onclick=()=>{ mode='home'; render(); };
   $('#backup-btn').onclick=doBackup;
     $('#reset-btn').onclick=e=>arm(e.currentTarget,'Really reset?',doReset);
+    const shareLink=id=>location.origin+location.pathname+'#/share'+(id?'/'+encodeURIComponent(id):'');
+    const copy=async(txt,label)=>{
+      try{ await navigator.clipboard.writeText(txt); toast(label+' copied'); }
+      catch(_){ banner('Copy this link: '+txt); }
+    };
+    const sa=$('#share-all'); if(sa) sa.onclick=()=>copy(shareLink(''),'Link to all recipes');
+    const so=$('#share-one'); if(so) so.onclick=()=>{
+      if(!currentId){ toast('Open a recipe first, then come back'); return; }
+      copy(shareLink(currentId),'Link to '+(find(currentId)?.name||'that recipe'));
+    };
     const ri=$('#reset-icons');
     if(ri) ri.onclick=async()=>{
       /* drop every saved icon override so the icon shipped with each recipe wins */
@@ -2572,21 +2878,58 @@ function renderPaste(){
 function openRecipe(id){
   currentId=id; mode='recipe'; scale=1; editing=false; cookOff=false; draft=null;
   calcCoco=null;
-  ticked.ing.clear(); ticked.step.clear();
+  ticked.ing.clear(); ticked.step.clear(); tins=null; tinMode='even';
   document.body.dataset.view='detail'; render();
 }
+
+/* ---------- hash routing --------------------------------------------------
+   Each section gets a real URL (#/fridge, #/recipe/nuoc-cham …) so pages are
+   bookmarkable, shareable and the browser Back button behaves. Kept in one
+   file so there is a single copy of the app to maintain. */
+const ROUTES=['home','recipes','fridge','grocery','plan','shop','settings'];
+let routing=false;                    /* guards against hashchange feedback loops */
+
+function hashFor(){
+  if(SHARE) return null;
+  if(mode==='recipe'&&currentId) return '#/recipe/'+encodeURIComponent(currentId);
+  if(mode==='home') return '#/';
+  return ROUTES.includes(mode)?'#/'+mode:'#/';
+}
+function syncHash(){
+  if(SHARE) return;
+  const h=hashFor();
+  if(h && location.hash!==h){ routing=true; location.hash=h; routing=false; }
+}
+function applyHash(){
+  if(SHARE) return;
+  const h=location.hash.replace(/^#\/?/,'');
+  const m=h.match(/^recipe\/(.+)$/);
+  if(m){
+    const id=decodeURIComponent(m[1]);
+    if(find(id)){ currentId=id; mode='recipe'; editing=false; return; }
+  }
+  const seg=h.split('/')[0];
+  mode = ROUTES.includes(seg) ? seg : 'home';
+  editing=false;
+}
+window.addEventListener('hashchange',()=>{
+  if(routing||SHARE) return;
+  applyHash(); render();
+});
+
 function render(){
   armed=null;
+  syncHash();
   renderNav();
-  if(mode==='fridge'){ renderFridge(); return; }
-  if(mode==='grocery'){ renderGrocery(); return; }
-  if(mode==='plan'){ renderPlan(); return; }
-  if(mode==='paste'){ renderPaste(); return; }
-  if(mode==='settings'){ renderSettings(); return; }
-  if(mode==='shop'){ renderShop(); return; }
-  if(mode==='home'){ renderHome(); return; }
+  if(mode==='fridge'&&!SHARE){ renderFridge(); return; }
+  if(mode==='grocery'&&!SHARE){ renderGrocery(); return; }
+  if(mode==='plan'&&!SHARE){ renderPlan(); return; }
+  if(mode==='paste'&&!SHARE){ renderPaste(); return; }
+  if(mode==='settings'&&!SHARE){ renderSettings(); return; }
+  if(mode==='shop'&&!SHARE){ renderShop(); return; }
+  if(mode==='home'&&!SHARE){ renderHome(); return; }
   if(mode==='recipes'){ renderRecipes(); return; }
-  editing?renderEditor():renderRecipe();
+  (editing&&!SHARE)?renderEditor():renderRecipe();
 }
 
 $('#logo').innerHTML=`<img src="${LOGO}" alt="Half Baked Society">`;
@@ -2647,7 +2990,8 @@ $('#import-file').onchange=e=>{
       if(d.fridge) fridge=d.fridge; if(d.grocery) grocery=d.grocery;
       if(d.plan) plan=d.plan; if(d.todos) todos=d.todos; if(d.foodPrefs) foodPrefs=d.foodPrefs;
       if(d.basket) basket=d.basket; if(d.shopHist) shopHist=d.shopHist;
-      rebuild(); currentId=recipes[0]?.id??null; editing=false; mode='recipes';
+      rebuild(); currentId=recipes[0]?.id??null;
+  editing=false; mode='recipes';
       await saveRecipeStores(); await saveFridge(); await saveGrocery();
       await savePlan(); await saveTodos(); await savePrefs();
       render(); toast('Restored '+recipes.length+' recipes');
@@ -2657,7 +3001,8 @@ $('#import-file').onchange=e=>{
 };
 async function doReset(){
   snapshot(); removed=[]; overrides={}; mine=[]; rebuild();
-  currentId=recipes[0]?.id??null; editing=false; mode='recipes';
+  currentId=recipes[0]?.id??null;
+  editing=false; mode='recipes';
   await saveRecipeStores(); render(); toast('Everything reset to the shipped recipes', true);
 }
 
@@ -2667,17 +3012,29 @@ async function doReset(){
   /* Paint immediately from the embedded recipes so the page never sits blank
      while the network wakes up. The saved data merges in a moment later. */
   rebuild();
-  currentId=recipes[0]?.id??null;
+  if(SHARE){
+    document.body.classList.add('shared');
+    if(SHARE_ID && find(SHARE_ID)){ currentId=SHARE_ID; mode='recipe'; }
+    else { mode='recipes'; currentId=null; }
+  } else {
+    currentId=recipes[0]?.id??null;
+    applyHash();
+  }
   document.body.dataset.view='detail';
   render();
 
   /* Load every store in parallel instead of one request after another —
      eleven sequential round-trips were the reason startup felt slow. */
-  const [_mine,_over,_rem,_fri,_gro,_pl,_td,_bk,_hs,_pr,meta] = await Promise.all([
-    sget(S.mine), sget(S.overrides), sget(S.removed), sget(S.fridge),
-    sget(S.grocery), sget(S.plan), sget(S.todos), sget(S.basket),
-    sget(S.hist), sget(S.prefs), sget(S.meta)
-  ]);
+  /* In share mode fetch ONLY the three recipe keys. The fridge, grocery list,
+     meal plan, baskets and purchase history are never requested at all. */
+  const [_mine,_over,_rem,_fri,_gro,_pl,_td,_bk,_hs,_pr,meta] = SHARE
+    ? [...await Promise.all([sget(S.mine), sget(S.overrides), sget(S.removed)]),
+       null,null,null,null,null,null,null,null]
+    : await Promise.all([
+        sget(S.mine), sget(S.overrides), sget(S.removed), sget(S.fridge),
+        sget(S.grocery), sget(S.plan), sget(S.todos), sget(S.basket),
+        sget(S.hist), sget(S.prefs), sget(S.meta)
+      ]);
   mine      = _mine || [];
   overrides = _over || {};
   removed   = _rem  || [];
@@ -2730,11 +3087,14 @@ async function doReset(){
   /* Merge the saved data in and repaint. Keep the user's place if they've
      already tapped into something during the brief load. */
   rebuild();
-  if(currentId==null) currentId=recipes[0]?.id??null;
+  if(SHARE){
+    if(SHARE_ID && find(SHARE_ID)) currentId=SHARE_ID;
+  } else if(currentId==null) currentId=recipes[0]?.id??null;
   render();
  }catch(e){
   /* whatever went wrong, still show the app rather than a blank page */
-  try{ rebuild(); currentId=recipes[0]?.id??null; mode='home'; render(); }catch(_){}
+  try{ rebuild(); currentId=recipes[0]?.id??null;
+  mode='home'; render(); }catch(_){}
   banner('Something went wrong starting up: '+(e&&e.message||e)+'. Your data is safe; try reloading.');
   console.error(e);
  }
