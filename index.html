@@ -602,18 +602,17 @@ const ART = {"croissant": "icons/croissant.webp", "shortcake": "icons/shortcake.
 const LOGO = ART.__logo;
 const ICONS=['croissant','breadbag','bun','shortcake','cakeslice','jar','butter','steak','icedcoffee','ice-cream','noodlebowl','chickenrice','friedchicken','cabbage','carrot','eggtart','soft-eggs','green-salad','brown-soup','red-soup','beef-soup','empty-plate','banh-xeo','basque-cheesecake','kkaenip-jeon','pajeon','maeuntang'].filter(n=>ART[n]);
 
-/* If an icon file is missing on disk, fall back to the croissant rather than
-   showing a broken image. */
-const ICO_FALLBACK=` onerror="this.onerror=null;this.src='${ART.croissant}'"`;
+/* If an icon file is missing on disk, fall back to the blank plate rather than
+   showing a broken image — the same neutral placeholder the guesser uses. */
+const ICO_FALLBACK=` onerror="this.onerror=null;this.src='${ART['empty-plate']}'"`;
 function art(r){
   if(r && r.img) return `<img class="ico" src="${r.img}" alt=""${ICO_FALLBACK}>`;
-  let n=(r && (r.icon||guessIcon(r)))||'croissant';
-  /* an imported "to try" recipe the guesser can't place gets the blank plate,
-     which also reads as "not set up yet" */
-  if(r && !r.icon && n==='croissant' && r.source) n='empty-plate';
-  return `<img class="ico" src="${ART[n]||ART.croissant}" alt=""${ICO_FALLBACK}>`;
+  /* no chosen icon and nothing the guesser recognises -> blank plate, which
+     reads as "not set up yet" rather than a wrong-but-confident croissant */
+  const n=(r && (r.icon||guessIcon(r)))||'empty-plate';
+  return `<img class="ico" src="${ART[n]||ART['empty-plate']}" alt=""${ICO_FALLBACK}>`;
 }
-function artByName(n){ return `<img class="ico" src="${ART[n]||ART.croissant}" alt=""${ICO_FALLBACK}>`; }
+function artByName(n){ return `<img class="ico" src="${ART[n]||ART['empty-plate']}" alt=""${ICO_FALLBACK}>`; }
 function guessIcon(r){
   const t=(r.name+' '+(r.ingredients||[]).map(i=>i.name).join(' ')).toLowerCase();
   if(/ice.?cream|rice.?cream|gelato|sorbet|semifreddo|kulfi/.test(t)) return 'ice-cream';
@@ -631,7 +630,7 @@ function guessIcon(r){
   if(/cake|sponge|strawberr/.test(t)) return 'cakeslice';
   if(/bun|roll|scone|brioche/.test(t)) return 'bun';
   if(/bread|loaf|dough|sourdough|baguette/.test(t)) return 'breadbag';
-  return 'croissant';
+  return 'empty-plate';   /* nothing recognised — neutral placeholder, not a croissant */
 }
 
 /* ============ FOOD DATA ============
