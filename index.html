@@ -109,6 +109,9 @@ button{cursor:pointer}
 .pill.solid{background:var(--sage);border-color:var(--sage);color:var(--ivory)}
 .pill.solid:hover{background:#0d6a52}
 .pill.danger:hover{background:var(--orange);border-color:var(--orange);color:var(--ivory)}
+.pill.lang-pill{border-color:var(--sage);color:var(--sage)}
+.pill.lang-pill[aria-pressed="true"]{background:var(--sage);border-color:var(--sage);color:var(--ivory)}
+.pill.lang-pill:hover{background:var(--sage);border-color:var(--sage);color:var(--ivory)}
 
 .batch{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:26px 0 8px;background:var(--beige);border-radius:var(--wob2);padding:12px 16px}
 .batch-label{font-family:var(--mono);font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--rye)}
@@ -894,7 +897,26 @@ function seed(){return [
   'Strain into the tin and bake about 25 minutes at 240°C. If it is browning too fast after ten minutes, drop to 210°C.',
   'It wants to come out very dark on top and still wobbly in the middle.',
   'Cool at room temperature, then refrigerate overnight.',
-  'Slice with a hot knife for clean edges.']},
+  'Slice with a hot knife for clean edges.'],
+ i18n:{ja:{
+   name:'バスクチーズケーキ',
+   blurb:'外はこんがり、中はとろりと半熟。直径22cmの型に合わせた分量です。クリームチーズの分量が違うときはスケーラーで調整してください。ほうじ茶、または黒ごまプラリネで。',
+   prep:'焼いたあと冷蔵庫でひと晩休ませます。食べたい日の前日に作ってください。',
+   makesUnit:'切れ',
+   calcLabels:{hojicha:'ほうじ茶',praline:'黒ごまプラリネ'},
+   ingredients:['クリームチーズ（乳脂肪分32%以上）','コーンスターチ','バニラペースト（またはバニラビーンズ1本分）','塩',
+     '卵（Lサイズ約6個、殻を除いて計量）','ほうじ茶パウダー','グラニュー糖','生クリーム（乳脂肪分48%）',
+     '黒ごまプラリネ','グラニュー糖','生クリーム（乳脂肪分48%）'],
+   method:['オーブンを上下火240℃に予熱する。',
+     '直径22cmの型の底と側面にオーブンシートを敷く。',
+     'クリームチーズに、作る種類のグラニュー糖、コーンスターチ、塩、バニラを加え、なめらかになるまで混ぜる。',
+     'ほうじ茶パウダー、または黒ごまプラリネを混ぜ込む。',
+     '卵と生クリームを少しずつ加えながら、なめらかな生地にする。',
+     '生地を漉しながら型に流し入れ、240℃で約25分焼く。10分ほどで焼き色が濃くなりすぎるときは210℃に下げる。',
+     '表面はかなり濃い焼き色、中央はまだ揺れるくらいが目安。',
+     '常温で冷ましてから、冷蔵庫でひと晩冷やす。',
+     '温めたナイフで切ると断面がきれいに仕上がる。']
+ }}},
 {id:'mayak-eggs',name:'Mayak Eggs',icon:'soft-eggs',cuisine:'Korean',tags:['Side','Make-ahead','Eggs'],kcal:600,
  prep:'The eggs want at least 6 hours in the marinade, and are better overnight. Make them the day before.',
  blurb:'Korean marinated eggs — jammy yolks sitting in a sweet, garlicky soy. Called mayak because you cannot stop eating them.',
@@ -1225,6 +1247,7 @@ let formDate='', photoReview=null, photoBusy=false, armed=null, pasteBusy=false,
 let calcCoco=null, refocus=null, searchQ='', pickQ='', todoText='', tagFilter='', cuisineFilter='', mealFilter='';
 let moreOpen=false;        /* bottom-bar "More" sheet (Grocery / Deliveroo / Settings) */
 let gridView=false;
+let recipeLang='en';       /* per-recipe language toggle; only recipes with an i18n block offer it */
 let userNavigated=false;   /* true once the user has actively opened a section or recipe */
 let menuRole='veg';        /* remembered role in the meal-plan menu add form */
 let nbdFav=[], nbdRecent=[];
@@ -1766,12 +1789,18 @@ function renderRecipe(){
   const r=find(currentId);
   if(!r){ pane.innerHTML=`<div class="card"><div class="empty-state"><div class="thumb">${artByName('croissant')}</div>
     <p class="empty">Nothing picked yet. Choose something from the drawer, or start a new one.</p></div></div>`; return; }
+  /* per-recipe translation: T is the active language block (null = English),
+     tr() picks a translated string by key, trList() by list + index */
+  const T = (recipeLang!=='en' && r.i18n && r.i18n[recipeLang]) || null;
+  const tr = (k,en)=> (T && T[k]!=null) ? T[k] : en;
+  const trList = (k,i,en)=> (T && Array.isArray(T[k]) && T[k][i]!=null) ? T[k][i] : en;
   const mi=matchInfo(r);
   /* Some recipes have either/or ingredient groups (tagged with .opt). Show only
      the group that is currently selected, so the list reads as one clean recipe
      rather than two interleaved ones. */
   const optKeys=[...new Set(r.ingredients.filter(i=>i.opt).map(i=>i.opt))];
   const optLabel=k=>{
+    if(T&&T.calcLabels&&T.calcLabels[k]) return T.calcLabels[k];
     const o=r.calc&&r.calc.options&&r.calc.options.find(x=>x.k===k);
     return o?o.label:k.charAt(0).toUpperCase()+k.slice(1);
   };
@@ -1783,19 +1812,19 @@ function renderRecipe(){
     return `<li><button class="tick ${free?'freeform':''}" data-kind="ing" data-n="${n}" aria-pressed="${ticked.ing.has(n)}">
       <span class="box"></span>
       <span class="qty">${free?'—':esc(fmt(i.qty*scale))+`<span class="unit">${esc(i.unit||'')}</span>`}</span>
-      <span class="ing-name">${esc(i.name)}${!SHARE&&inFridge(i.name)?'<span class="have">in fridge</span>':''}</span></button></li>`;}).join('');
+      <span class="ing-name">${esc(trList('ingredients',n,i.name))}${!SHARE&&inFridge(i.name)?'<span class="have">in fridge</span>':''}</span></button></li>`;}).join('');
   const steps=r.method.length?`<ol class="steps">${r.method.map((s,n)=>`
     <li><button class="tick" data-kind="step" data-n="${n}" aria-pressed="${ticked.step.has(n)}">
       <span class="box"></span><span class="step-no">${String(n+1).padStart(2,'0')}</span>
-      <span class="step-text">${esc(s)}</span></button></li>`).join('')}</ol>`
+      <span class="step-text">${esc(trList('method',n,s))}</span></button></li>`).join('')}</ol>`
     :`<p class="empty">No method written down yet. Hit Edit to add the steps.</p>`;
 
   pane.innerHTML=`<article class="card">
     <div class="card-head">
       <div class="thumb">${art(r)}</div>
       <div style="flex:1;min-width:180px">
-        <h2>${esc(r.name)}</h2>
-        ${r.blurb?`<p class="blurb">${esc(r.blurb)}</p>`:''}
+        <h2>${esc(tr('name',r.name))}</h2>
+        ${r.blurb?`<p class="blurb">${esc(tr('blurb',r.blurb))}</p>`:''}
         ${(r.cuisine||(r.tags&&r.tags.length))?`<div class="rtags">
           ${r.cuisine?`<span class="rtag">${esc(r.cuisine)}</span>`:''}
           ${(r.tags||[]).map(t=>`<span class="rtag">${esc(t)}</span>`).join('')}
@@ -1804,6 +1833,7 @@ function renderRecipe(){
         ${r.link?`<p class="blurb" style="margin-top:6px"><a href="${esc(r.link)}" target="_blank" rel="noopener" class="link-btn" style="text-decoration:underline">Open the original ↗</a>${r.source==='elanne-boake'?' · Elanne Boake':''}</p>`:''}
       </div>
       <div class="head-actions">
+        ${r.i18n?`<button class="pill lang-pill" id="lang-toggle" aria-pressed="${recipeLang!=='en'}">${recipeLang==='ja'?'English':'日本語'}</button>`:''}
         ${SHARE&&SHARE_ID?'':'<button class="pill" id="back">← Recipes</button>'}
         ${!SHARE&&r.source?`<button class="pill owner-only" id="made-toggle">${madeIt(r.id)?'Made ✓':"I've made this"}</button>`:''}
         <button class="pill owner-only" id="edit">Edit</button>
@@ -1814,10 +1844,10 @@ function renderRecipe(){
       <span class="batch-label">Batch</span>
       <div class="dough">${[0.5,1,2,3,5].map(v=>`<button class="ball" data-scale="${v}" aria-pressed="${scale===v}">×${v===0.5?'½':v}</button>`).join('')}</div>
       <input class="custom" id="custom" type="number" min="0.1" step="0.1" value="${Math.round(scale*100)/100}" aria-label="Custom multiplier">
-      ${r.makesQty?`<span class="yield">Makes <b>${esc(fmt(r.makesQty*scale))} ${esc(r.makesUnit)}</b></span>`:''}
-      ${r.kcal?`<span class="kcal">≈ <b>${Math.round(r.kcal*scale).toLocaleString()}</b> kcal in total${perServing(r)?` · <b>${perServing(r).toLocaleString()}</b> per serving`:''} <span class="est">— estimated</span></span>`:''}
+      ${r.makesQty?`<span class="yield">${T?'できあがり ':'Makes '}<b>${esc(fmt(r.makesQty*scale))} ${esc(tr('makesUnit',r.makesUnit))}</b></span>`:''}
+      ${r.kcal?`<span class="kcal">≈ <b>${Math.round(r.kcal*scale).toLocaleString()}</b> kcal${T?'（全体）':' in total'}${perServing(r)?` · <b>${perServing(r).toLocaleString()}</b> ${T?'1食あたり':'per serving'}`:''} <span class="est">— ${T?'目安':'estimated'}</span></span>`:''}
     </div>
-    ${r.prep?`<div class="prep"><span class="prep-tag">Start ahead</span> ${esc(r.prep)}</div>`:''}
+    ${r.prep?`<div class="prep"><span class="prep-tag">${T?'前日に':'Start ahead'}</span> ${esc(tr('prep',r.prep))}</div>`:''}
     ${r.calc?calcHTML(r):''}
     <div class="viewtoggle">
       <button class="ball" data-view="steps" aria-pressed="${!gridView}">Steps</button>
@@ -1853,6 +1883,7 @@ function renderRecipe(){
       </section>
     </div>`}</article>`;
 
+  const lt=$('#lang-toggle'); if(lt) lt.onclick=()=>{ recipeLang = recipeLang==='ja' ? 'en' : 'ja'; render(); };
   const mt=$('#made-toggle'); if(mt) mt.onclick=async()=>{
     const now=!madeIt(r.id); await markMade(r.id,now); render();
     toast(now?'Marked as made — it moves to the Made list':'Back on the to-try list');
@@ -3793,7 +3824,7 @@ function renderPaste(){
    tile/handler path (openRecipe) and the Back/Forward path (applyHash) so both
    reset scale, ticks and the calculators the same way. */
 function resetRecipeView(){
-  scale=1; cookOff=false; calcCoco=null; anchorOpt=null;
+  scale=1; cookOff=false; calcCoco=null; anchorOpt=null; recipeLang='en';
   ticked.ing.clear(); ticked.step.clear(); tins=null; tinMode='even';
 }
 function openRecipe(id){
