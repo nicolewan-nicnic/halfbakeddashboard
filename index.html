@@ -453,6 +453,35 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
   .shelf .areas .fridge-btn{flex-direction:column;align-items:flex-start;gap:5px;font-size:16px}
   .shelf .areas .fridge-btn .n{margin-left:0}
 }
+/* bottom tab bar — the section nav on phones/tablets (option A) */
+#tabbar{display:none}
+.more-sheet[hidden],.more-slot:empty{display:none}
+@media (max-width:959px){
+  nav.shelf{display:none}
+  .back-only{display:none}   /* the bottom bar replaces "← Home" everywhere */
+  .shell{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+  #tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:40;
+    background:var(--ivory);border-top:2.5px solid var(--crumb);
+    padding:6px 4px calc(6px + env(safe-area-inset-bottom));justify-content:space-around}
+  #tabbar .tb{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;
+    background:none;border:0;padding:4px 2px;font-family:var(--mono);font-size:9.5px;color:var(--rye);cursor:pointer}
+  #tabbar .tb .thumb{width:24px;height:24px}
+  #tabbar .tb .dots{font-size:20px;line-height:.6;height:24px;display:flex;align-items:center}
+  #tabbar .tb[aria-current="true"]{color:var(--sage);font-weight:500}
+  #tabbar .tb[aria-current="true"] .thumb{filter:none;transform:translateY(-1px)}
+  body.shared #tabbar{display:none}
+}
+.more-backdrop{position:fixed;inset:0;z-index:44;background:rgba(28,28,28,.3)}
+.more-sheet{position:fixed;left:0;right:0;bottom:0;z-index:45;background:var(--ivory);
+  border-top:2.5px solid var(--crumb);border-radius:var(--wob1) var(--wob1) 0 0;
+  padding:16px 20px calc(22px + env(safe-area-inset-bottom))}
+.more-sheet h4{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--rye);margin:0 0 6px}
+.more-sheet .mrow{display:flex;align-items:center;gap:13px;width:100%;background:none;border:0;
+  padding:13px 4px;font-family:var(--display);font-weight:600;font-size:16px;color:var(--crumb);
+  cursor:pointer;border-bottom:1px dotted var(--taupe);text-align:left}
+.more-sheet .mrow:last-child{border-bottom:0}
+.more-sheet .mrow .thumb{width:28px;height:28px;flex:none}
+.more-sheet .mrow .n{margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:400;color:var(--rye)}
 @media (max-width:680px){
   .cols{grid-template-columns:1fr;gap:30px}
   .card{padding:22px 18px 30px}
@@ -465,6 +494,7 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
 @media print{
   .shelf,.head-actions,.dough,.custom,.batch-label,.calc,.cook-actions,.cookoff,.pantry-line,
   .add-item,.cal,.row-x,.link-btn,.plan-add,.chooser,.putaway,.toast,.rule,.have,.tiles .add,
+  #tabbar,.more-sheet,.more-backdrop,
   .search,.banner,.section-rule{display:none!important}
   body{background:#fff;font-size:11.5pt}
   .layout{display:block}
@@ -513,6 +543,8 @@ window.addEventListener('error',function(e){
     <main class="pane" id="pane"></main>
   </div>
 </div>
+<nav class="tabbar" id="tabbar" aria-label="Sections"></nav>
+<div id="more-slot"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <input type="file" id="doodle-file" accept="image/*" hidden>
 <input type="file" id="photo-file" accept="image/*" capture="environment" hidden>
@@ -1191,6 +1223,7 @@ let currentId=null, scale=1, editing=false, draft=null;
 let mode='home', cookOff=false, editItem=null, putAway=null, pickDay=null;
 let formDate='', photoReview=null, photoBusy=false, armed=null, pasteBusy=false, pasteText='';
 let calcCoco=null, refocus=null, searchQ='', pickQ='', todoText='', tagFilter='', cuisineFilter='', mealFilter='';
+let moreOpen=false;        /* bottom-bar "More" sheet (Grocery / Deliveroo / Settings) */
 let gridView=false;
 let userNavigated=false;   /* true once the user has actively opened a section or recipe */
 let menuRole='veg';        /* remembered role in the meal-plan menu add form */
@@ -1548,6 +1581,47 @@ function renderNav(){
   const bt=Object.values(basket).reduce((a,v)=>a+v.reduce((x,i)=>x+i.price*i.qty,0),0);
   set('#shop-btn','bun','Deliveroo', bt?'£'+bt.toFixed(2):'nothing yet');
   $('#recipes-btn').setAttribute('aria-current', mode==='recipes'||mode==='recipe'||mode==='paste');
+}
+
+/* Bottom tab bar (phones/tablets). Five slots — Grocery, Deliveroo and
+   Settings live behind "More" so the bar stays legible. Desktop keeps the
+   sidebar shelf and never shows this. */
+function renderTabbar(){
+  const tb=$('#tabbar'); if(!tb) return;
+  if(SHARE){ tb.innerHTML=''; renderMoreSheet(); return; }
+  const isOn=m=> m==='recipes' ? ['recipes','recipe','paste'].includes(mode)
+              : m==='more'    ? ['grocery','shop','settings'].includes(mode)
+              : mode===m;
+  const tab=(m,icon,label)=>`<button class="tb" type="button" data-m="${m}" aria-current="${isOn(m)}">
+    ${icon?`<span class="thumb">${artByName(icon)}</span>`:'<span class="dots" aria-hidden="true">···</span>'}
+    <span>${label}</span></button>`;
+  tb.innerHTML = tab('home','croissant','Home')+tab('recipes','cakeslice','Recipes')
+    + tab('fridge','cabbage','Fridge')+tab('plan','chickenrice','Plan')+tab('more','','More');
+  tb.querySelectorAll('.tb').forEach(b=>b.onclick=()=>{
+    const m=b.dataset.m;
+    if(m==='more'){ moreOpen=!moreOpen; renderMoreSheet(); return; }
+    moreOpen=false;
+    if(mode===m||(m==='recipes'&&mode==='recipe')){ renderMoreSheet(); return; }
+    goMode(m)();
+  });
+  renderMoreSheet();
+}
+function renderMoreSheet(){
+  const slot=$('#more-slot'); if(!slot) return;
+  if(!moreOpen||SHARE){ slot.innerHTML=''; return; }
+  const gN=grocery.filter(g=>!g.done).length;
+  const bt=Object.values(basket).reduce((a,v)=>a+v.reduce((x,i)=>x+i.price*i.qty,0),0);
+  const row=(m,icon,label,note)=>`<button class="mrow" type="button" data-m="${m}">
+    <span class="thumb">${artByName(icon)}</span>${label}<span class="n">${note}</span></button>`;
+  slot.innerHTML=`<div class="more-backdrop" id="more-bd"></div>
+    <div class="more-sheet" role="dialog" aria-label="More sections" aria-modal="true">
+      <h4>More</h4>
+      ${row('grocery','breadbag','Grocery list', gN?gN+' to get':'empty')}
+      ${row('shop','bun','Deliveroo', bt?'£'+bt.toFixed(2):'nothing yet')}
+      ${row('settings','jar','Settings', API_BASE?(apiDown?'offline':'synced'):'this device')}
+    </div>`;
+  $('#more-bd').onclick=()=>{ moreOpen=false; renderMoreSheet(); };
+  slot.querySelectorAll('.mrow').forEach(b=>b.onclick=()=>{ moreOpen=false; goMode(b.dataset.m)(); });
 }
 
 /* ============ recipe drawer (its own page) ============ */
@@ -3783,6 +3857,7 @@ function render(){
   armed=null;
   syncHash();
   renderNav();
+  renderTabbar();
   renderBody();
   shapeBalls();
 }
