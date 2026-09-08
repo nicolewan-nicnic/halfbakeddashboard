@@ -443,12 +443,27 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
 .cook-list button:hover .cook-name{text-decoration:underline;text-underline-offset:3px}
 @media (max-width:680px){.review-row{grid-template-columns:auto 1fr;row-gap:4px}.review-row input[type=text]:first-of-type{grid-column:2}}
 
+/* section nav — hidden by default; each breakpoint below opts it back in */
+#tabbar{display:none}
+.more-sheet[hidden],.more-slot:empty{display:none}
+
 @media (min-width:960px){
-  .layout{grid-template-columns:330px minmax(0,1fr);align-items:start}
-  .shelf{position:sticky;top:24px}
+  .layout{grid-template-columns:minmax(0,1fr);align-items:start}
+  nav.shelf{display:none}                 /* the sidebar is now a top bar */
+  .back-only{display:none}
   .tile .thumb{width:62px;height:62px}
   .tile-name{font-size:17px}
-  .back-only{display:none}
+  .shell{padding-top:92px}                /* clear the fixed top bar */
+  #tabbar{display:flex;position:fixed;top:0;left:0;right:0;z-index:40;
+    background:var(--ivory);border-bottom:2.5px solid var(--crumb);
+    align-items:center;justify-content:center;gap:8px;padding:9px 24px}
+  #tabbar .tb{display:flex;flex:0 0 auto;flex-direction:row;align-items:center;gap:9px;
+    font-size:14px;letter-spacing:0;padding:8px 16px;border-radius:var(--wob3);border:2.5px solid transparent}
+  #tabbar .tb .thumb{width:24px;height:24px;flex:none}
+  #tabbar .tb .dots{font-size:20px;height:24px;display:flex;align-items:center}
+  #tabbar .tb:hover{background:var(--beige)}
+  #tabbar .tb[aria-current="true"]{background:var(--beige);border-color:var(--crumb);color:var(--sage);font-weight:600}
+  body.shared #tabbar{display:none}
 }
 @media (max-width:959px){
   .shelf .areas{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -457,8 +472,6 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
   .shelf .areas .fridge-btn .n{margin-left:0}
 }
 /* bottom tab bar — the section nav on phones/tablets (option A) */
-#tabbar{display:none}
-.more-sheet[hidden],.more-slot:empty{display:none}
 @media (max-width:959px){
   nav.shelf{display:none}
   .back-only{display:none}   /* the bottom bar replaces "← Home" everywhere */
@@ -918,7 +931,35 @@ function seed(){return [
      '生地を漉しながら型に流し入れ、240℃で約25分焼く。10分ほどで焼き色が濃くなりすぎるときは210℃に下げる。',
      '表面はかなり濃い焼き色、中央はまだ揺れるくらいが目安。',
      '常温で冷ましてから、冷蔵庫でひと晩冷やす。',
-     '温めたナイフで切ると断面がきれいに仕上がる。']
+     '温めたナイフで切ると断面がきれいに仕上がる。'],
+   cuisineJa:'洋菓子',
+   tagsJa:{'Western':'洋菓子','Dessert':'デザート','Make-ahead':'作り置き','Baking':'焼き菓子'},
+   ui:{batch:'分量', steps:'ステップ', table:'表', ingredients:'材料', method:'作り方',
+     madeWith:'種類', clearTicks:'チェックをクリア', noMethod:'作り方はまだありません。',
+     addMissing:'不足分を買い物リストに追加', copyInstead:'コピーする', cooked:'作った',
+     pantryNone:'この材料はまだ冷蔵庫にありません', pantryHave:'冷蔵庫にあり', pantryReady:'— 準備OK', pantryShort:'不足'},
+   calc:{
+     scaleBy:'クリームチーズで換算', follows:'下の分量は入力した量に合わせて変わります',
+     inTub:'クリームチーズの分量', madeWith:'種類',
+     tinKeepDepth:'cm 型・深さを保つ', eggAbout:'g 卵・Lサイズ約{n}個',
+     doubleCream:'g 生クリーム（乳脂肪分48%）', cornflour:'g コーンスターチ', batter:'kg 生地',
+     hint:'卵は個数ではなく重さで量ってください。Lサイズ6個で殻を除いて約{g} g、殻の重さは思うより差があります。焼き時間は深さが同じなら変わりません。',
+     ing:{'hojicha powder':'ほうじ茶パウダー','sugar':'グラニュー糖','black sesame praline':'黒ごまプラリネ'},
+     tinsTitle:'型・容器', builtFor:'このレシピは深さ約 {d} cm 向けです',
+     tmodeEven:'すべて同じ深さ', tmodeFirst:'最初の型を満たして残りを次へ',
+     round:'丸型', square:'角型', tray:'バット',
+     inEach:'各', inOne:'', deep:'cm の深さ', remove:'削除',
+     addContainer:'＋ 容器を追加', leftOver:'{g} g 余り',
+     notes:{
+       idle:'不要 — 最初の型で全量入ります',
+       baseOnly:'底を覆う程度 — 別に焼いて早めに確認',
+       shallowWarn:'レシピよりかなり浅い — 焼き上がりが早く乾きやすい',
+       shallow:'レシピより浅い — 早めに焼き加減を確認',
+       ok:'レシピが想定する深さとほぼ同じ',
+       deep:'レシピより深い — 長めに焼き、色づきが早ければ温度を下げる',
+       deepWarn:'レシピよりかなり深い — 中心が固まらないことがある'
+     }
+   }
  }}},
 {id:'mayak-eggs',name:'Mayak Eggs',icon:'soft-eggs',cuisine:'Korean',tags:['Side','Make-ahead','Eggs'],kcal:600,
  prep:'The eggs want at least 6 hours in the marinade, and are better overnight. Make them the day before.',
@@ -1609,20 +1650,25 @@ function renderNav(){
   $('#recipes-btn').setAttribute('aria-current', mode==='recipes'||mode==='recipe'||mode==='paste');
 }
 
-/* Bottom tab bar (phones/tablets). Five slots — Grocery, Deliveroo and
-   Settings live behind "More" so the bar stays legible. Desktop keeps the
-   sidebar shelf and never shows this. */
+/* The section nav. On desktop it's a full horizontal bar across the top with
+   every section; on phones/tablets it's a fixed bottom bar of five, with
+   Grocery / Deliveroo / Settings behind "More". Same component either way. */
 function renderTabbar(){
   const tb=$('#tabbar'); if(!tb) return;
   if(SHARE){ tb.innerHTML=''; renderMoreSheet(); return; }
+  const wide = window.matchMedia('(min-width:960px)').matches;
   const isOn=m=> m==='recipes' ? ['recipes','recipe','paste'].includes(mode)
               : m==='more'    ? ['grocery','shop','settings'].includes(mode)
               : mode===m;
   const tab=(m,icon,label)=>`<button class="tb" type="button" data-m="${m}" aria-current="${isOn(m)}">
     ${icon?`<span class="thumb">${artByName(icon)}</span>`:'<span class="dots" aria-hidden="true">···</span>'}
     <span>${label}</span></button>`;
-  tb.innerHTML = tab('home','croissant','Home')+tab('recipes','cakeslice','Recipes')
-    + tab('fridge','cabbage','Fridge')+tab('plan','chickenrice','Plan')+tab('more','','More');
+  tb.innerHTML = wide
+    ? tab('home','croissant','Home')+tab('recipes','cakeslice','Recipes')
+      + tab('fridge','cabbage','Fridge')+tab('grocery','breadbag','Grocery')
+      + tab('plan','chickenrice','Plan')+tab('shop','bun','Deliveroo')+tab('settings','jar','Settings')
+    : tab('home','croissant','Home')+tab('recipes','cakeslice','Recipes')
+      + tab('fridge','cabbage','Fridge')+tab('plan','chickenrice','Plan')+tab('more','','More');
   tb.querySelectorAll('.tb').forEach(b=>b.onclick=()=>{
     const m=b.dataset.m;
     if(m==='more'){ moreOpen=!moreOpen; renderMoreSheet(); return; }
@@ -1632,6 +1678,8 @@ function renderTabbar(){
   });
   renderMoreSheet();
 }
+/* the tab set differs across the 960px line, so rebuild it on resize */
+window.addEventListener('resize',()=>{ if(!SHARE) renderTabbar(); });
 function renderMoreSheet(){
   const slot=$('#more-slot'); if(!slot) return;
   if(!moreOpen||SHARE){ slot.innerHTML=''; return; }
@@ -1814,6 +1862,8 @@ function renderRecipe(){
   const T = (recipeLang!=='en' && r.i18n && r.i18n[recipeLang]) || null;
   const tr = (k,en)=> (T && T[k]!=null) ? T[k] : en;
   const trList = (k,i,en)=> (T && Array.isArray(T[k]) && T[k][i]!=null) ? T[k][i] : en;
+  const U = (k,en)=> (T && T.ui && T.ui[k]!=null) ? T.ui[k] : en;   /* page-chrome strings */
+  const trTag = t=> (T && T.tagsJa && T.tagsJa[t]) || t;
   const mi=matchInfo(r);
   /* Some recipes have either/or ingredient groups (tagged with .opt). Show only
      the group that is currently selected, so the list reads as one clean recipe
@@ -1837,7 +1887,7 @@ function renderRecipe(){
     <li><button class="tick" data-kind="step" data-n="${n}" aria-pressed="${ticked.step.has(n)}">
       <span class="box"></span><span class="step-no">${String(n+1).padStart(2,'0')}</span>
       <span class="step-text">${esc(trList('method',n,s))}</span></button></li>`).join('')}</ol>`
-    :`<p class="empty">No method written down yet. Hit Edit to add the steps.</p>`;
+    :`<p class="empty">${U('noMethod','No method written down yet. Hit Edit to add the steps.')}</p>`;
 
   pane.innerHTML=`<article class="card">
     <div class="card-head">
@@ -1846,8 +1896,8 @@ function renderRecipe(){
         <h2>${esc(tr('name',r.name))}</h2>
         ${r.blurb?`<p class="blurb">${esc(tr('blurb',r.blurb))}</p>`:''}
         ${(r.cuisine||(r.tags&&r.tags.length))?`<div class="rtags">
-          ${r.cuisine?`<span class="rtag">${esc(r.cuisine)}</span>`:''}
-          ${(r.tags||[]).map(t=>`<span class="rtag">${esc(t)}</span>`).join('')}
+          ${r.cuisine?`<span class="rtag">${esc(T&&T.cuisineJa||r.cuisine)}</span>`:''}
+          ${(r.tags||[]).map(t=>`<span class="rtag">${esc(trTag(t))}</span>`).join('')}
           ${r.source&&!SHARE?`<span class="rtag" style="border-color:var(--orange);color:var(--orange)">${madeIt(r.id)?'made ✓':'to try'}</span>`:''}
         </div>`:''}
         ${r.link?`<p class="blurb" style="margin-top:6px"><a href="${esc(r.link)}" target="_blank" rel="noopener" class="link-btn" style="text-decoration:underline">Open the original ↗</a>${r.source==='elanne-boake'?' · Elanne Boake':''}</p>`:''}
@@ -1862,7 +1912,7 @@ function renderRecipe(){
       </div>
     </div>
     <div class="batch">
-      <span class="batch-label">Batch</span>
+      <span class="batch-label">${U('batch','Batch')}</span>
       <div class="dough">${[0.5,1,2,3,5].map(v=>`<button class="ball" data-scale="${v}" aria-pressed="${scale===v}">×${v===0.5?'½':v}</button>`).join('')}</div>
       <input class="custom" id="custom" type="number" min="0.1" step="0.1" value="${Math.round(scale*100)/100}" aria-label="Custom multiplier">
       ${r.makesQty?`<span class="yield">${T?'できあがり ':'Makes '}<b>${esc(fmt(r.makesQty*scale))} ${esc(tr('makesUnit',r.makesUnit))}</b></span>`:''}
@@ -1871,23 +1921,23 @@ function renderRecipe(){
     ${r.prep?`<div class="prep"><span class="prep-tag">${T?'前日に':'Start ahead'}</span> ${esc(tr('prep',r.prep))}</div>`:''}
     ${r.calc?calcHTML(r):''}
     <div class="viewtoggle">
-      <button class="ball" data-view="steps" aria-pressed="${!gridView}">Steps</button>
-      <button class="ball" data-view="grid" aria-pressed="${gridView}">Table</button>
+      <button class="ball" data-view="steps" aria-pressed="${!gridView}">${U('steps','Steps')}</button>
+      <button class="ball" data-view="grid" aria-pressed="${gridView}">${U('table','Table')}</button>
     </div>
     ${gridView?gridHTML(r):`<div class="cols">
       <section>
-        <h3 class="section-title">Ingredients</h3><div class="section-rule"></div>
+        <h3 class="section-title">${U('ingredients','Ingredients')}</h3><div class="section-rule"></div>
         ${optKeys.length>1?`<div class="ing-opt">
-          <span class="ing-opt-label">Made with</span>
+          <span class="ing-opt-label">${U('madeWith','Made with')}</span>
           <div class="ing-opt-picks">${optKeys.map(k=>`
             <button class="ball" data-iopt="${esc(k)}" aria-pressed="${k===curOpt}">${esc(optLabel(k))}</button>`).join('')}</div>
         </div>`:''}
         <ul class="ing-list">${ings}</ul>
-        ${!SHARE&&mi.total?`<p class="pantry-line">${mi.have.length?`In the house: <b>${mi.have.length} of ${mi.total}</b>`:`Nothing for this in the fridge yet`}${!mi.missing.length&&mi.have.length?` — ready to go`:''}${mi.missing.length&&mi.have.length?` · short of ${esc(mi.missing.slice(0,3).map(m=>m.split(',')[0]).join(', '))}${mi.missing.length>3?' and '+(mi.missing.length-3)+' more':''}`:''}</p>`:''}
+        ${!SHARE&&mi.total?`<p class="pantry-line">${mi.have.length?`${T?U('pantryHave')+'：':'In the house: '}<b>${mi.have.length} / ${mi.total}</b>`:U('pantryNone','Nothing for this in the fridge yet')}${!mi.missing.length&&mi.have.length?` ${U('pantryReady','— ready to go')}`:''}${mi.missing.length&&mi.have.length?` · ${U('pantryShort','short of')} ${esc(mi.missing.slice(0,3).map(m=>m.split(',')[0]).join(', '))}${mi.missing.length>3?(T?` 他${mi.missing.length-3}件`:' and '+(mi.missing.length-3)+' more'):''}`:''}</p>`:''}
         <div class="cook-actions">
-          ${r.ingredients.length?`<button class="link-btn" id="clear-ticks">Clear ticks</button>`:''}
-          ${!SHARE&&mi.missing.length?`<button class="link-btn" id="add-missing">Add missing to grocery list</button><button class="link-btn" id="copy-missing">copy instead</button>`:''}
-          ${!SHARE&&mi.have.length?`<button class="link-btn" id="cooked-this">I cooked this</button>`:''}
+          ${r.ingredients.length?`<button class="link-btn" id="clear-ticks">${U('clearTicks','Clear ticks')}</button>`:''}
+          ${!SHARE&&mi.missing.length?`<button class="link-btn" id="add-missing">${U('addMissing','Add missing to grocery list')}</button><button class="link-btn" id="copy-missing">${U('copyInstead','copy instead')}</button>`:''}
+          ${!SHARE&&mi.have.length?`<button class="link-btn" id="cooked-this">${U('cooked','I cooked this')}</button>`:''}
         </div>
         ${cookOff?`<div class="cookoff">
           <p class="hint" style="margin:0 0 6px">Tick whatever got used up and it comes off the fridge list. Untick things you still have some of.</p>
@@ -1899,7 +1949,7 @@ function renderRecipe(){
         </div>`:''}
       </section>
       <section>
-        <h3 class="section-title">Method</h3><div class="section-rule"></div>
+        <h3 class="section-title">${U('method','Method')}</h3><div class="section-rule"></div>
         ${steps}
       </section>
     </div>`}</article>`;
@@ -2063,18 +2113,24 @@ function tinSplit(total,list,refDepth,mode){
   return rows.map(r=>({...r,g:total*(r.area/area),depth:total/area}));
 }
 function depthNote(depth,ref){
-  if(depth<=0.05) return {cls:'idle',msg:'not needed — the first tin takes it all'};
+  if(depth<=0.05) return {cls:'idle',key:'idle',msg:'not needed — the first tin takes it all'};
   const p=depth/ref;
-  if(p<0.3) return {cls:'note',msg:'barely covers the base — bake it separately and check very early'};
-  if(p<0.6) return {cls:'warn',msg:'much shallower than the recipe — it will bake far faster and can dry out'};
-  if(p<0.85)return {cls:'note',msg:'shallower than the recipe — start checking early'};
-  if(p<=1.15)return {cls:'ok',  msg:'about the depth the recipe is built for'};
-  if(p<=1.4) return {cls:'note',msg:'deeper than the recipe — give it longer and drop the heat if it colours fast'};
-  return {cls:'warn',msg:'much deeper than the recipe — the middle may not set'};
+  if(p<0.3) return {cls:'note',key:'baseOnly',msg:'barely covers the base — bake it separately and check very early'};
+  if(p<0.6) return {cls:'warn',key:'shallowWarn',msg:'much shallower than the recipe — it will bake far faster and can dry out'};
+  if(p<0.85)return {cls:'note',key:'shallow',msg:'shallower than the recipe — start checking early'};
+  if(p<=1.15)return {cls:'ok',key:'ok',msg:'about the depth the recipe is built for'};
+  if(p<=1.4) return {cls:'note',key:'deep',msg:'deeper than the recipe — give it longer and drop the heat if it colours fast'};
+  return {cls:'warn',key:'deepWarn',msg:'much deeper than the recipe — the middle may not set'};
 }
 
+/* Japanese overlay for the anchor calculator + tin planner. Only kicks in for a
+   recipe that carries an i18n[lang].calc block (currently just pistachio-basque);
+   otherwise every `L(...)` falls back to the English string. */
+function calcLang(r){ return (recipeLang!=='en' && r && r.i18n && r.i18n[recipeLang] && r.i18n[recipeLang].calc) || null; }
+
 function tinPlannerHTML(r,total){
-  const c=r.calc;
+  const c=r.calc, CL=calcLang(r);
+  const L=(k,en)=> (CL && CL[k]!=null) ? CL[k] : en;
   const refDepth=(c.base?( (c.sharedG-40-300+ (c.options[0].cornstarch||40) + (c.options[0].cream||300)
       + c.options[0].items.reduce((a,[,g])=>a+g,0)) / (Math.PI*Math.pow(c.tin/2,2)) ):5);
   if(!tins) tins=defaultTins(r);
@@ -2082,12 +2138,12 @@ function tinPlannerHTML(r,total){
   const poured=rows.reduce((a,x)=>a+x.g,0);
   const over=total-poured;
   return `<div class="tinplan">
-    <div class="calc-head"><span class="batch-label">Tins and containers</span>
-      <span class="calc-rule">this recipe is built for a ${refDepth.toFixed(1)} cm depth</span></div>
+    <div class="calc-head"><span class="batch-label">${L('tinsTitle','Tins and containers')}</span>
+      <span class="calc-rule">${CL?L('builtFor','').replace('{d}',refDepth.toFixed(1)):`this recipe is built for a ${refDepth.toFixed(1)} cm depth`}</span></div>
     <div class="calc-row" style="margin-bottom:6px">
       <div class="calc-presets">
-        <button class="ball" data-tmode="even" aria-pressed="${tinMode==='even'}">Same depth in each</button>
-        <button class="ball" data-tmode="first" aria-pressed="${tinMode==='first'}">Fill the first, rest over</button>
+        <button class="ball" data-tmode="even" aria-pressed="${tinMode==='even'}">${L('tmodeEven','Same depth in each')}</button>
+        <button class="ball" data-tmode="first" aria-pressed="${tinMode==='first'}">${L('tmodeFirst','Fill the first, rest over')}</button>
       </div>
     </div>
     <ul class="tinlist">${tins.map((t,i)=>{
@@ -2096,29 +2152,31 @@ function tinPlannerHTML(r,total){
       return `<li class="tinrow">
         <div class="tinrow-in">
           <select data-tshape="${i}">
-            <option value="round"  ${t.shape==='round'?'selected':''}>Round</option>
-            <option value="square" ${t.shape==='square'?'selected':''}>Square</option>
-            <option value="tray"   ${t.shape==='tray'?'selected':''}>Tray</option>
+            <option value="round"  ${t.shape==='round'?'selected':''}>${L('round','Round')}</option>
+            <option value="square" ${t.shape==='square'?'selected':''}>${L('square','Square')}</option>
+            <option value="tray"   ${t.shape==='tray'?'selected':''}>${L('tray','Tray')}</option>
           </select>
           ${t.shape==='tray'
             ? `<input type="number" min="1" step="0.5" value="${t.l||20}" data-tl="${i}" aria-label="Length cm"><span class="calc-unit">×</span>
                <input type="number" min="1" step="0.5" value="${t.w||10}" data-tw="${i}" aria-label="Width cm"><span class="calc-unit">cm</span>`
             : `<input type="number" min="1" step="0.5" value="${t.d||20}" data-td="${i}" aria-label="Size cm"><span class="calc-unit">cm</span>`}
           <span class="calc-unit">×</span><input type="number" min="1" step="1" value="${t.n||1}" data-tn="${i}" aria-label="How many" style="width:52px">
-          ${tins.length>1?`<button class="link-btn" data-trm="${i}">remove</button>`:''}
+          ${tins.length>1?`<button class="link-btn" data-trm="${i}">${L('remove','remove')}</button>`:''}
         </div>
         ${row&&row.area?`<div class="tinrow-out ${note.cls}">
-          <b>${Math.round(row.g/(t.n||1)).toLocaleString()}</b> g ${(t.n||1)>1?'in each':'in'} · <b>${row.depth.toFixed(1)}</b> cm deep
-          <span class="tinnote">${note.msg}</span></div>`:''}
+          <b>${Math.round(row.g/(t.n||1)).toLocaleString()}</b> g ${(t.n||1)>1?L('inEach','in each'):L('inOne','in')} · <b>${row.depth.toFixed(1)}</b> ${L('deep','cm deep')}
+          <span class="tinnote">${CL?(CL.notes&&CL.notes[note.key]||note.msg):note.msg}</span></div>`:''}
       </li>`;}).join('')}</ul>
     <div class="tinfoot">
-      <button class="link-btn" id="tin-add">+ Add a container</button>
-      ${Math.abs(over)>1?`<span class="tinover">${over>0?Math.round(over).toLocaleString()+' g left over':''}</span>`:''}
+      <button class="link-btn" id="tin-add">${L('addContainer','+ Add a container')}</button>
+      ${Math.abs(over)>1?`<span class="tinover">${over>0?(CL?L('leftOver','').replace('{g}',Math.round(over).toLocaleString()):Math.round(over).toLocaleString()+' g left over'):''}</span>`:''}
     </div>
   </div>`;
 }
 function anchorHTML(r){
-  const c=r.calc;
+  const c=r.calc, CL=calcLang(r);
+  const L=(k,en)=> (CL && CL[k]!=null) ? CL[k] : en;
+  const iname=n=>(CL && CL.ing && CL.ing[n.toLowerCase()]) || n.toLowerCase();
   const have=Math.round(c.base*scale);
   const opt=c.options.find(o=>o.k===(anchorOpt||c.options[0].k))||c.options[0];
   const optW=opt.items.reduce((a,[,g])=>a+g,0);
@@ -2126,30 +2184,33 @@ function anchorHTML(r){
   const total=Math.round((c.sharedG-40-300+cf+cr+optW)*scale);
   const tin=c.tin*Math.sqrt(scale);
   const eggG=Math.round(c.eggG*scale), eggN=eggG/50;
+  const eggAboutN=eggN%1<0.15||eggN%1>0.85?Math.round(eggN):Math.floor(eggN)+'–'+Math.ceil(eggN);
+  const jaTop=(recipeLang!=='en' && r.i18n && r.i18n[recipeLang]) || null;
+  const optLbl=o=>(jaTop && jaTop.calcLabels && jaTop.calcLabels[o.k]) || o.label;
   return `<div class="calc">
-    <div class="calc-head"><span class="batch-label">Scale by ${esc(c.name.toLowerCase())}</span>
-      <span class="calc-rule">everything below follows what you actually have</span></div>
+    <div class="calc-head"><span class="batch-label">${CL?L('scaleBy','') :'Scale by '+esc(c.name.toLowerCase())}</span>
+      <span class="calc-rule">${L('follows','everything below follows what you actually have')}</span></div>
     <div class="calc-row">
-      <label class="calc-in"><span class="picker-label">${esc(c.name)} in the tub</span>
+      <label class="calc-in"><span class="picker-label">${CL?L('inTub',''):esc(c.name)+' in the tub'}</span>
         <div class="unitrow"><input id="a-have" type="number" min="50" step="50" value="${have}"><span class="calc-unit">g</span></div></label>
       <div class="calc-presets">${[500,750,1000,1200,1500].map(v=>`
         <button class="ball" data-anchor="${v}" aria-pressed="${have===v}">${v>=1000?(v/1000)+'kg':v+'g'}</button>`).join('')}</div>
     </div>
     <div class="calc-row">
-      <span class="picker-label" style="margin:0;min-width:84px">Made with</span>
+      <span class="picker-label" style="margin:0;min-width:84px">${L('madeWith','Made with')}</span>
       <div class="calc-presets">${c.options.map(o=>`
-        <button class="ball" data-aopt="${o.k}" aria-pressed="${o.k===opt.k}">${esc(o.label)}</button>`).join('')}</div>
+        <button class="ball" data-aopt="${o.k}" aria-pressed="${o.k===opt.k}">${esc(optLbl(o))}</button>`).join('')}</div>
     </div>
     <div class="calc-out">
-      <div class="co total"><b>${tin.toFixed(0)}</b><span>cm tin, to keep the depth</span></div>
-      <div class="co"><b>${eggG}</b><span>g egg · about ${eggN%1<0.15||eggN%1>0.85?Math.round(eggN):Math.floor(eggN)+'–'+Math.ceil(eggN)} large</span></div>
-      ${opt.items.map(([n,g])=>`<div class="co"><b>${Math.round(g*scale)}</b><span>g ${esc(n.toLowerCase())}</span></div>`).join('')}
-      <div class="co"><b>${Math.round(cr*scale)}</b><span>g double cream</span></div>
-      <div class="co"><b>${Math.round(cf*scale)}</b><span>g cornflour</span></div>
-      <div class="co"><b>${(total/1000).toFixed(2)}</b><span>kg of batter</span></div>
+      <div class="co total"><b>${tin.toFixed(0)}</b><span>${L('tinKeepDepth','cm tin, to keep the depth')}</span></div>
+      <div class="co"><b>${eggG}</b><span>${CL?L('eggAbout','').replace('{n}',eggAboutN):`g egg · about ${eggAboutN} large`}</span></div>
+      ${opt.items.map(([n,g])=>`<div class="co"><b>${Math.round(g*scale)}</b><span>g ${esc(iname(n))}</span></div>`).join('')}
+      <div class="co"><b>${Math.round(cr*scale)}</b><span>${L('doubleCream','g double cream')}</span></div>
+      <div class="co"><b>${Math.round(cf*scale)}</b><span>${L('cornflour','g cornflour')}</span></div>
+      <div class="co"><b>${(total/1000).toFixed(2)}</b><span>${L('batter','kg of batter')}</span></div>
     </div>
     ${tinPlannerHTML(r,total)}
-    <p class="hint" style="margin-top:8px">Weigh the eggs rather than counting them — six large is about ${c.eggG} g out of the shell, and shell weights vary more than you would think. Bake time stays about the same as long as the depth does.</p>
+    <p class="hint" style="margin-top:8px">${CL?L('hint','').replace('{g}',c.eggG):`Weigh the eggs rather than counting them — six large is about ${c.eggG} g out of the shell, and shell weights vary more than you would think. Bake time stays about the same as long as the depth does.`}</p>
   </div>`;
 }
 function wireAnchor(r){
@@ -2302,11 +2363,13 @@ function buildGrid(r){
 }
 function gridHTML(r){
   const g=buildGrid(r);
-  if(!g) return `<p class="empty">This one does not fall into neat stages — the steps view is clearer for it.</p>`;
+  const jaIng=(recipeLang!=='en' && r.i18n && r.i18n[recipeLang] && r.i18n[recipeLang].ingredients)||null;
+  const nm=ing=>{ if(!jaIng) return ing.name; const i=r.ingredients.indexOf(ing); return i>=0&&jaIng[i]!=null?jaIng[i]:ing.name; };
+  if(!g) return `<p class="empty">${jaIng?'このレシピは工程がきれいに分かれないため、ステップ表示のほうが分かりやすいです。':'This one does not fall into neat stages — the steps view is clearer for it.'}</p>`;
   return `<div class="gridwrap"><table class="rgrid">
     ${g.rows.map((row,n)=>`<tr>
       <td class="gi"><span class="qty">${row.ing.qty!=null?esc(fmt(row.ing.qty*scale))+'<span class="unit">'+esc(row.ing.unit||'')+'</span>':'—'}</span>
-        <span class="gname">${esc(row.ing.name)}</span></td>
+        <span class="gname">${esc(nm(row.ing))}</span></td>
       ${g.cols.map(c=>{
         if(n===0) return `<td class="gs ${c.final?'final':''}" rowspan="${c.span}">${esc(c.label)}</td>`;
         if(n>=c.span) return '<td class="gs pad"></td>';   /* bracket closed above — keep the column aligned */
@@ -2314,7 +2377,7 @@ function gridHTML(r){
       }).join('')}
     </tr>`).join('')}
   </table>
-  ${g.unplaced?`<p class="hint">${g.unplaced} item${g.unplaced===1?'':'s'} the method never names by hand — listed at the bottom.</p>`:''}
+  ${g.unplaced?`<p class="hint">${jaIng?`作り方で個別に触れていない材料が${g.unplaced}件 — 下にまとめています。`:`${g.unplaced} item${g.unplaced===1?'':'s'} the method never names by hand — listed at the bottom.`}</p>`:''}
   </div>`;
 }
 
