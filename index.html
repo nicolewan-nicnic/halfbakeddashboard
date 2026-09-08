@@ -37,13 +37,15 @@ button{cursor:pointer}
 .masthead h1 img{display:block;width:clamp(220px,32vw,320px);height:auto}
 .masthead .sub{font-family:var(--mono);font-size:11.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--rye)}
 .rule{height:6px;background:var(--wave) repeat-x center;margin:22px 0 26px}
-.layout{display:grid;grid-template-columns:1fr;gap:28px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr);gap:28px}
+.pane{min-width:0}   /* let wide children (e.g. the scrolling shop-store row) scroll instead of stretching the page */
 
 .shelf-top{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
 .search{flex:1;min-width:190px;padding:11px 16px;background:transparent;border:2.5px solid var(--crumb);border-radius:var(--wob2)}
 .search::placeholder{color:var(--rye);opacity:.7}
 .count{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--rye)}
 .tiles{list-style:none;margin:0;padding:0;display:grid;gap:16px;grid-template-columns:repeat(3,1fr)}
+.tiles>li{display:flex}
 .cuisine-head{font-family:var(--display,inherit);font-size:15px;font-weight:600;letter-spacing:.02em;
   margin:26px 0 12px;display:flex;align-items:center;gap:9px;color:var(--crumb)}
 .cuisine-head::after{content:"";flex:1;height:2.5px;background:var(--crumb);opacity:.16;border-radius:2px}
@@ -59,9 +61,10 @@ button{cursor:pointer}
 .tile:nth-child(3n+2){border-radius:var(--wob2)}
 .tile:hover{transform:translate(-1px,-3px) rotate(-.6deg);box-shadow:4px 7px 0 var(--taupe)}
 .tile[aria-current="true"]{background:var(--beige);box-shadow:3px 4px 0 var(--orange)}
-.tile .thumb{width:74px;height:74px}
-.tile-name{font-family:var(--display);font-weight:600;font-size:18px;line-height:1.15;letter-spacing:-.005em}
-.tile-makes{font-family:var(--mono);font-size:11px;color:var(--rye)}
+.tile{height:100%}
+.tile .thumb{width:74px;height:74px;align-self:flex-start}
+.tile-name{font-family:var(--display);font-weight:600;font-size:18px;line-height:1.15;letter-spacing:-.005em;min-height:2.3em}
+.tile-makes{font-family:var(--mono);font-size:11px;color:var(--rye);margin-top:auto}
 .tile.add{align-items:center;justify-content:center;text-align:center;border-style:dashed;box-shadow:none;color:var(--rye);min-height:158px;gap:6px}
 .tile.add:hover{border-style:solid;color:var(--crumb);background:var(--beige)}
 .tile.add .plus{font-size:26px;line-height:1}
@@ -212,8 +215,9 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
   background:var(--beige);border-bottom:0}
 .results li button{padding-left:9px}
 .r-cat{font-family:var(--mono);font-size:10px;color:var(--rye);opacity:.8;white-space:nowrap}
-.shop-stores{display:flex;gap:6px;flex-wrap:wrap;margin:18px 0 6px}
-.shop-stores .ball{border-radius:var(--wob3);min-width:0;padding:7px 12px;font-size:12.5px}
+.shop-stores{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:18px 0 6px;padding-bottom:4px}
+.shop-stores::-webkit-scrollbar{display:none}
+.shop-stores .ball{border-radius:var(--wob3);min-width:0;padding:7px 12px;font-size:12.5px;flex:none;white-space:nowrap}
 .shop-stores .ball.fav{border-width:2.5px}
 .shop-stores .ball[aria-pressed="true"]{background:var(--sage);border-color:var(--sage);color:var(--ivory)}
 .meter{margin:16px 0 6px}
@@ -233,7 +237,7 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
 .b-price{font-family:var(--mono);font-size:14px;min-width:56px;text-align:right}
 .topups{list-style:none;margin:6px 0 0;padding:0}
 .topups li{border-bottom:1px dotted var(--taupe)}
-.topups button{display:flex;gap:10px;width:100%;align-items:baseline;background:none;border:0;padding:8px 0;text-align:left;cursor:pointer;font:inherit}
+.topups button{display:grid;grid-template-columns:1fr auto auto;gap:10px;width:100%;align-items:start;background:none;border:0;padding:8px 0;text-align:left;cursor:pointer;font:inherit}
 .topups button:hover .t-name{text-decoration:underline;text-underline-offset:3px}
 .t-name{flex:1;font-size:14px}
 .t-price{font-family:var(--mono);font-size:13.5px}
@@ -408,7 +412,7 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
 @media (max-width:680px){.review-row{grid-template-columns:auto 1fr;row-gap:4px}.review-row input[type=text]:first-of-type{grid-column:2}}
 
 @media (min-width:960px){
-  .layout{grid-template-columns:330px 1fr;align-items:start}
+  .layout{grid-template-columns:330px minmax(0,1fr);align-items:start}
   .shelf{position:sticky;top:24px}
   .tile .thumb{width:62px;height:62px}
   .tile-name{font-size:17px}
@@ -417,11 +421,15 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
 @media (max-width:959px){
   .shelf .areas{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .shelf .areas .fridge-btn:first-child{grid-column:1/-1}
+  .shelf .areas .fridge-btn{flex-direction:column;align-items:flex-start;gap:5px;font-size:16px}
+  .shelf .areas .fridge-btn .n{margin-left:0}
 }
 @media (max-width:680px){
   .cols{grid-template-columns:1fr;gap:30px}
   .card{padding:22px 18px 30px}
   .head-actions{margin-left:0;width:100%}
+  .head-actions .back-only{align-self:flex-start;flex:0 0 auto}
+  .search{width:100%;flex:none}
   .card-head .thumb{width:76px;height:76px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -1504,13 +1512,13 @@ function renderNav(){
     el.setAttribute('aria-current', mode===id.slice(1).replace('-btn',''));
   };
   set('#home-btn','croissant','Home', soon?soon+' to use up':'all calm');
-  set('#recipes-btn','cakeslice','Recipes', recipes.length+' in the drawer');
+  set('#recipes-btn','cakeslice','Recipes', recipes.length+' recipes');
   set('#fridge-btn','cabbage','The fridge', fridge.length+' item'+(fridge.length===1?'':'s'));
   set('#grocery-btn','breadbag','Grocery list', gN?gN+' to get':'empty');
   set('#plan-btn','chickenrice','Meal plan', planned?planned+' planned':'nothing yet');
   set('#settings-btn','jar','Settings', API_BASE?(apiDown?'offline':'synced'):'this device');
   const bt=Object.values(basket).reduce((a,v)=>a+v.reduce((x,i)=>x+i.price*i.qty,0),0);
-  set('#shop-btn','bun','Deliveroo', bt?'£'+bt.toFixed(2)+' in the basket':'nothing yet');
+  set('#shop-btn','bun','Deliveroo', bt?'£'+bt.toFixed(2):'nothing yet');
   $('#recipes-btn').setAttribute('aria-current', mode==='recipes'||mode==='recipe'||mode==='paste');
 }
 
@@ -3395,8 +3403,10 @@ function renderShop(){
   pane.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>{
     shopStore=b.dataset.jump; basketQ=''; shopSplit=null; shopCat=null; loadCatalogue(shopStore); });
   pane.querySelectorAll('[data-store]').forEach(b=>b.onclick=()=>{
-    shopStore=b.dataset.store; shopQ=''; shopSplit=null;
+    shopStore=b.dataset.store; shopQ=''; shopSplit=null; refocus='shop-store';
     if(shopStore===BOOTS_SLUG){ shopCat=null; loadBootsProducts(); } else loadCatalogue(shopStore); });
+  if(refocus==='shop-store' && !shopBusy){ refocus=null;
+    pane.querySelector('.shop-stores .ball[aria-pressed="true"]')?.scrollIntoView({inline:'center',block:'nearest'}); }
   const sq=$('#shop-q');
   if(sq){ sq.oninput=()=>{ shopQ=sq.value; shopFam=''; refocus='shop-q'; render(); }; }
   pane.querySelectorAll('[data-fam]').forEach(b=>b.onclick=()=>{ shopFam=b.dataset.fam; render(); });
