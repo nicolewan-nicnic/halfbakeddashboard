@@ -609,12 +609,15 @@ function apiHeaders(extra){
 }
 
 /* ---------- share mode ----------------------------------------------------
-   Reached via #/share (whole collection) or #/share/<recipe-id> (one recipe).
-   In this mode the app loads ONLY recipe data, every write is disabled, and
-   anything that reveals or edits personal data is hidden. Ticks still work for
-   whoever is reading, but they were always memory-only so nothing is saved. */
-const SHARE = /^#\/share(\/|$)/.test(location.hash);
-const SHARE_ID = SHARE ? decodeURIComponent((location.hash.match(/^#\/share\/(.+)$/)||[])[1]||'') : '';
+   Three read-only entry points, all with the dashboard hidden and writes off:
+     #/share            the whole collection
+     #/share/<id>       one recipe, but the collection is still downloaded
+     #/r/<id>           ISOLATED — loads ONLY the hbs:share.<id> snapshot the
+                        owner wrote, so nothing but that one recipe is ever sent
+   Ticks still work for whoever is reading; they were always memory-only. */
+const SHARE_ONE = decodeURIComponent((location.hash.match(/^#\/r\/(.+)$/)||[])[1]||'');
+const SHARE = !!SHARE_ONE || /^#\/share(\/|$)/.test(location.hash);
+const SHARE_ID = SHARE_ONE || (SHARE ? decodeURIComponent((location.hash.match(/^#\/share\/(.+)$/)||[])[1]||'') : '');
 
 function localGet(k){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){ return null; } }
 function localSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); return true; }catch(e){ return false; } }
@@ -1784,11 +1787,28 @@ function renderRecipes(){
   if(refocus==='search'){ refocus=null; const n=$('#search'); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } }
 }
 
+/* Write a self-contained snapshot of one recipe to hbs:share.<id> and copy a
+   #/r/<id> link to it. The snapshot is the only thing that link ever loads —
+   the rest of the collection is never sent. Re-running it refreshes the copy. */
+async function shareRecipeLink(id){
+  const r=find(id);
+  if(!r){ toast('Open a recipe first, then come back'); return; }
+  const url=location.origin+location.pathname+'#/r/'+encodeURIComponent(id);
+  const clean={}; for(const k in r){ if(k[0]!=='_') clean[k]=r[k]; }
+  try{
+    await sset('hbs:share.'+id, {recipe:JSON.parse(JSON.stringify(clean)), at:Date.now()});
+    try{ await navigator.clipboard.writeText(url); toast('Link to '+r.name+' copied'); }
+    catch(_){ banner('Copy this link: '+url); }
+  }catch(e){ banner('Could not create the share link — '+(e&&e.message||e)); }
+}
+
 /* ============ recipe view ============ */
 function renderRecipe(){
   const r=find(currentId);
-  if(!r){ pane.innerHTML=`<div class="card"><div class="empty-state"><div class="thumb">${artByName('croissant')}</div>
-    <p class="empty">Nothing picked yet. Choose something from the drawer, or start a new one.</p></div></div>`; return; }
+  if(!r){ pane.innerHTML=`<div class="card"><div class="empty-state"><div class="thumb">${artByName('empty-plate')}</div>
+    <p class="empty">${SHARE_ONE
+      ? "This shared recipe link isn't available. Ask whoever sent it for a fresh one."
+      : "Nothing picked yet. Choose something from the drawer, or start a new one."}</p></div></div>`; return; }
   /* per-recipe translation: T is the active language block (null = English),
      tr() picks a translated string by key, trList() by list + index */
   const T = (recipeLang!=='en' && r.i18n && r.i18n[recipeLang]) || null;
@@ -1836,6 +1856,7 @@ function renderRecipe(){
         ${r.i18n?`<button class="pill lang-pill" id="lang-toggle" aria-pressed="${recipeLang!=='en'}">${recipeLang==='ja'?'English':'日本語'}</button>`:''}
         ${SHARE&&SHARE_ID?'':'<button class="pill" id="back">← Recipes</button>'}
         ${!SHARE&&r.source?`<button class="pill owner-only" id="made-toggle">${madeIt(r.id)?'Made ✓':"I've made this"}</button>`:''}
+        <button class="pill owner-only" id="share-recipe">Share</button>
         <button class="pill owner-only" id="edit">Edit</button>
         <button class="pill danger owner-only" id="delete">Delete</button>
       </div>
@@ -1884,6 +1905,7 @@ function renderRecipe(){
     </div>`}</article>`;
 
   const lt=$('#lang-toggle'); if(lt) lt.onclick=()=>{ recipeLang = recipeLang==='ja' ? 'en' : 'ja'; render(); };
+  const sr=$('#share-recipe'); if(sr) sr.onclick=()=>shareRecipeLink(r.id);
   const mt=$('#made-toggle'); if(mt) mt.onclick=async()=>{
     const now=!madeIt(r.id); await markMade(r.id,now); render();
     toast(now?'Marked as made — it moves to the Made list':'Back on the to-try list');
@@ -3730,9 +3752,9 @@ function renderSettings(){
     <p style="margin-top:8px"><button class="pill" id="reset-icons">Reset all icons to shipped defaults</button></p>
 
     <h3 class="section-title" style="margin-top:22px">Share recipes</h3><div class="section-rule"></div>
-    <p class="hint" style="margin-top:8px">A read-only view with no link back to your dashboard. Ticks work for whoever is reading but nothing they do is saved, and the fridge, grocery list, meal plan and baskets are never loaded.</p>
-    <p style="margin-top:10px"><button class="pill" id="share-all">Copy link to all recipes</button>
-      <button class="pill" id="share-one">Copy link to the recipe you last opened</button></p>
+    <p class="hint" style="margin-top:8px"><b>One recipe</b> sends a snapshot of just that recipe — your other recipes, your edits, the fridge, list, plan and baskets are never part of it, and the link can't be changed to reveal them. <b>All recipes</b> shares your whole collection. Both are read-only with no way back to your dashboard; ticks work for the reader but nothing they do is saved. There's no expiry or off-switch yet, so only send them to people you'd hand the recipe to anyway.</p>
+    <p style="margin-top:10px"><button class="pill" id="share-one">Copy a link to the recipe you last opened</button>
+      <button class="pill" id="share-all">Copy a link to all recipes</button></p>
 
     <h3 class="section-title" style="margin-top:26px">Backup</h3><div class="section-rule"></div>
     <p class="hint" style="margin:0 0 10px">A backup is one file holding everything — recipes, fridge, list, plan, to-dos, baskets and shopping history. Worth taking before you move the app anywhere.</p>
@@ -3756,7 +3778,7 @@ function renderSettings(){
     const sa=$('#share-all'); if(sa) sa.onclick=()=>copy(shareLink(''),'Link to all recipes');
     const so=$('#share-one'); if(so) so.onclick=()=>{
       if(!currentId){ toast('Open a recipe first, then come back'); return; }
-      copy(shareLink(currentId),'Link to '+(find(currentId)?.name||'that recipe'));
+      shareRecipeLink(currentId);
     };
     const ri=$('#reset-icons');
     if(ri) ri.onclick=async()=>{
@@ -3993,6 +4015,15 @@ async function doReset(){
   rebuild();
   if(SHARE){
     document.body.classList.add('shared');
+    if(SHARE_ONE){
+      /* isolated single-recipe link: fetch ONLY the snapshot, nothing else */
+      document.body.dataset.view='detail'; mode='recipe';
+      let snap=null; try{ snap=await sget('hbs:share.'+SHARE_ONE); }catch(_){}
+      recipes = (snap && snap.recipe && snap.recipe.id) ? [snap.recipe] : [];
+      currentId = recipes[0]?.id || SHARE_ONE;
+      render();
+      return;
+    }
     if(SHARE_ID && find(SHARE_ID)){ currentId=SHARE_ID; mode='recipe'; }
     else { mode='recipes'; currentId=null; }
   } else {
