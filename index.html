@@ -55,6 +55,35 @@ button{cursor:pointer}
   padding:4px 12px;font-size:12.5px;font-weight:500;cursor:pointer;line-height:1.5}
 .tagpill:hover{background:var(--beige)}
 .tagpill.on{background:var(--sage);border-color:var(--sage);color:var(--ivory)}
+/* drawer filter bar — sticky search + one scrolling line per axis */
+.drawer-filters{position:sticky;top:0;z-index:6;background:var(--ivory);
+  margin:16px -4px 6px;padding:10px 4px 10px;display:flex;flex-direction:column;gap:8px;
+  border-bottom:2.5px solid var(--taupe)}
+.drawer-filters .search{margin:0}
+.chiprow{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:7px;scrollbar-width:none;padding-bottom:2px}
+.chiprow::-webkit-scrollbar{display:none}
+.fchip{flex:none;white-space:nowrap;background:transparent;border:2.5px solid var(--crumb);
+  border-radius:var(--wob3);padding:5px 12px;font-size:12.5px;font-weight:500;cursor:pointer;line-height:1.5}
+.fchip:hover{background:var(--beige)}
+.fchip.on{background:var(--sage);border-color:var(--sage);color:var(--ivory)}
+.chiprow-sub .fchip{border-style:dashed}
+.chiprow-sub .fchip.on{border-style:solid}
+.fchip-n{font-family:var(--mono);font-size:10px;opacity:.6;margin-left:4px}
+.fchip.on .fchip-n{opacity:.85}
+/* imported Elanne Boake recipes, collapsed per cuisine — names only */
+.eb-drop{margin:2px 0 10px;border:2.5px dashed var(--taupe);border-radius:var(--wob3);padding:0 12px;background:var(--ivory)}
+.eb-drop summary{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--rye);cursor:pointer;padding:9px 2px;list-style:none}
+.eb-drop summary::-webkit-details-marker{display:none}
+.eb-drop summary::before{content:"▸";display:inline-block;margin-right:7px;opacity:.55}
+.eb-drop[open] summary::before{content:"▾"}
+.eb-list{list-style:none;margin:0 0 8px;padding:0;column-count:2;column-gap:20px}
+.eb-list li{break-inside:avoid}
+.eb-item{background:none;border:0;padding:5px 0;font:inherit;font-size:14px;text-align:left;
+  color:var(--crumb);cursor:pointer;width:100%}
+.eb-item:hover{color:var(--orange);text-decoration:underline;text-underline-offset:3px}
+.eb-made{font-family:var(--mono);font-size:9.5px;color:var(--sage);opacity:.85;margin-left:4px}
+@media (max-width:680px){.eb-list{columns:1}}
 .rtags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .rtag{font-size:11.5px;padding:2px 9px;border:2px solid var(--crumb);border-radius:var(--wob3);opacity:.72}
 .tile{width:100%;background:var(--ivory);border:2.5px solid var(--crumb);border-radius:var(--wob1);padding:18px 16px 16px;text-align:left;display:flex;flex-direction:column;gap:10px;box-shadow:3px 4px 0 var(--taupe);transition:transform .15s,box-shadow .15s}
@@ -1095,7 +1124,7 @@ function seed(){return [
     'Freeze for about 2 hours before serving. For best results, use high-grade Japanese matcha — quality makes a significant difference in color, umami, and flavor complexity.'
   ]
 },
-{id:'matcha-hojicha-rice-ice-cream',name:'Matcha & Hojicha Rice Ice Cream',icon:'ice-cream',kcal:280,blurb:'Creamy rice-based ice cream with two flavors: bright matcha and toasty hojicha. Jasmine rice powder adds subtle floral complexity. By Elanne Boake.',makesQty:950,makesUnit:'ml',cuisine:'Japanese',tags:['Dessert','Make-ahead','Dairy','Two-Flavor'],
+{id:'matcha-hojicha-rice-ice-cream',name:'Matcha & Hojicha Rice Ice Cream',icon:'ice-cream',kcal:280,blurb:'Creamy rice-based ice cream with two flavours: bright matcha and toasty hojicha. Jasmine rice powder adds subtle floral complexity. By Elanne Boake.',makesQty:950,makesUnit:'ml',cuisine:'Japanese',tags:['Dessert','Make-ahead','Dairy'],
   ingredients:[
     {qty:250,unit:'ml',name:'Heavy cream (per base)'},
     {qty:400,unit:'ml',name:'2% milk (per base)'},
@@ -1161,7 +1190,7 @@ let fridge=[], grocery=[], plan={}, todos=[], menu=[];
 let currentId=null, scale=1, editing=false, draft=null;
 let mode='home', cookOff=false, editItem=null, putAway=null, pickDay=null;
 let formDate='', photoReview=null, photoBusy=false, armed=null, pasteBusy=false, pasteText='';
-let calcCoco=null, refocus=null, searchQ='', pickQ='', todoText='', tagFilter='';
+let calcCoco=null, refocus=null, searchQ='', pickQ='', todoText='', tagFilter='', cuisineFilter='', mealFilter='';
 let gridView=false;
 let userNavigated=false;   /* true once the user has actively opened a section or recipe */
 let menuRole='veg';        /* remembered role in the meal-plan menu add form */
@@ -1522,20 +1551,54 @@ function renderNav(){
 }
 
 /* ============ recipe drawer (its own page) ============ */
+/* No recipe carries an explicit meal. Infer one from its tags and name so the
+   drawer's meal row has something to filter on; anything unplaceable is dinner. */
+const MEAL_ORDER=['breakfast','lunch','dinner','dessert','snack'];
+function mealOf(r){
+  const tags=(r.tags||[]).map(t=>t.toLowerCase());
+  const n=(r.name||'').toLowerCase();
+  if(tags.includes('dessert')||tags.includes('ice cream')||tags.includes('sweet')||tags.includes('baking')
+     ||/ice.?cream|gelato|sorbet|semifreddo|\bcake\b|cookie|\btart\b|pudding|mochi|sundae|dessert|panettone/.test(n)) return 'dessert';
+  if(/pancake|french toast|granola|porridge|oatmeal|\boats?\b|congee|breakfast|scrambled|omelet|frittata|\bbacon\b|waffle|hash brown/.test(n)) return 'breakfast';
+  if(tags.includes('side')||tags.includes('dip')||tags.includes('pickled')||tags.includes('drink')||tags.includes('sauce')
+     ||/banchan|muchim|jangajji|namul|\bkimchi\b|pickle|jorim|bokkeum|\bdip\b|\bsalad\b|dressing|\bjuice\b|smoothie|\blatte\b/.test(n)) return 'snack';
+  if(tags.includes('lunch')||/sandwich|\bwrap\b|onigiri|kimbap|gimbap|\bbento\b|toastie/.test(n)) return 'lunch';
+  return 'dinner';
+}
+/* Tags redundant with a chosen meal — don't repeat them in the sub-row. */
+const MEAL_TAGS={dessert:['dessert','ice cream','sweet','baking'],snack:['side','dip','drink','sauce','pickled'],breakfast:[],lunch:['lunch'],dinner:['main']};
 function renderRecipes(){
   const q=(searchQ||'').trim().toLowerCase();
-  let list=recipes.filter(r=>!q||r.name.toLowerCase().includes(q)||r.ingredients.some(i=>String(i.name).toLowerCase().includes(q)));
-  if(tagFilter) list=list.filter(r=>(r.tags||[]).includes(tagFilter));
-  /* imported "to try" recipes live in their real cuisine group from the start;
-     this lens filters by whether they've been made yet */
   const imported=recipes.filter(r=>r.source);
+
+  /* search first, then the To-try / Made lens */
+  let list=recipes.filter(r=>!q||r.name.toLowerCase().includes(q)||r.ingredients.some(i=>String(i.name).toLowerCase().includes(q)));
   if(tryFilter==='try') list=list.filter(r=>r.source&&!madeIt(r.id));
   else if(tryFilter==='made') list=list.filter(r=>r.source&&madeIt(r.id));
 
-  /* every tag actually in use, most-used first, so the row stays useful */
-  const tally={};
-  recipes.forEach(r=>(r.tags||[]).forEach(t=>{ tally[t]=(tally[t]||0)+1; }));
-  const allTags=Object.keys(tally).sort((a,b)=>tally[b]-tally[a]||a.localeCompare(b));
+  /* cuisine row — every cuisine still in play, alphabetical, single-select */
+  const afterLens=list;
+  const cuisTally={};
+  afterLens.forEach(r=>{ const c=r.cuisine||'Other'; cuisTally[c]=(cuisTally[c]||0)+1; });
+  const cuisineOpts=Object.keys(cuisTally).sort((a,b)=>a.localeCompare(b));
+  if(cuisineFilter) list=list.filter(r=>(r.cuisine||'Other')===cuisineFilter);
+
+  /* meal row — fixed chronological order, only meals present in scope */
+  const afterCuisine=list;
+  const mealTally={};
+  afterCuisine.forEach(r=>{ const m=mealOf(r); mealTally[m]=(mealTally[m]||0)+1; });
+  const mealOpts=MEAL_ORDER.filter(m=>mealTally[m]);
+  if(mealFilter) list=list.filter(r=>mealOf(r)===mealFilter);
+
+  /* sub-row — tags inside whatever cuisine/meal is chosen, most-used first,
+     minus any that just restate the meal */
+  const scopeForSub=list;
+  const skipTags=new Set((MEAL_TAGS[mealFilter]||[]));
+  const subTally={};
+  scopeForSub.forEach(r=>(r.tags||[]).forEach(t=>{ if(!skipTags.has(t.toLowerCase())) subTally[t]=(subTally[t]||0)+1; }));
+  const subTags=Object.keys(subTally).sort((a,b)=>subTally[b]-subTally[a]||a.localeCompare(b));
+  if(tagFilter&&!subTags.includes(tagFilter)) tagFilter='';   /* stale after an axis change */
+  if(tagFilter) list=list.filter(r=>(r.tags||[]).includes(tagFilter));
 
   /* group by cuisine; a fixed order keeps the drawer feeling stable */
   const ORDER=['Korean','Vietnamese','Japanese','Chinese','Thai','Singaporean','Filipino','Italian','Fusion','Western'];
@@ -1552,10 +1615,25 @@ function renderRecipes(){
       <span class="tile-makes">${r.source&&!madeIt(r.id)?'To try':(r.makesQty?'Makes '+esc(fmt(r.makesQty))+' '+esc(r.makesUnit):'&nbsp;')}</span>
     </button></li>`;
 
+  /* imported recipes sit in a per-cuisine dropdown — names only, no icon —
+     so browsing "All" isn't 92 tiles deep. It opens when a filter is active. */
+  const dropOpen=!!(q||tagFilter||mealFilter||tryFilter||cuisineFilter);
+  const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+  const group=c=>{
+    const native=groups[c].filter(r=>!r.source), imp=groups[c].filter(r=>r.source);
+    const toTry=imp.filter(r=>!madeIt(r.id)).length;
+    return `<h3 class="cuisine-head">${esc(c)} <span class="cuisine-n">${groups[c].length}</span></h3>
+      ${native.length?`<ul class="tiles">${native.map(tile).join('')}</ul>`:''}
+      ${imp.length?`<details class="eb-drop"${dropOpen?' open':''}>
+        <summary>Elanne Boake · ${imp.length}${toTry?` · ${toTry} to try`:''}</summary>
+        <ul class="eb-list">${imp.map(r=>`<li><button class="eb-item" data-id="${esc(r.id)}">${esc(r.name)}${madeIt(r.id)?'<span class="eb-made">made ✓</span>':''}</button></li>`).join('')}</ul>
+      </details>`:''}`;
+  };
   const body = list.length
-    ? cuisines.map(c=>`<h3 class="cuisine-head">${esc(c)} <span class="cuisine-n">${groups[c].length}</span></h3>
-        <ul class="tiles">${groups[c].map(tile).join('')}</ul>`).join('')
+    ? cuisines.map(group).join('')
     : `<p class="empty" style="margin-top:18px">Nothing in the drawer matches that.</p>`;
+
+  const chip=(attr,val,cur,label,n)=>`<button class="fchip ${cur===val?'on':''}" data-${attr}="${esc(val)}">${esc(label)}${n!=null?` <span class="fchip-n">${n}</span>`:''}</button>`;
 
   pane.innerHTML=`<article class="card">
     <div class="card-head">
@@ -1563,16 +1641,26 @@ function renderRecipes(){
         <p class="blurb">${recipes.length} recipe${recipes.length===1?'':'s'}. Search by name or by an ingredient you fancy using.</p></div>
       <div class="head-actions">${SHARE?'':'<button class="pill back-only" id="back">← Home</button>'}</div>
     </div>
-    <input class="search" id="search" type="search" placeholder="Search recipes or ingredients" autocomplete="off" value="${esc(searchQ)}" style="margin-top:18px">
-    ${imported.length?`<div class="tagrow">
-      <button class="tagpill ${tryFilter?'':'on'}" data-try="">All ${recipes.length}</button>
-      <button class="tagpill ${tryFilter==='try'?'on':''}" data-try="try">To try ${imported.filter(r=>!madeIt(r.id)).length}</button>
-      <button class="tagpill ${tryFilter==='made'?'on':''}" data-try="made">Made ${imported.filter(r=>madeIt(r.id)).length}</button>
-    </div>`:''}
-    ${allTags.length?`<div class="tagrow">
-      <button class="tagpill ${tagFilter?'':'on'}" data-tag="">All</button>
-      ${allTags.map(t=>`<button class="tagpill ${tagFilter===t?'on':''}" data-tag="${esc(t)}">${esc(t)}</button>`).join('')}
-    </div>`:''}
+    <div class="drawer-filters">
+      <input class="search" id="search" type="search" placeholder="Search recipes or ingredients" autocomplete="off" value="${esc(searchQ)}">
+      <div class="chiprow" id="cuis-row">
+        ${chip('cuis','',cuisineFilter,'All cuisines')}
+        ${cuisineOpts.map(c=>chip('cuis',c,cuisineFilter,c,cuisTally[c])).join('')}
+      </div>
+      <div class="chiprow" id="meal-row">
+        ${chip('meal','',mealFilter,'Any meal')}
+        ${mealOpts.map(m=>chip('meal',m,mealFilter,cap(m),mealTally[m])).join('')}
+      </div>
+      ${(cuisineFilter||mealFilter)&&subTags.length?`<div class="chiprow chiprow-sub">
+        ${chip('tag','',tagFilter,'All')}
+        ${subTags.map(t=>chip('tag',t,tagFilter,t,subTally[t])).join('')}
+      </div>`:''}
+      ${imported.length?`<div class="chiprow chiprow-lens">
+        ${chip('try','',tryFilter,'Everything',recipes.length)}
+        ${chip('try','try',tryFilter,'To try',imported.filter(r=>!madeIt(r.id)).length)}
+        ${chip('try','made',tryFilter,'Made',imported.filter(r=>madeIt(r.id)).length)}
+      </div>`:''}
+    </div>
     ${body}
     ${SHARE?'':`<ul class="tiles" style="margin-top:16px">
       <li><button class="tile add" id="new-btn"><span class="plus">+</span><span>Add a recipe</span></button></li>
@@ -1582,15 +1670,20 @@ function renderRecipes(){
   const back=$('#back'); if(back) back.onclick=()=>{ mode='home'; render(); };
   const s=$('#search');
   s.oninput=()=>{ searchQ=s.value; refocus='search'; render(); };
-  pane.querySelectorAll('.tagpill[data-tag]').forEach(b=>b.onclick=()=>{ tagFilter=b.dataset.tag||''; render(); });
-  pane.querySelectorAll('.tagpill[data-try]').forEach(b=>b.onclick=()=>{ tryFilter=b.dataset.try||''; render(); });
+  pane.querySelectorAll('.fchip[data-cuis]').forEach(b=>b.onclick=()=>{ cuisineFilter=b.dataset.cuis||''; tagFilter=''; render(); });
+  pane.querySelectorAll('.fchip[data-meal]').forEach(b=>b.onclick=()=>{ mealFilter=b.dataset.meal||''; tagFilter=''; render(); });
+  pane.querySelectorAll('.fchip[data-tag]').forEach(b=>b.onclick=()=>{ tagFilter=b.dataset.tag||''; render(); });
+  pane.querySelectorAll('.fchip[data-try]').forEach(b=>b.onclick=()=>{ tryFilter=b.dataset.try||''; render(); });
   const nb=$('#new-btn'); if(nb) nb.onclick=()=>{
     userNavigated=true; editing=true; mode='recipe'; cookOff=false;
     draft={_isNew:true,name:'',blurb:'',prep:'',icon:'croissant',img:null,cuisine:'',tags:[],kcal:null,makesQty:2,makesUnit:'servings',ingredients:[{qty:null,unit:'',name:''}],method:[]};
     render();
   };
   const pb=$('#paste-btn'); if(pb) pb.onclick=()=>{ userNavigated=true; mode='paste'; editing=false; draft=null; pasteBusy=false; render(); };
-  pane.querySelectorAll('.tile[data-id]').forEach(b=>b.onclick=()=>openRecipe(b.dataset.id));
+  pane.querySelectorAll('.tile[data-id],.eb-item[data-id]').forEach(b=>b.onclick=()=>openRecipe(b.dataset.id));
+  /* keep the chosen cuisine / meal chip visible in its scrolling row */
+  ['cuis','meal'].forEach(k=>{ const on=pane.querySelector('#'+k+'-row .fchip.on');
+    if(on&&on.dataset[k]) on.scrollIntoView({inline:'nearest',block:'nearest'}); });
   if(refocus==='search'){ refocus=null; const n=$('#search'); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } }
 }
 
@@ -3709,7 +3802,7 @@ function renderBody(){
 $('#logo').innerHTML=`<img src="${LOGO}" alt="Half Baked Society">`;
 $('#logo').style.cursor='pointer'; $('#logo').title='Home';
 const goMode=m=>()=>{ userNavigated=true; mode=m; editing=false; draft=null; cookOff=false; putAway=null; pickDay=null; editItem=null; formDate=''; nbdRef=null; nbdCook=null;
-  if(m!=='recipes'){ searchQ=''; tagFilter=''; }
+  if(m!=='recipes'){ searchQ=''; tagFilter=''; cuisineFilter=''; mealFilter=''; }
   document.body.dataset.view='detail'; render(); };
 const on=(sel,ev,fn)=>{ const el=$(sel); if(el) el.addEventListener(ev,fn); };
 $('#home-btn').onclick=goMode('home');
