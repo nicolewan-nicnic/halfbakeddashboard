@@ -77,6 +77,8 @@ button{cursor:pointer}
 .eb-drop summary::-webkit-details-marker{display:none}
 .eb-drop summary::before{content:"▸";display:inline-block;margin-right:7px;opacity:.55}
 .eb-drop[open] summary::before{content:"▾"}
+.eb-drop.banchan-drop{border-color:var(--sage)}
+.eb-drop.banchan-drop summary{color:var(--sage)}
 .eb-list{list-style:none;margin:0 0 8px;padding:0;column-count:2;column-gap:20px}
 .eb-list li{break-inside:avoid}
 .eb-item{background:none;border:0;padding:5px 0;font:inherit;font-size:14px;text-align:left;
@@ -406,8 +408,18 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
 .plan-day{border:2px solid var(--taupe);border-radius:var(--wob3);padding:10px;min-height:100px;display:flex;flex-direction:column;gap:6px}
 .plan-day.today{border-color:var(--crumb);background:var(--beige)}
 .plan-day h5{margin:0;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--rye);font-weight:400}
-.plan-meal{display:flex;gap:6px;align-items:baseline;font-size:13.5px;flex-wrap:wrap}
+.plan-meal{display:flex;gap:6px;align-items:baseline;font-size:13.5px;flex-wrap:wrap;border-radius:6px}
 .plan-meal.done .pm-name,.plan-meal.skipped .pm-name{opacity:.5;text-decoration:line-through}
+/* the little black marker on the left of every plan row — grab it to drag */
+.drag-grip{flex:none;align-self:center;width:5px;height:17px;border-radius:2px;
+  background:var(--crumb);cursor:grab;touch-action:none;user-select:none;
+  -webkit-user-select:none;font-size:0}
+.drag-grip:hover{background:var(--sage)}
+.drag-grip:active{cursor:grabbing}
+.plan-meal.dragging{opacity:.4}
+.plan-meal.drop-before{box-shadow:inset 0 3px 0 var(--sage)}
+.plan-meal.drop-after{box-shadow:inset 0 -3px 0 var(--sage)}
+.plan-day.drop-day{outline:2px dashed var(--sage);outline-offset:-1px;background:var(--beige)}
 .pm-name{flex:1;background:none;border:0;padding:0;text-align:left;font:inherit;color:inherit;cursor:pointer;min-width:0}
 .pm-name:hover{text-decoration:underline;text-underline-offset:3px}
 .pm-kcal{font-family:var(--mono);font-size:10.5px;color:var(--rye);white-space:nowrap}
@@ -1724,12 +1736,19 @@ function renderRecipes(){
   if(tryFilter==='try') list=list.filter(r=>r.source&&!madeIt(r.id));
   else if(tryFilter==='made') list=list.filter(r=>r.source&&madeIt(r.id));
 
+  /* Ice cream recipes are pulled out of their real cuisine and shown as one
+     "Ice cream" section — it's how people browse them. This is the grouping /
+     cuisine-filter key everywhere in the drawer. */
+  const isIceCream=r=>(r.tags||[]).includes('Ice cream');
+  const isBanchan=r=>(r.cuisine==='Korean')&&(r.tags||[]).includes('Side');
+  const groupKey=r=>isIceCream(r)?'Ice cream':(r.cuisine||'Other');
+
   /* cuisine row — every cuisine still in play, alphabetical, single-select */
   const afterLens=list;
   const cuisTally={};
-  afterLens.forEach(r=>{ const c=r.cuisine||'Other'; cuisTally[c]=(cuisTally[c]||0)+1; });
+  afterLens.forEach(r=>{ const c=groupKey(r); cuisTally[c]=(cuisTally[c]||0)+1; });
   const cuisineOpts=Object.keys(cuisTally).sort((a,b)=>a.localeCompare(b));
-  if(cuisineFilter) list=list.filter(r=>(r.cuisine||'Other')===cuisineFilter);
+  if(cuisineFilter) list=list.filter(r=>groupKey(r)===cuisineFilter);
 
   /* meal row — fixed chronological order, only meals present in scope */
   const afterCuisine=list;
@@ -1749,9 +1768,9 @@ function renderRecipes(){
   if(tagFilter) list=list.filter(r=>(r.tags||[]).includes(tagFilter));
 
   /* group by cuisine; a fixed order keeps the drawer feeling stable */
-  const ORDER=['Korean','Vietnamese','Japanese','Chinese','Thai','Singaporean','Filipino','Italian','Fusion','Western'];
+  const ORDER=['Korean','Vietnamese','Japanese','Chinese','Thai','Singaporean','Filipino','Italian','Fusion','Western','Ice cream'];
   const groups={};
-  list.forEach(r=>{ const c=r.cuisine||'Other'; (groups[c]=groups[c]||[]).push(r); });
+  list.forEach(r=>{ const c=groupKey(r); (groups[c]=groups[c]||[]).push(r); });
   const cuisines=Object.keys(groups).sort((a,b)=>{
     const ia=ORDER.indexOf(a), ib=ORDER.indexOf(b);
     return (ia<0?99:ia)-(ib<0?99:ib) || a.localeCompare(b);
@@ -1767,15 +1786,26 @@ function renderRecipes(){
      so browsing "All" isn't 92 tiles deep. It opens when a filter is active. */
   const dropOpen=!!(q||tagFilter||mealFilter||tryFilter||cuisineFilter);
   const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+  const ebLi=r=>`<li><button class="eb-item" data-id="${esc(r.id)}">${esc(r.name)}${madeIt(r.id)?'<span class="eb-made">made ✓</span>':''}</button></li>`;
+  const drop=(cls,label,recs)=>{
+    if(!recs.length) return '';
+    const t=recs.filter(r=>r.source&&!madeIt(r.id)).length;
+    return `<details class="eb-drop ${cls}"${dropOpen?' open':''}>
+      <summary>${label} · ${recs.length}${t?` · ${t} to try`:''}</summary>
+      <ul class="eb-list">${recs.map(ebLi).join('')}</ul>
+    </details>`;
+  };
   const group=c=>{
-    const native=groups[c].filter(r=>!r.source), imp=groups[c].filter(r=>r.source);
-    const toTry=imp.filter(r=>!madeIt(r.id)).length;
+    let recs=groups[c], banchan=[];
+    if(c==='Korean'){                       /* side dishes get their own section */
+      banchan=recs.filter(isBanchan);
+      recs=recs.filter(r=>!isBanchan(r));
+    }
+    const native=recs.filter(r=>!r.source), imp=recs.filter(r=>r.source);
     return `<h3 class="cuisine-head">${esc(c)} <span class="cuisine-n">${groups[c].length}</span></h3>
       ${native.length?`<ul class="tiles">${native.map(tile).join('')}</ul>`:''}
-      ${imp.length?`<details class="eb-drop"${dropOpen?' open':''}>
-        <summary>Elanne Boake · ${imp.length}${toTry?` · ${toTry} to try`:''}</summary>
-        <ul class="eb-list">${imp.map(r=>`<li><button class="eb-item" data-id="${esc(r.id)}">${esc(r.name)}${madeIt(r.id)?'<span class="eb-made">made ✓</span>':''}</button></li>`).join('')}</ul>
-      </details>`:''}`;
+      ${drop('','Elanne Boake',imp)}
+      ${drop('banchan-drop','Banchan · side dishes',banchan)}`;
   };
   const body = list.length
     ? cuisines.map(group).join('')
@@ -2781,12 +2811,15 @@ function renderGrocery(){
 }
 
 /* ============ meal plan ============ */
+/* the planner never *suggests* a dessert or an ice cream — you can still plan one
+   by searching for it by name, but it won't turn up in an unprompted list */
+function plannerSuggest(r){ return !(r.tags||[]).some(t=>t==='Dessert'||t==='Ice cream'); }
 function renderPlan(){
   const t=new Date(); t.setHours(0,0,0,0);
   const days=[];
   for(let i=0;i<14;i++){ const d=new Date(t); d.setDate(t.getDate()+i); days.push(isoLocal(d)); }
   const urgent=urgentItems();
-  const sug=urgent.map(f=>({f,rs:recipesUsing(f)})).filter(x=>x.rs.length)[0];
+  const sug=urgent.map(f=>({f,rs:recipesUsing(f).filter(plannerSuggest)})).filter(x=>x.rs.length)[0];
 
   pane.innerHTML=`<article class="card">
     <div class="card-head">
@@ -2800,34 +2833,36 @@ function renderPlan(){
       const d=new Date(iso+'T00:00:00');
       const label=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+' '+d.getDate();
       const meals=(plan[iso]||[]).map((p,idx)=>{
+        /* every row can be dragged by its grip to reorder within a day or move
+           to another day; the grip is the little marker on the left */
+        const head=`<span class="drag-grip" aria-label="Drag to move">⠿</span>`;
+        const wrap=(cls,inner)=>`<div class="plan-meal ${cls}" data-iso="${iso}" data-pidx="${idx}">${head}${inner}
+          <button class="row-x" style="font-size:14px" data-unplan="${iso}|${idx}" aria-label="Remove">×</button></div>`;
         if(p.tmpl==='nbd'){
           const miss=nbdMissing(p).length;
-          return `<div class="plan-meal ${p.status==='completed'||p.done?'done':''} ${p.status==='skipped'?'skipped':''}">
-            <button class="pm-name" data-nbd="${iso}|${idx}">No-Brainer Dinner</button>
-            <span class="pm-sub">${esc(nbdSummary(p))}${miss?` <span class="chip soon">${miss} to sort</span>`:''}</span>
-            <button class="row-x" style="font-size:14px" data-unplan="${iso}|${idx}" aria-label="Remove">×</button></div>`;
+          return wrap(`${p.status==='completed'||p.done?'done':''} ${p.status==='skipped'?'skipped':''}`,
+            `<button class="pm-name" data-nbd="${iso}|${idx}">No-Brainer Dinner</button>
+             <span class="pm-sub">${esc(nbdSummary(p))}${miss?` <span class="chip soon">${miss} to sort</span>`:''}</span>`);
         }
         if(p.note!=null && p.id==null){   /* a plain written line — stored as-is for Claude Code to read */
-          return `<div class="plan-meal ${p.done?'done':''}">
-            <button class="tick-sm" data-note-done="${iso}|${idx}" aria-pressed="${!!p.done}"><span class="box"></span></button>
-            <span class="pm-name" contenteditable="true" data-note-edit="${iso}|${idx}">${esc(p.note)}</span>
-            <button class="row-x" style="font-size:14px" data-unplan="${iso}|${idx}" aria-label="Remove">×</button></div>`;
+          return wrap(p.done?'done':'',
+            `<button class="tick-sm" data-note-done="${iso}|${idx}" aria-pressed="${!!p.done}"><span class="box"></span></button>
+             <span class="pm-name" contenteditable="true" data-note-edit="${iso}|${idx}">${esc(p.note)}</span>`);
         }
         const r=find(p.id); if(!r) return '';
         const ps=perServing(r);
-        return `<div class="plan-meal ${p.done?'done':''}">
-          <button class="pm-name" data-open="${esc(r.id)}">${esc(r.name)}</button>
-          ${ps?`<span class="pm-kcal">${ps} kcal</span>`:''}
-          <button class="row-x" style="font-size:14px" data-unplan="${iso}|${idx}" aria-label="Remove">×</button></div>`;
+        return wrap(p.done?'done':'',
+          `<button class="pm-name" data-open="${esc(r.id)}">${esc(r.name)}</button>
+           ${ps?`<span class="pm-kcal">${ps} kcal</span>`:''}`);
       }).join('');
       const open=pickDay===iso;
-      return `<div class="plan-day ${iso===todayISO()?'today':''} ${open?'open':''}">
+      return `<div class="plan-day ${iso===todayISO()?'today':''} ${open?'open':''}" data-iso="${iso}">
         <h5>${label}${iso===todayISO()?' · today':''}</h5>${meals}
         <button class="plan-add" data-pick="${iso}">${open?'× close':'+ plan a meal'}</button>
         ${open?`<div class="daypick">
           <input class="search" id="pick-q" type="search" placeholder="Search a recipe, or just write a line" autocomplete="off" value="${esc(pickQ)}">
           ${pickQ.trim()?`<button class="plan-add" style="border-style:solid;margin-top:6px" id="pick-note">+ Write “${esc(pickQ.trim())}” in for this day</button>`:''}
-          <ul class="cook-list">${recipes.filter(x=>!pickQ||x.name.toLowerCase().includes(pickQ.toLowerCase())).slice(0,8).map(x=>{
+          <ul class="cook-list">${recipes.filter(x=>pickQ?x.name.toLowerCase().includes(pickQ.toLowerCase()):plannerSuggest(x)).slice(0,8).map(x=>{
             const mi=matchInfo(x);
             return `<li><button data-assign="${esc(x.id)}"><span class="thumb">${art(x)}</span>
               <span class="cook-name">${esc(x.name)}</span>
@@ -2946,6 +2981,60 @@ function renderPlan(){
     });
     await saveGrocery(); render(); toast(n?n+' sent to the grocery list':'The list already covers the plan');
   };
+  wirePlanDrag();
+}
+
+/* Drag a plan row by its grip to reorder it within a day or drop it on another
+   day. Pointer events, so it works with touch as well as a mouse. */
+async function movePlanEntry(sIso,sIdx,tIso,tIdx){
+  const src=plan[sIso]; if(!src||src[sIdx]==null) return;
+  if(sIso===tIso && (tIdx===sIdx || tIdx===sIdx+1)) return;   /* dropped where it already is */
+  snapshot();
+  const [item]=src.splice(sIdx,1);
+  if(sIso===tIso && tIdx>sIdx) tIdx--;                         /* indices shifted by the removal */
+  (plan[tIso]=plan[tIso]||[]).splice(Math.max(0,Math.min(tIdx,plan[tIso].length)),0,item);
+  if(!plan[sIso].length) delete plan[sIso];
+  await savePlan(); render(); toast('Moved', true);
+}
+function wirePlanDrag(){
+  const clearHints=()=>pane.querySelectorAll('.drop-before,.drop-after,.drop-day')
+    .forEach(x=>x.classList.remove('drop-before','drop-after','drop-day'));
+  pane.querySelectorAll('.plan-meal .drag-grip').forEach(grip=>{
+    grip.onpointerdown=e=>{
+      if(e.button!=null && e.button!==0) return;
+      e.preventDefault();
+      const row=grip.closest('.plan-meal');
+      const sIso=row.dataset.iso, sIdx=+row.dataset.pidx;
+      row.classList.add('dragging'); document.body.style.cursor='grabbing';
+      let last=null;
+      const at=ev=>{
+        const el=document.elementFromPoint(ev.clientX,ev.clientY);
+        const overRow=el&&el.closest&&el.closest('.plan-meal');
+        const overDay=el&&el.closest&&el.closest('.plan-day');
+        if(overRow&&overRow!==row){
+          const rc=overRow.getBoundingClientRect();
+          return {row:overRow, after:ev.clientY >= rc.top+rc.height/2};
+        }
+        if(overDay) return {day:overDay};
+        return null;
+      };
+      const move=ev=>{ clearHints(); last=at(ev);
+        if(last&&last.row) last.row.classList.add(last.after?'drop-after':'drop-before');
+        else if(last&&last.day) last.day.classList.add('drop-day'); };
+      const up=ev=>{
+        document.removeEventListener('pointermove',move);
+        document.removeEventListener('pointerup',up);
+        row.classList.remove('dragging'); document.body.style.cursor=''; clearHints();
+        const tgt=at(ev); if(!tgt) return;
+        if(tgt.row){ let tIso=tgt.row.dataset.iso, tIdx=+tgt.row.dataset.pidx + (tgt.after?1:0);
+          movePlanEntry(sIso,sIdx,tIso,tIdx); }
+        else if(tgt.day){ const tIso=tgt.day.dataset.iso;
+          movePlanEntry(sIso,sIdx,tIso,(plan[tIso]||[]).length); }
+      };
+      document.addEventListener('pointermove',move);
+      document.addEventListener('pointerup',up);
+    };
+  });
 }
 
 /* ============ No-Brainer Dinner builder ============ */
