@@ -3584,42 +3584,57 @@ function topUps(total,exclude,deep){
     .sort((a,b)=>(b.seen>0)-(a.seen>0)||a.over-b.over)
     .slice(0,deep?40:6);
 }
-/* Pack the plan into orders so as MANY as possible land right on the minimum.
-   An item that already clears £15 on its own gets its own order — combining it
-   with anything just wastes the over-minimum. The remaining slots are filled
-   tight to £15 (biggest items first to get close from below, then the one small
-   item that clears it with the least overshoot). Whatever is left is pooled into
-   the last order, over or under. Orders that end up empty are dropped — asking
-   for more orders than the basket can fill just gives you fewer. */
+/* Best small combination of `units` (sorted desc) to cover `need`: reach it with
+   the least overshoot, in as few items as possible; if nothing can reach it,
+   the largest sum instead. Baskets are short, so a bounded search (<=4 items) is
+   plenty and keeps the result readable — a £6 gap is a £6 item, or £4 + £2. */
+function bestFill(units,need,MAX=4){
+  const E=0.001; let best=null;
+  const rank=c=>{
+    const sum=c.reduce((a,j)=>a+units[j].price,0), reaches=sum>=need-E;
+    return {idx:c.slice(),sum,reaches,over:reaches?sum-need:Infinity,n:c.length};
+  };
+  const better=(a,b)=>{
+    if(!b) return true;
+    if(a.reaches!==b.reaches) return a.reaches;
+    return a.reaches ? (a.over<b.over-E || (Math.abs(a.over-b.over)<E && a.n<b.n))
+                     : (a.sum>b.sum+E   || (Math.abs(a.sum-b.sum)<E   && a.n<b.n));
+  };
+  (function dfs(start,cur,sum){
+    if(cur.length){ const c=rank(cur); if(better(c,best)) best=c; if(sum>=need-E) return; }
+    if(cur.length>=MAX) return;
+    for(let j=start;j<units.length;j++){ cur.push(j); dfs(j+1,cur,sum+units[j].price); cur.pop(); }
+  })(0,[],0);
+  return best?best.idx:[];
+}
+/* Greedy pack. An item that already clears £15 stands alone (combining it only
+   wastes the over-minimum). Then, per order: the most expensive item left goes
+   in first, and bestFill() closes the gap to £15 with the tightest combination
+   of the next few items. Whatever is left pools into the last order, over or
+   under. Empty orders are dropped — asking for more orders than the basket can
+   fill just gives you fewer. */
 function planOrders(k){
   let units=[];
   bask().forEach(i=>{ for(let n=0;n<i.qty;n++) units.push({name:i.name,price:i.price,size:i.size}); });
   units.sort((a,b)=>b.price-a.price);
   const T=MIN_ORDER, E=0.001;
   const g=[];
-  /* 1 · each item that already clears the minimum stands alone (up to k-1) */
   while(units.length && units[0].price>=T-E && g.length<k-1){
     const u=units.shift(); g.push({items:[u],total:u.price});
   }
-  /* 2 · fill the remaining slots (keeping one back for the catch-all) tight to £15 */
   for(let slot=g.length; slot<k-1 && units.length; slot++){
-    const o={items:[],total:0};
-    for(let j=0;j<units.length;){
-      if(o.total+units[j].price<=T+E){ o.total+=units[j].price; o.items.push(units.splice(j,1)[0]); }
-      else j++;
-    }
+    const seed=units.shift();
+    const o={items:[seed],total:seed.price};
     if(o.total<T-E && units.length){
-      let pick=0, best=Infinity;
-      units.forEach((u,j)=>{ const over=o.total+u.price-T; if(over>=-E && over<best){ best=over; pick=j; } });
-      o.total+=units[pick].price; o.items.push(units.splice(pick,1)[0]);
+      bestFill(units,T-o.total).sort((a,b)=>b-a).forEach(j=>{
+        o.total+=units[j].price; o.items.push(units.splice(j,1)[0]);
+      });
+      o.items.sort((a,b)=>b.price-a.price);
     }
     g.push(o);
   }
-  /* 3 · everything left goes in the final order */
-  const last={items:[],total:0};
-  units.forEach(u=>{ last.items.push(u); last.total+=u.price; });
+  const last={items:units.slice().sort((a,b)=>b.price-a.price),total:units.reduce((a,u)=>a+u.price,0)};
   g.push(last);
-  /* 4 · drop any order that came out empty */
   return g.filter((o,i)=>o.items.length||i===0);
 }
 function maxOrders(){ return Math.max(1, bask().reduce((a,i)=>a+i.qty,0)); }
