@@ -25,7 +25,14 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
-body{background:var(--ivory);color:var(--crumb);font-family:var(--body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+body{background:var(--ivory);color:var(--crumb);font-family:var(--body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;
+  /* Names come from the user, a pasted recipe or a shop's price list, and a long
+     unbroken one (no spaces) used to paint straight out of its box and give the
+     whole page a horizontal scrollbar. Inherited, so this covers every name.
+     `anywhere` rather than `break-word` because most of these sit in flex rows:
+     break-word leaves the min-content width intact, so the flex item still grew
+     to fit the whole word and pushed the page wide anyway. */
+  overflow-wrap:anywhere}
 button,input,textarea{font-family:inherit;font-size:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:2.5px solid var(--orange);outline-offset:3px;border-radius:5px}
@@ -175,7 +182,10 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
 .edit-actions{display:flex;gap:10px;margin-top:26px}
 
 .utility{display:flex;gap:8px 18px;flex-wrap:wrap;margin-top:30px;padding-top:22px;background:var(--wave) repeat-x top left}
-.link-btn{background:none;border:0;padding:0;font-size:13px;color:var(--rye);text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1.5px}
+/* padding + matching negative margin: the tap target grows to ~28px (WCAG 2.5.8
+   wants 24) while the text sits exactly where it did before. Vertical only, so
+   two link buttons side by side can't end up with overlapping hit areas. */
+.link-btn{background:none;border:0;padding:6px 0;margin:-6px 0;font-size:13px;color:var(--rye);text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1.5px}
 .link-btn:hover{color:var(--orange)}
 .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);background:var(--sage);color:var(--ivory);padding:11px 20px;border-radius:var(--wob3);font-size:14px;font-weight:500;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:60}
 .toast.show{opacity:1;transform:translate(-50%,0)}
@@ -517,6 +527,13 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
   .head-actions .back-only{align-self:flex-start;flex:0 0 auto}
   .search{width:100%;flex:none}
   .card-head .thumb{width:76px;height:76px}
+}
+/* Two grid columns leave the "Amount" cell about 140px, and the fixed 80px
+   number input plus its border and padding takes 113 of that — the unit select
+   was rendering 27px wide, too narrow to read "pack" or to tap. One column. */
+@media (max-width:560px){
+  .add-item{grid-template-columns:1fr}
+  .unitrow input{width:96px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 @media print{
@@ -1774,8 +1791,12 @@ function renderTabbar(){
       + tab('fridge','cabbage','Fridge')+tab('plan','chickenrice','Plan')+tab('more','','More');
   tb.querySelectorAll('.tb').forEach(b=>b.onclick=()=>{
     const m=b.dataset.m;
-    if(m==='more'){ moreOpen=!moreOpen; renderMoreSheet(); return; }
-    moreOpen=false;
+    if(m==='more'){
+      if(moreOpen){ closeMoreSheet(); }
+      else { moreReturnFocus=b; moreOpen=true; renderMoreSheet(); }
+      return;
+    }
+    moreOpen=false; moreReturnFocus=null;
     if(mode===m||(m==='recipes'&&mode==='recipe')){ renderMoreSheet(); return; }
     goMode(m)();
   });
@@ -1783,11 +1804,34 @@ function renderTabbar(){
 }
 /* the tab set differs across the 960px line, so rebuild it on resize */
 window.addEventListener('resize',()=>{ if(!SHARE) renderTabbar(); });
+/* The sheet is a real modal (role=dialog, aria-modal), so it has to behave like
+   one: focus moves in when it opens, Tab cycles inside it, Escape closes it, and
+   focus goes back to the button that opened it. None of that was happening —
+   opening it left focus on <body>, and Escape did nothing. */
+let moreReturnFocus=null;
+function closeMoreSheet(){
+  if(!moreOpen) return;
+  moreOpen=false; renderMoreSheet();
+  if(moreReturnFocus&&document.contains(moreReturnFocus)) moreReturnFocus.focus();
+  moreReturnFocus=null;
+}
+document.addEventListener('keydown',e=>{
+  if(!moreOpen) return;
+  if(e.key==='Escape'){ e.preventDefault(); closeMoreSheet(); return; }
+  if(e.key!=='Tab') return;
+  const f=[...document.querySelectorAll('.more-sheet button')].filter(b=>b.offsetParent);
+  if(!f.length) return;
+  const first=f[0], last=f[f.length-1];
+  if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+  else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
+  else if(!document.querySelector('.more-sheet').contains(document.activeElement)){ e.preventDefault(); first.focus(); }
+});
 function renderMoreSheet(){
   const slot=$('#more-slot'); if(!slot) return;
   if(!moreOpen||SHARE){ slot.innerHTML=''; return; }
   const gN=grocery.filter(g=>!g.done).length;
-  const bt=Object.values(basket).reduce((a,v)=>a+v.reduce((x,i)=>x+i.price*i.qty,0),0);
+  const bt=Object.values(basket).reduce((a,v)=>Array.isArray(v)
+    ? a+v.reduce((x,i)=>x+((i&&+i.price||0)*(i&&+i.qty||0)),0) : a, 0);
   const row=(m,icon,label,note)=>`<button class="mrow" type="button" data-m="${m}">
     <span class="thumb">${artByName(icon)}</span>${label}<span class="n">${note}</span></button>`;
   slot.innerHTML=`<div class="more-backdrop" id="more-bd"></div>
@@ -1797,8 +1841,9 @@ function renderMoreSheet(){
       ${row('shop','bun','Deliveroo', bt?'£'+bt.toFixed(2):'nothing yet')}
       ${row('settings','jar','Settings', API_BASE?(apiDown?'offline':'synced'):'this device')}
     </div>`;
-  $('#more-bd').onclick=()=>{ moreOpen=false; renderMoreSheet(); };
-  slot.querySelectorAll('.mrow').forEach(b=>b.onclick=()=>{ moreOpen=false; goMode(b.dataset.m)(); });
+  $('#more-bd').onclick=closeMoreSheet;
+  slot.querySelectorAll('.mrow').forEach(b=>b.onclick=()=>{ moreOpen=false; moreReturnFocus=null; goMode(b.dataset.m)(); });
+  const first=slot.querySelector('.mrow'); if(first) first.focus();
 }
 
 /* ============ recipe drawer (its own page) ============ */
@@ -2887,6 +2932,16 @@ function renderGrocery(){
   const back=$('#back'); if(back) back.onclick=()=>{ mode='home'; render(); };
   const add=async()=>{
     const name=$('#g-name').value.trim(); if(!name){ $('#g-name').focus(); return; }
+    /* Every other way into this list dedupes (running low, the plan, a recipe's
+       missing items, the basket, a No-Brainer Dinner) — typing it by hand was
+       the one path that would happily add "milk" twice. */
+    const dup=grocery.find(g=>norm(g.name)===norm(name));
+    if(dup){
+      if(dup.done){ dup.done=false; await saveGrocery(); render(); toast('“'+name+'” is back on the list'); }
+      else toast('“'+name+'” is already on the list');
+      const n=$('#g-name'); if(n){ n.value=''; n.focus(); }
+      return;
+    }
     grocery.push({id:'g'+Date.now()+Math.random().toString(36).slice(2,6),name,qty:$('#g-qty').value.trim(),done:false,src:''});
     await saveGrocery(); render(); $('#g-name').focus();
   };
