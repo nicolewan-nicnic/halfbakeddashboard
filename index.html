@@ -415,10 +415,14 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
 .plan-day h5{margin:0;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--rye);font-weight:400}
 .plan-meal{display:flex;gap:6px;align-items:baseline;font-size:13.5px;flex-wrap:wrap;border-radius:6px}
 .plan-meal.done .pm-name,.plan-meal.skipped .pm-name{opacity:.5;text-decoration:line-through}
-/* the little black marker on the left of every plan row — grab it to drag */
-.drag-grip{flex:none;align-self:center;width:5px;height:17px;border-radius:2px;
+/* the one marker on the left of every plan row: drag it to move the row, and on
+   a written line a plain tap ticks it off (it fills in when done) */
+.drag-grip{position:relative;flex:none;align-self:center;width:5px;height:17px;border-radius:2px;
   background:var(--crumb);cursor:grab;touch-action:none;user-select:none;
   -webkit-user-select:none;font-size:0}
+.drag-grip::after{content:"";position:absolute;inset:-4px -8px}   /* a finger-sized hit area around the thin bar */
+.drag-grip[data-note-done]{cursor:pointer}
+.drag-grip.on{background:var(--sage)}
 .drag-grip:hover{background:var(--sage)}
 .drag-grip:active{cursor:grabbing}
 .plan-meal.dragging{opacity:.4}
@@ -2841,9 +2845,13 @@ function renderPlan(){
       const d=new Date(iso+'T00:00:00');
       const label=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+' '+d.getDate();
       const meals=(plan[iso]||[]).map((p,idx)=>{
-        /* every row can be dragged by its grip to reorder within a day or move
-           to another day; the grip is the little marker on the left */
-        const head=`<span class="drag-grip" aria-label="Drag to move">⠿</span>`;
+        /* every row's left marker is a drag handle — reorder within a day or move
+           to another day. On a written line it doubles as the done toggle: a
+           plain tap ticks it off (a drag still moves it). */
+        const isNote=p.note!=null && p.id==null;
+        const head=isNote
+          ? `<span class="drag-grip${p.done?' on':''}" data-note-done="${iso}|${idx}" role="button" tabindex="0" aria-pressed="${!!p.done}" aria-label="Tick off, or drag to move">⠿</span>`
+          : `<span class="drag-grip" aria-label="Drag to move">⠿</span>`;
         const wrap=(cls,inner)=>`<div class="plan-meal ${cls}" data-iso="${iso}" data-pidx="${idx}">${head}${inner}
           <button class="row-x" style="font-size:14px" data-unplan="${iso}|${idx}" aria-label="Remove">×</button></div>`;
         if(p.tmpl==='nbd'){
@@ -2852,10 +2860,9 @@ function renderPlan(){
             `<button class="pm-name" data-nbd="${iso}|${idx}">No-Brainer Dinner</button>
              <span class="pm-sub">${esc(nbdSummary(p))}${miss?` <span class="chip soon">${miss} to sort</span>`:''}</span>`);
         }
-        if(p.note!=null && p.id==null){   /* a plain written line — stored as-is for Claude Code to read */
+        if(isNote){   /* a plain written line — stored as-is for Claude Code to read */
           return wrap(p.done?'done':'',
-            `<button class="tick-sm" data-note-done="${iso}|${idx}" aria-pressed="${!!p.done}"><span class="box"></span></button>
-             <span class="pm-name" contenteditable="true" data-note-edit="${iso}|${idx}">${esc(p.note)}</span>`);
+            `<span class="pm-name" contenteditable="true" data-note-edit="${iso}|${idx}">${esc(p.note)}</span>`);
         }
         const r=find(p.id); if(!r) return '';
         const ps=perServing(r);
@@ -2937,9 +2944,9 @@ function renderPlan(){
     plan[iso].splice(+idx,1); if(!plan[iso].length) delete plan[iso];
     await savePlan(); render(); toast('Removed', true);
   });
-  pane.querySelectorAll('[data-note-done]').forEach(b=>b.onclick=async()=>{
-    const [iso,idx]=b.dataset.noteDone.split('|'); const p=plan[iso]&&plan[iso][+idx];
-    if(!p) return; p.done=!p.done; await savePlan(); render();
+  pane.querySelectorAll('.drag-grip[data-note-done]').forEach(g=>g.onkeydown=e=>{
+    if(e.key!==' '&&e.key!=='Enter') return;
+    e.preventDefault(); const [iso,idx]=g.dataset.noteDone.split('|'); togglePlanDone(iso,+idx);
   });
   pane.querySelectorAll('[data-note-edit]').forEach(el=>{
     /* Only ever writes the text back in place — no splicing here, so it can't
@@ -2992,8 +2999,14 @@ function renderPlan(){
   wirePlanDrag();
 }
 
+async function togglePlanDone(iso,idx){
+  const p=plan[iso]&&plan[iso][+idx]; if(!p) return;
+  p.done=!p.done; await savePlan(); render();
+}
+
 /* Drag a plan row by its grip to reorder it within a day or drop it on another
-   day. Pointer events, so it works with touch as well as a mouse. */
+   day. Pointer events, so it works with touch as well as a mouse. A tap that
+   never moves is treated as a click — on a written line, that ticks it off. */
 async function movePlanEntry(sIso,sIdx,tIso,tIdx){
   const src=plan[sIso]; if(!src||src[sIdx]==null) return;
   if(sIso===tIso && (tIdx===sIdx || tIdx===sIdx+1)) return;   /* dropped where it already is */
@@ -3013,8 +3026,8 @@ function wirePlanDrag(){
       e.preventDefault();
       const row=grip.closest('.plan-meal');
       const sIso=row.dataset.iso, sIdx=+row.dataset.pidx;
-      row.classList.add('dragging'); document.body.style.cursor='grabbing';
-      let last=null;
+      const x0=e.clientX, y0=e.clientY;
+      let last=null, moved=false;
       const at=ev=>{
         const el=document.elementFromPoint(ev.clientX,ev.clientY);
         const overRow=el&&el.closest&&el.closest('.plan-meal');
@@ -3026,13 +3039,22 @@ function wirePlanDrag(){
         if(overDay) return {day:overDay};
         return null;
       };
-      const move=ev=>{ clearHints(); last=at(ev);
+      const move=ev=>{
+        if(!moved){
+          if(Math.hypot(ev.clientX-x0,ev.clientY-y0)<5) return;   /* still a tap, not a drag yet */
+          moved=true; row.classList.add('dragging'); document.body.style.cursor='grabbing';
+        }
+        clearHints(); last=at(ev);
         if(last&&last.row) last.row.classList.add(last.after?'drop-after':'drop-before');
         else if(last&&last.day) last.day.classList.add('drop-day'); };
       const up=ev=>{
         document.removeEventListener('pointermove',move);
         document.removeEventListener('pointerup',up);
         row.classList.remove('dragging'); document.body.style.cursor=''; clearHints();
+        if(!moved){                                     /* a plain tap: tick a written line off, nothing for the rest */
+          if(grip.dataset.noteDone){ const [i,x]=grip.dataset.noteDone.split('|'); togglePlanDone(i,+x); }
+          return;
+        }
         const tgt=at(ev); if(!tgt) return;
         if(tgt.row){ let tIso=tgt.row.dataset.iso, tIdx=+tgt.row.dataset.pidx + (tgt.after?1:0);
           movePlanEntry(sIso,sIdx,tIso,tIdx); }
