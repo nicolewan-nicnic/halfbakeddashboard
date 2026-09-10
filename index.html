@@ -210,8 +210,13 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
 .order h5{margin:0 0 8px;font-family:var(--display);font-weight:600;font-size:14.5px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .order h5 b{font-family:var(--mono);font-size:16px;font-weight:500}
 .order ul{list-style:none;margin:0;padding:0}
-.order li{display:flex;gap:8px;justify-content:space-between;padding:4px 0;font-size:13.5px;border-bottom:1px dotted var(--taupe)}
+.order li{display:flex;gap:6px;align-items:center;padding:4px 0;font-size:13.5px;border-bottom:1px dotted var(--taupe)}
 .order li:last-child{border-bottom:0}
+.order li .oi-name{flex:1;min-width:0}
+.ord-move{flex:none;width:20px;background:none;border:0;padding:0;font:400 17px/1 var(--body);
+  color:var(--sage);cursor:pointer}
+.ord-move:hover:not(:disabled){color:var(--crumb)}
+.ord-move:disabled{color:var(--taupe);cursor:default}
 .order-tops{margin-top:9px;display:flex;flex-direction:column;gap:5px;align-items:flex-start}
 .order-tops .ball{min-width:0;padding:5px 10px;font-size:12px;border-radius:var(--wob3);text-align:left}
 .order-tops .n{font-family:var(--mono);font-size:11px;color:var(--rye)}
@@ -1319,6 +1324,7 @@ let anchorOpt=null;
 let tins=null, tinMode='even';
 let shopStore='waitrose-barnet', shopCat=null, shopQ='', shopBusy=false, shopErr='';
 let basket={}, shopHist={}, shopSplit=null, shopFam='';
+let shopManualSplit=null;   /* [[unit,…],…] once the user has moved items between orders by hand; null = automatic */
 let shopScope='store', allCat=null, allBusy=false, topsOpen=false;
 let putAwayList=null, basketQ='';
 const STORES=[
@@ -3641,18 +3647,48 @@ function maxOrders(){ return Math.max(1, bask().reduce((a,i)=>a+i.qty,0)); }
 function autoSplit(){ return Math.max(1, Math.floor(basketTotal()/MIN_ORDER)); }
 
 function splitCount(){ return Math.min(shopSplit||autoSplit(), maxOrders()); }
+
+/* The orders as shown: the automatic pack, unless the user has moved items
+   between orders by hand (shopManualSplit). The manual arrangement is dropped
+   the moment it no longer matches the basket or the chosen order count. */
+function currentOrders(){
+  const k=splitCount();
+  if(shopManualSplit){
+    const flat=shopManualSplit.flat();
+    const okCount = flat.length === bask().reduce((a,i)=>a+i.qty,0);
+    const okTotal = Math.abs(flat.reduce((a,u)=>a+u.price,0) - basketTotal()) < 0.01;
+    if(shopManualSplit.length===k && okCount && okTotal)
+      return shopManualSplit.map(items=>({items:items.slice(),total:items.reduce((a,u)=>a+u.price,0)}));
+    shopManualSplit=null;
+  }
+  return planOrders(k);
+}
+function moveOrderItem(oi,idx,dir){
+  const k=splitCount(), target=oi+dir;
+  if(target<0||target>=k) return;
+  if(!shopManualSplit){                       /* freeze the current split, then start moving */
+    const auto=planOrders(k);
+    shopManualSplit=Array.from({length:k},(_,i)=>auto[i]?auto[i].items.slice():[]);
+  }
+  const [u]=shopManualSplit[oi].splice(idx,1);
+  if(u) shopManualSplit[target].push(u);
+  render();
+}
 function renderSplit(){
-  const k=splitCount(), orders=planOrders(k), mx=Math.min(4,maxOrders());
+  const k=splitCount(), orders=currentOrders(), mx=Math.min(4,maxOrders());
   const choices=[]; for(let n=1;n<=mx;n++) choices.push(n);
   return `<div class="split">
     <div class="split-head">
       <span class="batch-label">Split into</span>
       <div class="calc-presets">${choices.map(n=>`
         <button class="ball" data-split="${n}" aria-pressed="${k===n}">${n} order${n===1?'':'s'}</button>`).join('')}</div>
-      ${shopSplit?`<button class="link-btn" id="split-auto">back to automatic</button>`:`<span class="calc-sync">automatic — ${autoSplit()} order${autoSplit()===1?'':'s'} clears the minimum</span>`}
+      ${shopManualSplit?`<button class="link-btn" id="split-auto">back to automatic</button>`
+        :shopSplit?`<button class="link-btn" id="split-auto">back to automatic</button>`
+        :`<span class="calc-sync">automatic — ${autoSplit()} order${autoSplit()===1?'':'s'} clears the minimum</span>`}
     </div>
-    ${orders.length<k?`<p class="calc-sync" style="margin:2px 0 0">Only ${orders.length} order${orders.length===1?'':'s'} — the basket won't fill more.</p>`:''}
-    ${k>1?`<div class="orders">${orders.map((o,n)=>{
+    ${!shopManualSplit&&orders.length<k?`<p class="calc-sync" style="margin:2px 0 0">Only ${orders.length} order${orders.length===1?'':'s'} — the basket won't fill more.</p>`:''}
+    ${k>1?`<p class="calc-sync" style="margin:2px 0 6px">Use the ‹ › arrows on an item to shift it to the next order and land each one on £${MIN_ORDER} by hand.</p>
+    <div class="orders">${orders.map((o,n)=>{
       const short=MIN_ORDER-o.total, tops=topUps(o.total,o.items.map(x=>x.name),topsOpen);
       const over=o.total-MIN_ORDER;
       return `<div class="order ${o.total>=MIN_ORDER-0.005?'ok':'under'}">
@@ -3660,7 +3696,12 @@ function renderSplit(){
           ${over>=0.005?`<span class="chip">over by £${over.toFixed(2)}</span>`
             :over>-0.005?`<span class="chip">right on £${MIN_ORDER}</span>`
             :`<span class="chip soon">£${short.toFixed(2)} to go</span>`}</h5>
-        <ul>${o.items.map(i=>`<li><span>${esc(i.name)}</span><span class="b-price">£${i.price.toFixed(2)}</span></li>`).join('')}</ul>
+        <ul>${o.items.map((i,ii)=>`<li>
+          <button class="ord-move" data-mv="${n}|${ii}|-1" aria-label="Move ${esc(i.name)} to order ${n}" ${n===0?'disabled':''}>‹</button>
+          <span class="oi-name">${esc(i.name)}</span>
+          <span class="b-price">£${i.price.toFixed(2)}</span>
+          <button class="ord-move" data-mv="${n}|${ii}|1" aria-label="Move ${esc(i.name)} to order ${n+2}" ${n===k-1?'disabled':''}>›</button>
+        </li>`).join('')||'<li class="empty" style="border:0;padding:6px 0">empty — move items in with ›</li>'}</ul>
         ${short>0?(tops.length?`<div class="order-tops"><span class="picker-label" style="margin:0 0 4px">Add one of these</span>
           ${(topsOpen?tops.slice(0,12):tops.slice(0,3)).map(t=>`<button class="ball" data-top="${esc(t.name)}|${t.price}|${esc(t.size||'')}">
             ${esc(t.name.length>30?t.name.slice(0,28)+'…':t.name)} <span class="n">£${t.price.toFixed(2)}</span></button>`).join('')}
@@ -3820,9 +3861,9 @@ function renderShop(){
 
   const back=$('#back'); if(back) back.onclick=()=>{ mode='home'; render(); };
   pane.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>{
-    shopStore=b.dataset.jump; basketQ=''; shopSplit=null; shopCat=null; loadCatalogue(shopStore); });
+    shopStore=b.dataset.jump; basketQ=''; shopSplit=null; shopManualSplit=null; shopCat=null; loadCatalogue(shopStore); });
   pane.querySelectorAll('[data-store]').forEach(b=>b.onclick=()=>{
-    shopStore=b.dataset.store; shopQ=''; shopSplit=null; refocus='shop-store';
+    shopStore=b.dataset.store; shopQ=''; shopSplit=null; shopManualSplit=null; refocus='shop-store';
     if(shopStore===BOOTS_SLUG){ shopCat=null; loadBootsProducts(); } else loadCatalogue(shopStore); });
   if(refocus==='shop-store' && !shopBusy){ refocus=null;
     pane.querySelector('.shop-stores .ball[aria-pressed="true"]')?.scrollIntoView({inline:'center',block:'nearest'}); }
@@ -3843,7 +3884,7 @@ function renderShop(){
     if(ex) ex.qty++; else bask().push({name:n,price:+p,size:s||'',qty:1});
     bump(slug,n,'a');
     await saveBasket(); await saveHist();
-    if(prev!==slug){ shopCat=null; shopSplit=null; loadCatalogue(slug); }
+    if(prev!==slug){ shopCat=null; shopSplit=null; shopManualSplit=null; loadCatalogue(slug); }
     else render();
     toast('Added to the '+(STORES.find(x=>x[0]===slug)||[,slug])[1]+' basket');
   });
@@ -3876,10 +3917,14 @@ function renderShop(){
   };
   const mn=$('#man-name'); if(mn) mn.onkeydown=e=>{ if(e.key==='Enter') $('#man-price').focus(); };
   const mp=$('#man-price'); if(mp) mp.onkeydown=e=>{ if(e.key==='Enter') ma.click(); };
-  pane.querySelectorAll('[data-split]').forEach(b=>b.onclick=()=>{ shopSplit=Number(b.dataset.split); render(); });
-  const sa=$('#split-auto'); if(sa) sa.onclick=()=>{ shopSplit=null; render(); };
+  pane.querySelectorAll('[data-split]').forEach(b=>b.onclick=()=>{ shopSplit=Number(b.dataset.split); shopManualSplit=null; render(); });
+  const sa=$('#split-auto'); if(sa) sa.onclick=()=>{ shopSplit=null; shopManualSplit=null; render(); };
+  pane.querySelectorAll('[data-mv]').forEach(b=>b.onclick=()=>{
+    const [oi,idx,dir]=b.dataset.mv.split('|').map(Number); moveOrderItem(oi,idx,dir);
+  });
   pane.querySelectorAll('[data-placed]').forEach(b=>b.onclick=async()=>{
-    const o=planOrders(splitCount())[+b.dataset.placed];
+    const o=currentOrders()[+b.dataset.placed];
+    if(!o||!o.items.length) return;
     snapshot();
     putAwayList=o.items.map(u=>({name:u.name,qty:u.size||'',shelf:shelfFor(u.name),
       until:sugDate(u.name,shelfFor(u.name)),on:true}));
@@ -3889,6 +3934,7 @@ function renderShop(){
       if(line){ line.qty--; if(line.qty<1) bask().splice(bask().indexOf(line),1); }
     });
     if(shopSplit) shopSplit=Math.max(1,shopSplit-1);
+    shopManualSplit=null;                     /* the arrangement is spent once an order is placed */
     await saveBasket(); await saveHist(); render();
     toast('Order noted — '+o.items.length+' item'+(o.items.length===1?'':'s')+' remembered', true);
   });
