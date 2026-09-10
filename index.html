@@ -609,6 +609,7 @@ const S = {
   cooked:    'hbs:cooked',              /* recipe ids the user has made at least once   */
   basket:    'hbs:shop.basket',
   hist:      'hbs:shop.history',
+  putaway:   'hbs:shop.putaway',         /* items from placed orders still waiting to be put away */
   prefs:     'hbs:foodprefs',
   meta:      'hbs:meta'
 };
@@ -1366,6 +1367,7 @@ const saveRecipeStores=async()=>{ await sset(S.mine,mine); await sset(S.override
 const saveFridge=()=>sset(S.fridge,fridge), saveGrocery=()=>sset(S.grocery,grocery),
       savePlan=()=>sset(S.plan,plan), savePrefs=()=>sset(S.prefs,foodPrefs),
       saveTodos=()=>sset(S.todos,todos), saveBasket=()=>sset(S.basket,basket), saveHist=()=>sset(S.hist,shopHist),
+      savePutaway=()=>sset(S.putaway,putAwayList&&putAwayList.length?putAwayList:null),
       saveMenu=()=>sset(S.menu,menu),
       saveNbdFav=()=>sset(S.nbdfav,nbdFav), saveNbdRecent=()=>sset(S.nbdrecent,nbdRecent),
       saveCooked=()=>sset(S.cooked,cookedIds);
@@ -3587,7 +3589,13 @@ function topUps(total,exclude,deep){
   return shopCat.items
     .filter(i=>i.price>=short-0.001&&i.price<=short+band&&!skip.has(i.name))
     .map(i=>({...i,over:i.price-short,seen:(h[i.name]?h[i.name].b*4+h[i.name].a:0)}))
-    .sort((a,b)=>(b.seen>0)-(a.seen>0)||a.over-b.over)
+    /* "You've bought this before" only earns top billing when the item actually
+       lands the order within £1 of £15 — a familiar item that overshoots by £4
+       is no more useful than any other, so past that band it's pure closeness. */
+    .sort((a,b)=>{
+      const qa=a.seen>0&&a.over<=1, qb=b.seen>0&&b.over<=1;
+      return (qb-qa)||a.over-b.over;
+    })
     .slice(0,deep?40:6);
 }
 /* Best small combination of `units` (sorted desc) to cover `need`: reach it with
@@ -3646,7 +3654,10 @@ function planOrders(k){
 function maxOrders(){ return Math.max(1, bask().reduce((a,i)=>a+i.qty,0)); }
 function autoSplit(){ return Math.max(1, Math.floor(basketTotal()/MIN_ORDER)); }
 
-function splitCount(){ return Math.min(shopSplit||autoSplit(), maxOrders()); }
+/* You can lump the basket into FEWER orders, never more than the total can fund:
+   three orders of £15 need £45 in the basket, full stop. autoSplit() is that
+   ceiling, so a stale shopSplit from a bigger basket can't ask for the impossible. */
+function splitCount(){ return Math.min(shopSplit||autoSplit(), autoSplit(), maxOrders()); }
 
 /* The orders as shown: the automatic pack, unless the user has moved items
    between orders by hand (shopManualSplit). The manual arrangement is dropped
@@ -3675,7 +3686,14 @@ function moveOrderItem(oi,idx,dir){
   render();
 }
 function renderSplit(){
-  const k=splitCount(), orders=currentOrders(), mx=Math.min(4,maxOrders());
+  /* Nothing to split unless the basket can fund at least two £15 orders. Below
+     that, renderShop's single-order "Tips it over £15" panel is the whole story —
+     showing the multi-order UI here is what produced the "2 orders selected but
+     only 1 shown / won't fill more" contradiction on a sub-£15 basket. */
+  const feasible=autoSplit();
+  if(feasible<2||maxOrders()<2) return '';
+  const want=splitCount(), orders=currentOrders();
+  const k=Math.min(want,orders.length), mx=Math.min(4,feasible);
   const choices=[]; for(let n=1;n<=mx;n++) choices.push(n);
   return `<div class="split">
     <div class="split-head">
@@ -3686,7 +3704,7 @@ function renderSplit(){
         :shopSplit?`<button class="link-btn" id="split-auto">back to automatic</button>`
         :`<span class="calc-sync">automatic — ${autoSplit()} order${autoSplit()===1?'':'s'} clears the minimum</span>`}
     </div>
-    ${!shopManualSplit&&orders.length<k?`<p class="calc-sync" style="margin:2px 0 0">Only ${orders.length} order${orders.length===1?'':'s'} — the basket won't fill more.</p>`:''}
+    ${!shopManualSplit&&want>k?`<p class="calc-sync" style="margin:2px 0 0">Splits into ${k} — the rest of the basket can't reach £${MIN_ORDER}. Use the arrows to rearrange.</p>`:''}
     ${k>1?`<p class="calc-sync" style="margin:2px 0 6px">Use the ‹ › arrows on an item to shift it to the next order and land each one on £${MIN_ORDER} by hand.</p>
     <div class="orders">${orders.map((o,n)=>{
       const short=MIN_ORDER-o.total, tops=topUps(o.total,o.items.map(x=>x.name),topsOpen);
@@ -3711,6 +3729,20 @@ function renderSplit(){
       </div>`;}).join('')}</div>`
     :''}
   </div>`;
+}
+/* Placed-order items waiting for the fridge. Accumulates across several orders
+   (each "Order placed" used to overwrite the last one) and is saved, so the
+   chance to put them away survives a reload or a trip to another screen. */
+function queuePutaway(rows){
+  if(shopStore===BOOTS_SLUG) return;            /* Boots is toiletries, not food */
+  const list=putAwayList?putAwayList.slice():[];
+  rows.forEach(r=>{
+    if(!r||!r.name) return;
+    const hit=list.find(p=>p.name===r.name&&p.shelf===r.shelf);
+    if(hit){ if(r.qty&&!String(hit.qty).includes(String(r.qty))) hit.qty=[hit.qty,r.qty].filter(Boolean).join(' + '); }
+    else list.push(r);
+  });
+  putAwayList = list.length ? list : null;
 }
 function renderShop(){
   const items=bask(), total=basketTotal(), short=MIN_ORDER-total;
@@ -3926,16 +3958,16 @@ function renderShop(){
     const o=currentOrders()[+b.dataset.placed];
     if(!o||!o.items.length) return;
     snapshot();
-    putAwayList=o.items.map(u=>({name:u.name,qty:u.size||'',shelf:shelfFor(u.name),
-      until:sugDate(u.name,shelfFor(u.name)),on:true}));
+    queuePutaway(o.items.map(u=>({name:u.name,qty:u.size||'',shelf:shelfFor(u.name),
+      until:sugDate(u.name,shelfFor(u.name)),on:true})));
     o.items.forEach(u=>{
       bump(shopStore,u.name,'b');
       const line=bask().find(i=>i.name===u.name);
       if(line){ line.qty--; if(line.qty<1) bask().splice(bask().indexOf(line),1); }
     });
-    if(shopSplit) shopSplit=Math.max(1,shopSplit-1);
+    shopSplit=null;                           /* let the split recompute from what's left, don't decrement a stale count */
     shopManualSplit=null;                     /* the arrangement is spent once an order is placed */
-    await saveBasket(); await saveHist(); render();
+    await saveBasket(); await saveHist(); await savePutaway(); render();
     toast('Order noted — '+o.items.length+' item'+(o.items.length===1?'':'s')+' remembered', true);
   });
   pane.querySelectorAll('[data-pl]').forEach(el=>el.onchange=()=>{ putAwayList[+el.dataset.pl].on=el.checked; });
@@ -3944,20 +3976,20 @@ function renderShop(){
   const pg2=$('#pl-go'); if(pg2) pg2.onclick=async()=>{
     let n=0,m=0;
     putAwayList.filter(p=>p.on).forEach(p=>{ const res=addToFridge({name:p.name,qty:p.qty,shelf:p.shelf,until:p.until}); res.merged?m++:n++; });
-    putAwayList=null; await saveFridge(); render();
+    putAwayList=null; await saveFridge(); await savePutaway(); render();
     toast(n+' into the kitchen'+(m?', '+m+' merged':''));
   };
-  const pc2=$('#pl-skip'); if(pc2) pc2.onclick=()=>{ putAwayList=null; render(); };
+  const pc2=$('#pl-skip'); if(pc2) pc2.onclick=async()=>{ putAwayList=null; await savePutaway(); render(); };
   const sd=$('#shop-done'); if(sd) sd.onclick=async()=>{
     const n=bask().length;
     /* Boots is toiletries and pharmacy, not food — it still counts toward the
        £15 minimum, but nothing from it should be offered for the fridge. */
-    putAwayList=(shopStore===BOOTS_SLUG?[]:bask().map(i=>({name:i.name,qty:(i.qty>1?i.qty+'× ':'')+(i.size||''),shelf:shelfFor(i.name),
+    queuePutaway(bask().map(i=>({name:i.name,qty:(i.qty>1?i.qty+'× ':'')+(i.size||''),shelf:shelfFor(i.name),
       until:sugDate(i.name,shelfFor(i.name)),on:true})));
-    if(!putAwayList.length) putAwayList=null;
     bask().forEach(i=>{ for(let k=0;k<i.qty;k++) bump(shopStore,i.name,'b'); });
     snapshot(); basket[shopStore]=[];
-    await saveBasket(); await saveHist(); render();
+    shopSplit=null; shopManualSplit=null;
+    await saveBasket(); await saveHist(); await savePutaway(); render();
     toast(n+' item'+(n===1?'':'s')+' remembered', true);
   };
   const sc=$('#shop-clear'); if(sc) sc.onclick=async()=>{ snapshot();
@@ -4283,14 +4315,14 @@ async function doReset(){
      eleven sequential round-trips were the reason startup felt slow. */
   /* In share mode fetch ONLY the three recipe keys. The fridge, grocery list,
      meal plan, baskets and purchase history are never requested at all. */
-  const [_mine,_over,_rem,_fri,_gro,_pl,_td,_bk,_hs,_pr,_mn,_nf,_nr,_ck,meta] = SHARE
+  const [_mine,_over,_rem,_fri,_gro,_pl,_td,_bk,_hs,_pr,_mn,_nf,_nr,_ck,_pa,meta] = SHARE
     ? [...await Promise.all([sget(S.mine), sget(S.overrides), sget(S.removed)]),
-       null,null,null,null,null,null,null,null,null,null,null,null]
+       null,null,null,null,null,null,null,null,null,null,null,null,null]
     : await Promise.all([
         sget(S.mine), sget(S.overrides), sget(S.removed), sget(S.fridge),
         sget(S.grocery), sget(S.plan), sget(S.todos), sget(S.basket),
         sget(S.hist), sget(S.prefs), sget(S.menu), sget(S.nbdfav),
-        sget(S.nbdrecent), sget(S.cooked), sget(S.meta)
+        sget(S.nbdrecent), sget(S.cooked), sget(S.putaway), sget(S.meta)
       ]);
   mine      = _mine || [];
   overrides = _over || {};
@@ -4306,6 +4338,7 @@ async function doReset(){
   nbdFav    = _nf   || [];
   nbdRecent = _nr   || [];
   cookedIds = _ck   || [];
+  putAwayList = (Array.isArray(_pa)&&_pa.length) ? _pa : null;
 
   /* one-time lift from the old single-blob store into the split stores */
   if(!meta && !API_BASE){
