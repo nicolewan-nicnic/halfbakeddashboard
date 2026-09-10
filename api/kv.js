@@ -7,11 +7,16 @@
 // Every key is a separate row, so deploying a new build never rewrites a
 // store it did not touch.
 //
-// Auth: set APP_TOKEN in the environment to lock the store down. With it set,
-// writes and reads of anything other than the PUBLIC recipe keys and the
-// per-recipe `hbs:share.<id>` snapshots require `Authorization: Bearer <APP_TOKEN>`.
-// The owner supplies it once via ?k=<token> in the app URL. With APP_TOKEN unset
-// the store stays fully open (dev only).
+// Auth: set APP_TOKEN in the environment to lock the store down. Writes, the
+// `all` read, and reads of anything other than the PUBLIC recipe keys and the
+// per-recipe `hbs:share.<id>` snapshots then require
+// `Authorization: Bearer <APP_TOKEN>`. The owner supplies it once via
+// ?k=<token> in the app URL.
+//
+// A PRODUCTION deploy (VERCEL_ENV=production) MUST set APP_TOKEN, or the store
+// refuses to serve — an unauthenticated open store on the public internet is a
+// bug, not a feature. Preview/dev deploys stay open so they are easy to test.
+// Set ALLOW_OPEN_STORE=1 to deliberately keep production open.
 
 import { neon } from '@neondatabase/serverless';
 
@@ -19,7 +24,9 @@ const sql = neon(process.env.DATABASE_URL || process.env.POSTGRES_URL);
 
 // Recipe ids carry digits and hyphens, so `hbs:share.<id>` keys need those too.
 const ALLOWED = /^hbs:[a-z0-9._-]+$/;        // nothing else can be written
-const TOKEN = process.env.APP_TOKEN || '';   // optional shared secret
+const TOKEN = process.env.APP_TOKEN || '';   // shared secret (required in production)
+const OPEN_OK = process.env.VERCEL_ENV !== 'production' || process.env.ALLOW_OPEN_STORE === '1';
+const MISCONFIGURED = !TOKEN && !OPEN_OK;    // production with no token and no override
 
 // Readable without the token so share links work for people who don't have it:
 // the whole-collection keys, plus every single-recipe share snapshot.
@@ -27,6 +34,9 @@ const PUBLIC = new Set(['hbs:recipes.mine', 'hbs:recipes.overrides', 'hbs:recipe
 const isPublic = (key) => PUBLIC.has(key) || key.startsWith('hbs:share.');
 
 export default async function handler(req, res) {
+  if (MISCONFIGURED) {
+    return res.status(503).json({ error: 'store not configured: set APP_TOKEN (or ALLOW_OPEN_STORE=1) on this deployment' });
+  }
   const authed = !TOKEN || req.headers.authorization === `Bearer ${TOKEN}`;
 
   try {
