@@ -3584,14 +3584,32 @@ function topUps(total,exclude,deep){
     .sort((a,b)=>(b.seen>0)-(a.seen>0)||a.over-b.over)
     .slice(0,deep?40:6);
 }
-/* Spread the plan across orders, each aiming to land on or just over the minimum.
-   Biggest items placed first, each into whichever order is furthest behind. */
+/* Pack the plan into orders so as MANY as possible land right on the minimum.
+   Each order but the last is filled tight to £15 (big items first to get close
+   from below, then the one small item that clears it with the least overshoot);
+   whatever is left over is pooled into the final order — better one order well
+   over or under than every order sitting near the line. */
 function planOrders(k){
-  const units=[];
+  let units=[];
   bask().forEach(i=>{ for(let n=0;n<i.qty;n++) units.push({name:i.name,price:i.price,size:i.size}); });
   units.sort((a,b)=>b.price-a.price);
+  const T=MIN_ORDER, E=0.001;
   const g=Array.from({length:k},()=>({items:[],total:0}));
-  units.forEach(u=>{ const t=g.reduce((m,x)=>x.total<m.total?x:m); t.items.push(u); t.total+=u.price; });
+  for(let i=0;i<k-1 && units.length;i++){
+    const o=g[i];
+    /* fill with the biggest items that still fit at or under the minimum */
+    for(let j=0;j<units.length;){
+      if(o.total+units[j].price<=T+E){ o.total+=units[j].price; o.items.push(units.splice(j,1)[0]); }
+      else j++;
+    }
+    /* still short — add the single item that clears £15 with the smallest overshoot */
+    if(o.total<T-E && units.length){
+      let pick=0, best=Infinity;
+      units.forEach((u,j)=>{ const over=o.total+u.price-T; if(over>=-E && over<best){ best=over; pick=j; } });
+      o.total+=units[pick].price; o.items.push(units.splice(pick,1)[0]);
+    }
+  }
+  units.forEach(u=>{ g[k-1].items.push(u); g[k-1].total+=u.price; });
   return g;
 }
 function maxOrders(){ return Math.max(1, bask().reduce((a,i)=>a+i.qty,0)); }
@@ -3610,9 +3628,11 @@ function renderSplit(){
     </div>
     ${k>1?`<div class="orders">${orders.map((o,n)=>{
       const short=MIN_ORDER-o.total, tops=topUps(o.total,o.items.map(x=>x.name),topsOpen);
-      return `<div class="order ${o.total>=MIN_ORDER?'ok':'under'}">
+      const over=o.total-MIN_ORDER;
+      return `<div class="order ${o.total>=MIN_ORDER-0.005?'ok':'under'}">
         <h5>Order ${n+1} <b>£${o.total.toFixed(2)}</b>
-          ${o.total>=MIN_ORDER?`<span class="chip">over by £${(o.total-MIN_ORDER).toFixed(2)}</span>`
+          ${over>=0.005?`<span class="chip">over by £${over.toFixed(2)}</span>`
+            :over>-0.005?`<span class="chip">right on £${MIN_ORDER}</span>`
             :`<span class="chip soon">£${short.toFixed(2)} to go</span>`}</h5>
         <ul>${o.items.map(i=>`<li><span>${esc(i.name)}</span><span class="b-price">£${i.price.toFixed(2)}</span></li>`).join('')}</ul>
         ${short>0?(tops.length?`<div class="order-tops"><span class="picker-label" style="margin:0 0 4px">Add one of these</span>
@@ -3641,7 +3661,7 @@ function renderShop(){
   pane.innerHTML=`<article class="card">
     <div class="card-head">
       <div style="flex:1;min-width:180px"><h2>Deliveroo basket</h2>
-        <p class="blurb">Everything you mean to buy from here. Split it into orders that each land on £${MIN_ORDER.toFixed(2)} or just over — two £12 things are better as two orders than one.</p></div>
+        <p class="blurb">Everything you mean to buy from here. Splitting packs as many orders as it can right onto £${MIN_ORDER.toFixed(2)} and pools the rest into the last one — one order over or under beats every order hovering near the line.</p></div>
       <div class="head-actions"><button class="pill back-only" id="back">← Home</button></div>
     </div>
 
