@@ -2641,6 +2641,17 @@ function collect(){
     method:$('#f-method').value.split('\n').map(s=>s.trim()).filter(Boolean)};
 }
 async function onSave(){
+  /* Every other form here refuses an empty name and puts the cursor back in the
+     field. This one quietly saved "Untitled recipe" with no ingredients and no
+     method, then closed the editor — easy to do by tapping Save on a blank form,
+     and the result is hard to find again precisely because it has no name. */
+  const nameEl=$('#f-name');
+  if(nameEl && !nameEl.value.trim()){
+    nameEl.focus();
+    if(nameEl.scrollIntoView) nameEl.scrollIntoView({block:'center',behavior:'smooth'});
+    toast('Give the recipe a name first');
+    return;
+  }
   const data=collect();
   if(draft._isNew){
     const rec=Object.assign({id:uid(data.name)},data);
