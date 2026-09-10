@@ -17,6 +17,7 @@ const OPEN_OK = process.env.VERCEL_ENV !== 'production' || process.env.ALLOW_OPE
 const MODEL_OK = /^claude-(?:sonnet|haiku|opus)-[0-9][a-z0-9.\-]*$/i;
 const MAX_TOKENS_CAP = 2000;
 const MAX_BODY_BYTES = 6 * 1024 * 1024;   // room for one base64 photo, not much more
+const UPSTREAM_TIMEOUT_MS = 60_000;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -55,6 +56,10 @@ export default async function handler(req, res) {
     return res.status(413).json({ error: 'request too large' });
   }
 
+  // Don't let a hung upstream hold the function open until the platform kills it —
+  // fail at 60s with a message the app can actually show.
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), UPSTREAM_TIMEOUT_MS);
   try {
     const upstream = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -64,13 +69,19 @@ export default async function handler(req, res) {
         'anthropic-version': '2023-06-01',
       },
       body,
+      signal: ac.signal,
     });
     const text = await upstream.text();
     res.status(upstream.status);
     res.setHeader('content-type', 'application/json');
     return res.send(text);
   } catch (e) {
+    if (e && e.name === 'AbortError') {
+      return res.status(504).json({ error: 'the AI service did not answer in time' });
+    }
     console.error(e);
     return res.status(502).json({ error: 'upstream error' });
+  } finally {
+    clearTimeout(timer);
   }
 }
