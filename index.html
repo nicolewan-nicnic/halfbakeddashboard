@@ -1210,7 +1210,7 @@ function seed(){return [
  ingredients:[{qty:20,unit:'g',name:'Vietnamese coffee'},{qty:40,unit:'g',name:'Condensed milk'},
   {qty:200,unit:'ml',name:'Water'},{qty:null,unit:'',name:'Ice'}],
  method:[]},
-{id:'matcha-gelato',name:'Matcha Gelato - Chef Mian',icon:'ice-cream',kcal:250,blurb:'Silky, intensely bitter Japanese matcha gelato by Chef Mian. Aged base with fresh matcha added post-heat to preserve color and aroma. For hardcore bitter-matcha lovers.',makesQty:500,makesUnit:'ml',cuisine:'Japanese',tags:['Dessert','Make-ahead','Dairy'],
+{id:'matcha-gelato',name:'Matcha Gelato - Chef Mian',icon:'ice-cream',kcal:250,blurb:'Silky, intensely bitter Japanese matcha gelato by Chef Mian. Aged base with fresh matcha added post-heat to preserve color and aroma. For hardcore bitter-matcha lovers.',makesQty:500,makesUnit:'ml',cuisine:'Japanese',tags:['Dessert','Ice cream','Make-ahead','Dairy'],
   ingredients:[
     {qty:22,unit:'g',name:'Matcha powder'},
     {qty:60,unit:'ml',name:'Whole milk (for dissolving matcha)'},
@@ -1234,7 +1234,7 @@ function seed(){return [
     'Freeze for about 2 hours before serving. For best results, use high-grade Japanese matcha — quality makes a significant difference in color, umami, and flavor complexity.'
   ]
 },
-{id:'matcha-hojicha-rice-ice-cream',name:'Matcha & Hojicha Rice Ice Cream',icon:'ice-cream',kcal:280,blurb:'Creamy rice-based ice cream with two flavours: bright matcha and toasty hojicha. Jasmine rice powder adds subtle floral complexity. By Elanne Boake.',makesQty:950,makesUnit:'ml',cuisine:'Japanese',tags:['Dessert','Make-ahead','Dairy'],
+{id:'matcha-hojicha-rice-ice-cream',name:'Matcha & Hojicha Rice Ice Cream',icon:'ice-cream',kcal:280,blurb:'Creamy rice-based ice cream with two flavours: bright matcha and toasty hojicha. Jasmine rice powder adds subtle floral complexity. By Elanne Boake.',makesQty:950,makesUnit:'ml',cuisine:'Japanese',tags:['Dessert','Ice cream','Make-ahead','Dairy'],
   ingredients:[
     {qty:250,unit:'ml',name:'Heavy cream (per base)'},
     {qty:400,unit:'ml',name:'2% milk (per base)'},
@@ -1950,11 +1950,11 @@ function renderRecipe(){
     </div>
     ${r.prep?`<div class="prep"><span class="prep-tag">${T?'前日に':'Start ahead'}</span> ${esc(tr('prep',r.prep))}</div>`:''}
     ${r.calc?calcHTML(r):''}
-    <div class="viewtoggle">
+    ${buildGrid(r)?`<div class="viewtoggle">
       <button class="ball" data-view="steps" aria-pressed="${!gridView}">${U('steps','Steps')}</button>
       <button class="ball" data-view="grid" aria-pressed="${gridView}">${U('table','Table')}</button>
-    </div>
-    ${gridView?gridHTML(r):`<div class="cols">
+    </div>`:''}
+    ${(gridView&&buildGrid(r))?gridHTML(r):`<div class="cols">
       <section>
         <h3 class="section-title">${U('ingredients','Ingredients')}</h3><div class="section-rule"></div>
         ${optKeys.length>1?`<div class="ing-opt">
@@ -2366,7 +2366,9 @@ function stageLabel(step){
   return v.toLowerCase();
 }
 function buildGrid(r){
-  if((r.tags||[]).includes('Assembly')) return null;   /* build-your-own meals have no real stages */
+  /* build-your-own meals and ice creams (combine · cook · chill · churn) have
+     no real ingredient-by-stage structure — the word-match table just misleads */
+  if((r.tags||[]).includes('Assembly')||(r.tags||[]).includes('Ice cream')) return null;
   const ings=(r.ingredients||[]).filter(i=>i.name&&!isSection(i.name));
   const steps=r.method||[];
   if(!ings.length||steps.length<2) return null;
