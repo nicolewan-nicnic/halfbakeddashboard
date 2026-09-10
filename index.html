@@ -3585,32 +3585,42 @@ function topUps(total,exclude,deep){
     .slice(0,deep?40:6);
 }
 /* Pack the plan into orders so as MANY as possible land right on the minimum.
-   Each order but the last is filled tight to £15 (big items first to get close
-   from below, then the one small item that clears it with the least overshoot);
-   whatever is left over is pooled into the final order — better one order well
-   over or under than every order sitting near the line. */
+   An item that already clears £15 on its own gets its own order — combining it
+   with anything just wastes the over-minimum. The remaining slots are filled
+   tight to £15 (biggest items first to get close from below, then the one small
+   item that clears it with the least overshoot). Whatever is left is pooled into
+   the last order, over or under. Orders that end up empty are dropped — asking
+   for more orders than the basket can fill just gives you fewer. */
 function planOrders(k){
   let units=[];
   bask().forEach(i=>{ for(let n=0;n<i.qty;n++) units.push({name:i.name,price:i.price,size:i.size}); });
   units.sort((a,b)=>b.price-a.price);
   const T=MIN_ORDER, E=0.001;
-  const g=Array.from({length:k},()=>({items:[],total:0}));
-  for(let i=0;i<k-1 && units.length;i++){
-    const o=g[i];
-    /* fill with the biggest items that still fit at or under the minimum */
+  const g=[];
+  /* 1 · each item that already clears the minimum stands alone (up to k-1) */
+  while(units.length && units[0].price>=T-E && g.length<k-1){
+    const u=units.shift(); g.push({items:[u],total:u.price});
+  }
+  /* 2 · fill the remaining slots (keeping one back for the catch-all) tight to £15 */
+  for(let slot=g.length; slot<k-1 && units.length; slot++){
+    const o={items:[],total:0};
     for(let j=0;j<units.length;){
       if(o.total+units[j].price<=T+E){ o.total+=units[j].price; o.items.push(units.splice(j,1)[0]); }
       else j++;
     }
-    /* still short — add the single item that clears £15 with the smallest overshoot */
     if(o.total<T-E && units.length){
       let pick=0, best=Infinity;
       units.forEach((u,j)=>{ const over=o.total+u.price-T; if(over>=-E && over<best){ best=over; pick=j; } });
       o.total+=units[pick].price; o.items.push(units.splice(pick,1)[0]);
     }
+    g.push(o);
   }
-  units.forEach(u=>{ g[k-1].items.push(u); g[k-1].total+=u.price; });
-  return g;
+  /* 3 · everything left goes in the final order */
+  const last={items:[],total:0};
+  units.forEach(u=>{ last.items.push(u); last.total+=u.price; });
+  g.push(last);
+  /* 4 · drop any order that came out empty */
+  return g.filter((o,i)=>o.items.length||i===0);
 }
 function maxOrders(){ return Math.max(1, bask().reduce((a,i)=>a+i.qty,0)); }
 function autoSplit(){ return Math.max(1, Math.floor(basketTotal()/MIN_ORDER)); }
@@ -3626,6 +3636,7 @@ function renderSplit(){
         <button class="ball" data-split="${n}" aria-pressed="${k===n}">${n} order${n===1?'':'s'}</button>`).join('')}</div>
       ${shopSplit?`<button class="link-btn" id="split-auto">back to automatic</button>`:`<span class="calc-sync">automatic — ${autoSplit()} order${autoSplit()===1?'':'s'} clears the minimum</span>`}
     </div>
+    ${orders.length<k?`<p class="calc-sync" style="margin:2px 0 0">Only ${orders.length} order${orders.length===1?'':'s'} — the basket won't fill more.</p>`:''}
     ${k>1?`<div class="orders">${orders.map((o,n)=>{
       const short=MIN_ORDER-o.total, tops=topUps(o.total,o.items.map(x=>x.name),topsOpen);
       const over=o.total-MIN_ORDER;
