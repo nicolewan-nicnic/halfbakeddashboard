@@ -296,15 +296,26 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
 .t-price{font-family:var(--mono);font-size:13.5px}
 .t-over{font-family:var(--mono);font-size:11.5px;color:var(--sage);min-width:104px;text-align:right}
 .results{list-style:none;margin:12px 0 0;padding:0;max-height:340px;overflow:auto}
-.results li{border-bottom:1px dotted var(--taupe)}
-.results button{display:flex;gap:10px;width:100%;align-items:baseline;background:none;border:0;padding:8px 2px;text-align:left;cursor:pointer;font:inherit}
+.results li{border-bottom:1px dotted var(--taupe);display:flex;align-items:stretch}
+.results button{display:flex;gap:10px;flex:1;min-width:0;align-items:baseline;background:none;border:0;padding:8px 2px;text-align:left;cursor:pointer;font:inherit}
 .results button:hover{background:var(--beige)}
 .r-name{flex:1;font-size:14px;line-height:1.35}
 .r-size,.r-price{font-family:var(--mono);font-size:12px;color:var(--rye)}
 .r-price{color:var(--crumb);font-size:13.5px;min-width:52px;text-align:right}
+/* The always-add star, and a shop offer vs. your own price correction — kept
+   visually distinct (a badge vs. a strikethrough) so the two never read as
+   the same kind of information. */
+button.star-btn{flex:none;background:none;border:0;font-size:16px;line-height:1;padding:8px 8px 8px 4px;
+  cursor:pointer;color:var(--taupe)}
+.star-btn:hover,.star-btn[aria-pressed="true"]{color:var(--orange)}
+.was-price{font-family:var(--mono);font-size:11px;color:var(--rye);text-decoration:line-through;white-space:nowrap}
+.icon-btn{flex:none;background:none;border:0;font-size:14px;line-height:1;padding:6px;cursor:pointer;color:var(--taupe)}
+.icon-btn:hover{color:var(--orange)}
 .shop-usuals{margin-top:24px}
 .shop-usuals h4{font-family:var(--mono);font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--rye);margin:0 0 8px;font-weight:400}
 .usual-chips{display:flex;gap:7px;flex-wrap:wrap}
+.usual-wrap{display:inline-flex;align-items:center;gap:1px}
+.usual-wrap button.star-btn{padding:8px 4px}
 .usual-chips .ball{border-radius:var(--wob3);min-width:0;padding:6px 11px;font-size:12.5px;display:flex;gap:7px;align-items:baseline}
 .usual-chips .n{font-family:var(--mono);font-size:10.5px;color:var(--rye)}
 .viewtoggle{display:flex;gap:6px;margin:22px 0 4px}
@@ -641,6 +652,8 @@ const S = {
   hist:      'hbs:shop.history',
   putaway:   'hbs:shop.putaway',         /* items from placed orders still waiting to be put away */
   orders:    'hbs:shop.orders',          /* lined-up + placed Deliveroo orders, across every store */
+  staples:   'hbs:shop.staples',         /* items you always like to add, by store */
+  prices:    'hbs:shop.priceoverrides',  /* your own corrections to a shop's listed prices */
   prefs:     'hbs:foodprefs',
   meta:      'hbs:meta'
 };
@@ -1405,12 +1418,20 @@ let basket={}, shopHist={}, shopSplit=null, shopFam='';
 let shopManualSplit=null;   /* [[unit,…],…] once the user has moved items between orders by hand; null = automatic */
 let shopScope='store', allCat=null, allBusy=false, topsOpen=false;
 let putAwayList=null, basketQ='';
+let editingPriceIdx=null;   /* basket row (index into bask()) whose price is being corrected, or null */
 /* Deliveroo orders once you've grouped items and tapped "Order lined up": held
    here (not removed from the app) until you actually mark them placed on the
    "Lined-up orders" screen — that's the only step that touches purchase
    history or the put-away queue. {id,store,items:[{name,price,size}],total,
    linedAt,placedAt,status:'lined'|'placed'} */
 let shopOrders=[];
+/* Items you always like to top an order up with, kept per store since a
+   Longdan usual isn't a Waitrose one. {[slug]: string[] of item names} */
+let shopStaples={};
+/* Your own corrections to a shop's listed price, kept per store and per item
+   name — the CSV export is a snapshot and goes stale between re-exports.
+   {[slug]: {[name]: number}} */
+let priceOverrides={};
 const STORES=[
   ['waitrose-barnet','Waitrose Barnet',1],['longdan','Longdan',1],['morrisons','Morrisons',1],
   ['waitrose-kentish-town','Waitrose Kentish Town',0],['sainsbury-s-local',"Sainsbury's Local",0],
@@ -1453,6 +1474,8 @@ const saveFridge=()=>sset(S.fridge,fridge), saveGrocery=()=>sset(S.grocery,groce
       saveTodos=()=>sset(S.todos,todos), saveBasket=()=>sset(S.basket,basket), saveHist=()=>sset(S.hist,shopHist),
       savePutaway=()=>sset(S.putaway,putAwayList&&putAwayList.length?putAwayList:null),
       saveShopOrders=()=>sset(S.orders,shopOrders&&shopOrders.length?shopOrders:null),
+      saveStaples=()=>sset(S.staples,shopStaples),
+      savePriceOverrides=()=>sset(S.prices,priceOverrides),
       saveMenu=()=>sset(S.menu,menu),
       saveNbdFav=()=>sset(S.nbdfav,nbdFav), saveNbdRecent=()=>sset(S.nbdrecent,nbdRecent),
       saveCooked=()=>sset(S.cooked,cookedIds);
@@ -3740,6 +3763,12 @@ function parseShopCsv(text){
   const iCat=col('category','subcategory');
   const iSize=col('pack_size','size');
   const iStore=col('store');
+  /* Both present in every export but never read before: `was_price_gbp` is
+     what the item cost before whatever `offer` describes ("15% off", "2 for
+     £5"...). Surfaced wherever a price is shown — it's exactly the context
+     that decides whether something on the gap is worth adding. */
+  const iWas=col('was_price_gbp','was_price');
+  const iOffer=col('offer','promotion');
   if(iName<0||iPrice<0) return null;               /* not a shop CSV — let the caller fall back */
   let store='';
   const items=[];
@@ -3749,7 +3778,10 @@ function parseShopCsv(text){
     const price=parseFloat(String(c[iPrice]||'').replace(/[^0-9.]/g,''));
     if(!name || isNaN(price)) continue;
     if(iStore>=0 && c[iStore] && !store) store=c[iStore].trim();
-    items.push({name,price,cat:(c[iCat]||'').trim()||'Other',size:(c[iSize]||'').trim()});
+    const was=iWas>=0?parseFloat(String(c[iWas]||'').replace(/[^0-9.]/g,'')):NaN;
+    const offer=iOffer>=0?(c[iOffer]||'').trim():'';
+    items.push({name,price,cat:(c[iCat]||'').trim()||'Other',size:(c[iSize]||'').trim(),
+      was:(!isNaN(was)&&was>price)?was:null, offer});
   }
   return items.length?{store,items}:null;
 }
@@ -3814,13 +3846,19 @@ function topUps(total,exclude,deep){
   const h=histFor(shopStore);
   const skip=new Set([...(exclude||[]), ...bask().map(i=>i.name)]);
   const band=deep?6:2.5;
+  const staples=shopStaples[shopStore]||[];
   return shopCat.items
+    .map(i=>{ const mine=priceOverrides[shopStore]&&priceOverrides[shopStore][i.name]!=null;
+      return {...i, price:priceFor(shopStore,i.name,i.price), overridden:!!mine}; })
     .filter(i=>i.price>=short-0.001&&i.price<=short+band&&!skip.has(i.name))
-    .map(i=>({...i,over:i.price-short,seen:(h[i.name]?h[i.name].b*4+h[i.name].a:0)}))
-    /* "You've bought this before" only earns top billing when the item actually
-       lands the order within £1 of £15 — a familiar item that overshoots by £4
-       is no more useful than any other, so past that band it's pure closeness. */
+    .map(i=>({...i,over:i.price-short,seen:(h[i.name]?h[i.name].b*4+h[i.name].a:0),staple:staples.includes(i.name)}))
+    /* Staples — things you've said you always like to add — come first, ahead
+       of everything else, as long as they actually fit the gap. Below that,
+       "you've bought this before" only earns top billing when the item lands
+       the order within £1 of £15 — a familiar item that overshoots by £4 is
+       no more useful than any other, so past that band it's pure closeness. */
     .sort((a,b)=>{
+      if(a.staple!==b.staple) return b.staple-a.staple;
       const qa=a.seen>0&&a.over<=1, qb=b.seen>0&&b.over<=1;
       return (qb-qa)||a.over-b.over;
     })
@@ -3958,7 +3996,7 @@ function renderSplit(){
         </li>`).join('')||'<li class="empty" style="border:0;padding:6px 0">empty — move items in with ›</li>'}</ul>
         ${short>0?(tops.length?`<div class="order-tops"><span class="picker-label" style="margin:0 0 4px">Add one of these</span>
           ${(topsOpen?tops.slice(0,12):tops.slice(0,3)).map(t=>`<button class="ball" data-top="${esc(t.name)}|${t.price}|${esc(t.size||'')}">
-            ${esc(t.name.length>30?t.name.slice(0,28)+'…':t.name)} <span class="n">£${t.price.toFixed(2)}</span></button>`).join('')}
+            ${t.staple?'★ ':''}${esc(t.name.length>30?t.name.slice(0,28)+'…':t.name)} <span class="n">£${t.price.toFixed(2)}${t.offer?' · offer':''}</span></button>`).join('')}
           ${tops.length>3?`<button class="link-btn" id="tops-more2">${topsOpen?'fewer':'more options'}</button>`:''}</div>`
           :`<p class="hint" style="margin:6px 0 0">Nothing in this shop lands neatly on the gap — add something by hand.</p>`)
         :`<button class="link-btn" data-placed="${n}">Order lined up — set it aside</button>`}
@@ -3991,6 +4029,51 @@ function queuePutaway(rows,store){
    are actually on their way. A lined-up order can also be dissolved back into
    its basket unedited — nothing here is a one-way door until it's placed. */
 function unitKey(u){ return u.name+'|'+u.price+'|'+(u.size||''); }
+
+/* ============ staples: items you always like to add ============
+   A manual, per-store list — separate from shopHist, which is just an
+   automatic tally of what you've added or bought before. This is an explicit
+   "yes, always offer me this" the user sets by hand, so it can outrank the
+   automatic ranking in topUps() even for something bought only once. */
+function isStaple(slug,name){ return (shopStaples[slug]||[]).includes(name); }
+async function toggleStaple(slug,name){
+  const arr=shopStaples[slug]=shopStaples[slug]||[];
+  const i=arr.indexOf(name);
+  if(i>=0) arr.splice(i,1); else arr.push(name);
+  if(!arr.length) delete shopStaples[slug];
+  await saveStaples();
+}
+
+/* ============ price overrides: correcting a stale CSV price ============
+   The export is a snapshot and drifts from what a shop actually charges.
+   `priceFor` is the one place every screen reads a catalogue price through,
+   so a correction shows up everywhere that item appears — search, top-ups,
+   a fresh add to the basket — without needing the CSV re-exported. */
+function priceFor(slug,name,fallback){
+  const o=priceOverrides[slug];
+  return (o && o[name]!=null) ? o[name] : fallback;
+}
+async function setPriceOverride(slug,name,price){
+  const o=priceOverrides[slug]=priceOverrides[slug]||{};
+  o[name]=price;
+  await savePriceOverrides();
+}
+async function clearPriceOverride(slug,name){
+  const o=priceOverrides[slug]; if(!o||o[name]==null) return;
+  delete o[name]; if(!Object.keys(o).length) delete priceOverrides[slug];
+  await savePriceOverrides();
+}
+/* A small "was £X · 15% off" / "your price" badge, shared by every place a
+   catalogue item's price is shown. `mine` marks a user correction rather
+   than the shop's own offer, so the two never look like the same thing. */
+function priceBadge(item,mine){
+  if(mine) return `<span class="chip">your price</span>`;
+  if(item.offer) return `<span class="chip soon">${esc(item.offer)}</span>`;
+  return '';
+}
+function wasPriceHTML(item,mine){
+  return (!mine && item.was) ? `<span class="was-price">was £${item.was.toFixed(2)}</span>` : '';
+}
 function lineUpOrder(store,items){
   const id='o'+Date.now()+Math.random().toString(36).slice(2,6);
   shopOrders.push({id,store,items:items.map(i=>({name:i.name,price:i.price,size:i.size||''})),
@@ -4043,7 +4126,10 @@ function renderShop(){
     .sort((a,b)=>(b[1].b*4+b[1].a)-(a[1].b*4+a[1].a)).slice(0,8);
   const q=shopQ.trim().toLowerCase();
   const results=(q.length>1&&shopScope==='store'&&shopCat)
-    ? shopCat.items.filter(i=>i.name.toLowerCase().includes(q)).slice(0,60) : [];
+    ? shopCat.items.filter(i=>i.name.toLowerCase().includes(q)).slice(0,60)
+        .map(i=>({...i,price:priceFor(shopStore,i.name,i.price),
+          overridden:!!(priceOverrides[shopStore]&&priceOverrides[shopStore][i.name]!=null)}))
+    : [];
   const gResults=(q.length>1&&shopScope==='all') ? searchEverywhere(q) : [];
   const tops=topUps(total,[],true);
   const storeLined=shopOrders.filter(o=>o.store===shopStore&&o.status==='lined');
@@ -4098,12 +4184,17 @@ function renderShop(){
         <ul class="results">${order.filter(f=>!shopFam||shopFam===f[0]).map(f=>{
           const g=groups.get(f[0]);
           return `<li class="res-head fam-${f[3]} ${f[4]?'solid':'hollow'}"><span class="dot"></span>${esc(f[1])}</li>`+
-            g.items.map(i=>`<li class="fam-${f[3]} ${f[4]?'solid':'hollow'}">
+            g.items.map(i=>{ const staple=isStaple(shopStore,i.name);
+              return `<li class="fam-${f[3]} ${f[4]?'solid':'hollow'}">
               <button data-add="${esc(i.name)}|${i.price}|${esc(i.size||'')}">
                 <span class="r-name">${esc(i.name)}</span>
                 <span class="r-cat">${esc(i.cat)}</span>
                 <span class="r-size">${esc(i.size||'')}</span>
-                <span class="r-price">£${i.price.toFixed(2)}</span></button></li>`).join('');
+                ${priceBadge(i,i.overridden)}${wasPriceHTML(i,i.overridden)}
+                <span class="r-price">£${i.price.toFixed(2)}</span></button>
+              <button class="star-btn" type="button" data-staple="${esc(i.name)}" aria-pressed="${staple}"
+                aria-label="${staple?'Stop always adding '+esc(i.name):'Always add '+esc(i.name)+' to top up an order'}">${staple?'★':'☆'}</button>
+              </li>`;}).join('');
         }).join('')}</ul>`;})()
       :(q.length>1&&shopScope==='store'&&shopCat?`<p class="home-none" style="margin-top:10px">Nothing matching that.</p>`:'')}
 
@@ -4145,11 +4236,19 @@ function renderShop(){
       </div>
     </div>
 
-    ${items.length?`<ul class="basket">${items.map((i,n)=>`
-      <li><span class="b-name">${esc(i.name)}${i.size?` <span class="item-qty">${esc(i.size)}</span>`:''}</span>
+    ${items.length?`<ul class="basket">${items.map((i,n)=>{
+      const catPrice=shopCat&&(shopCat.items.find(x=>x.name===i.name)||{}).price;
+      const hasOverride=!!(priceOverrides[shopStore]&&priceOverrides[shopStore][i.name]!=null);
+      return `<li><span class="b-name">${esc(i.name)}${i.size?` <span class="item-qty">${esc(i.size)}</span>`:''}</span>
         <span class="b-qty"><button data-dec="${n}">−</button><b>${i.qty}</b><button data-inc="${n}">+</button></span>
-        <span class="b-price">£${(i.price*i.qty).toFixed(2)}</span>
-        <button class="row-x" data-bx="${n}" aria-label="Remove">×</button></li>`).join('')}</ul>
+        ${editingPriceIdx===n
+          ? `<input type="number" id="ep-input" step="0.01" min="0" value="${i.price}" style="width:70px;font-family:var(--mono);font-size:13px;padding:5px 7px;border:2.5px solid var(--crumb);border-radius:var(--wob3)">
+             <button class="link-btn" id="ep-save">Save</button>
+             ${hasOverride&&catPrice!=null?`<button class="link-btn" id="ep-reset">Reset to £${catPrice.toFixed(2)}</button>`:''}
+             <button class="link-btn" id="ep-cancel">Cancel</button>`
+          : `<span class="b-price">£${(i.price*i.qty).toFixed(2)}</span>
+             <button class="icon-btn" type="button" data-editprice="${n}" aria-label="Correct the price of ${esc(i.name)}" title="Correct the price">✎</button>${hasOverride?'<span class="chip">your price</span>':''}`}
+        <button class="row-x" data-bx="${n}" aria-label="Remove">×</button></li>`;}).join('')}</ul>
       <div class="cook-actions" style="margin-top:12px">
         <button class="pill solid" id="shop-done">Order lined up — set it aside</button>
         <button class="link-btn" id="shop-clear">Empty the basket</button>
@@ -4176,8 +4275,8 @@ function renderShop(){
     ${short>0&&tops.length&&splitCount()===1?`<div class="useup" style="margin-top:20px"><h4>Tips it over £${MIN_ORDER}</h4>
       <ul class="topups">${(topsOpen?tops:tops.slice(0,4)).map(t=>`
         <li><button data-top="${esc(t.name)}|${t.price}|${esc(t.size||'')}">
-          <span class="t-name">${esc(t.name)}</span>
-          <span class="t-price">£${t.price.toFixed(2)}</span>
+          <span class="t-name">${t.staple?'★ ':''}${esc(t.name)} ${priceBadge(t,t.overridden)}</span>
+          <span class="t-price">${wasPriceHTML(t,t.overridden)} £${t.price.toFixed(2)}</span>
           <span class="t-over">→ £${(total+t.price).toFixed(2)}${t.seen>3?' · you buy this':''}</span>
         </button></li>`).join('')}</ul>
       ${tops.length>4?`<button class="link-btn" id="tops-more" style="margin-top:8px">${topsOpen?'Show fewer':'Show all '+tops.length+' options'}</button>`:''}
@@ -4190,25 +4289,37 @@ function renderShop(){
     </div>
 
     ${usuals.length?`<div class="shop-usuals"><h4>Your usuals here</h4>
-      <div class="usual-chips">${usuals.map(([name,e])=>`
+      <div class="usual-chips">${usuals.map(([name,e])=>{ const staple=isStaple(shopStore,name);
+        return `<span class="usual-wrap">
         <button class="ball" data-usual="${esc(name)}">${esc(name.length>34?name.slice(0,32)+'…':name)}
-          <span class="n">${e.b?'bought '+e.b+'×':'listed '+e.a+'×'}</span></button>`).join('')}</div></div>`:''}
+          <span class="n">${e.b?'bought '+e.b+'×':'listed '+e.a+'×'}</span></button>
+        <button class="star-btn" type="button" data-staple="${esc(name)}" aria-pressed="${staple}"
+          aria-label="${staple?'Stop always adding '+esc(name):'Always add '+esc(name)+' to top up an order'}">${staple?'★':'☆'}</button>
+        </span>`;}).join('')}</div></div>`:''}
   </article>`;
 
   const back=$('#back'); if(back) back.onclick=()=>{ mode='home'; render(); };
   pane.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>{
     shopStore=b.dataset.jump; basketQ=''; shopSplit=null; shopManualSplit=null; shopCat=null; loadCatalogue(shopStore); });
   pane.querySelectorAll('[data-store]').forEach(b=>b.onclick=()=>{
-    shopStore=b.dataset.store; shopQ=''; shopSplit=null; shopManualSplit=null; refocus='shop-store';
+    shopStore=b.dataset.store; shopQ=''; shopSplit=null; shopManualSplit=null; refocus='shop-store'; editingPriceIdx=null;
     if(shopStore===BOOTS_SLUG){ shopCat=null; loadBootsProducts(); } else loadCatalogue(shopStore); });
   if(refocus==='shop-store' && !shopBusy){ refocus=null;
     pane.querySelector('.shop-stores .ball[aria-pressed="true"]')?.scrollIntoView({inline:'center',block:'nearest'}); }
   const sq=$('#shop-q');
   if(sq){ sq.oninput=()=>{ shopQ=sq.value; shopFam=''; refocus='shop-q';
     clearTimeout(shopSearchT);
-    shopSearchT=setTimeout(render, shopScope==='all'?200:60);   /* every-shop search scans ~100k rows — don't do it per keystroke */
+    /* every-shop search scans ~100k rows — don't do it per keystroke. Also
+       remember where the caret actually was: re-render used to always park it
+       at the end of the line, so editing anywhere but the last character kept
+       bouncing the next keystroke to the wrong place. */
+    const caret=sq.selectionStart;
+    shopSearchT=setTimeout(()=>{ refocusCaret=caret; render(); }, shopScope==='all'?200:60);
   }; }
   pane.querySelectorAll('[data-fam]').forEach(b=>b.onclick=()=>{ shopFam=b.dataset.fam; render(); });
+  pane.querySelectorAll('[data-staple]').forEach(b=>b.onclick=async()=>{
+    await toggleStaple(shopStore,b.dataset.staple); render();
+  });
   pane.querySelectorAll('[data-scope]').forEach(b=>b.onclick=()=>{
     shopScope=b.dataset.scope; shopFam='';
     if(shopScope==='all') loadAllCatalogues(); else render(); });
@@ -4248,7 +4359,37 @@ function renderShop(){
     await saveBasket(); await saveHist(); render(); });
   pane.querySelectorAll('[data-bx]').forEach(b=>b.onclick=async()=>{
     const it=bask()[+b.dataset.bx]; unbump(shopStore,it.name,it.qty);
-    bask().splice(+b.dataset.bx,1); await saveBasket(); await saveHist(); render(); });
+    bask().splice(+b.dataset.bx,1); editingPriceIdx=null; await saveBasket(); await saveHist(); render(); });
+  /* Correcting a stale price: a small inline editor on the basket row, saved
+     as a per-store override so it also applies next time this item is added
+     fresh from search — the CSV export is a snapshot and drifts. */
+  pane.querySelectorAll('[data-editprice]').forEach(b=>b.onclick=()=>{ editingPriceIdx=+b.dataset.editprice; render(); });
+  const epi=$('#ep-input');
+  if(epi){
+    epi.focus(); epi.select();
+    const saveEditedPrice=async()=>{
+      const idx=editingPriceIdx, item=bask()[idx]; editingPriceIdx=null;
+      const v=parseFloat(epi.value);
+      if(item && v>0){ item.price=v; await setPriceOverride(shopStore,item.name,v); await saveBasket(); }
+      render();
+    };
+    epi.onkeydown=e=>{
+      if(e.key==='Enter'){ e.preventDefault(); saveEditedPrice(); }
+      else if(e.key==='Escape'){ editingPriceIdx=null; render(); }
+    };
+    const es=$('#ep-save'); if(es) es.onclick=saveEditedPrice;
+    const ec=$('#ep-cancel'); if(ec) ec.onclick=()=>{ editingPriceIdx=null; render(); };
+    const er=$('#ep-reset'); if(er) er.onclick=async()=>{
+      const idx=editingPriceIdx, item=bask()[idx]; editingPriceIdx=null;
+      if(item){
+        await clearPriceOverride(shopStore,item.name);
+        const cp=shopCat&&shopCat.items.find(x=>x.name===item.name);
+        if(cp) item.price=cp.price;
+        await saveBasket();
+      }
+      render();
+    };
+  }
   const ma=$('#man-add'); if(ma) ma.onclick=()=>{
     const n=$('#man-name').value.trim(), p=parseFloat($('#man-price').value);
     if(!n||!(p>0)){ $('#man-name').focus(); return; }
@@ -4308,7 +4449,10 @@ function renderShop(){
         name:i.name,qty:i.qty>1?i.qty+'×':'',done:false,src:shopCat?shopCat.store:'Deliveroo'}); n++; } });
     await saveGrocery(); render(); toast(n+' copied to the grocery list');
   };
-  if(refocus==='shop-q'){ refocus=null; const n=$('#shop-q'); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } }
+  if(refocus==='shop-q'){ refocus=null; const n=$('#shop-q');
+    if(n){ const c=refocusCaret==null?n.value.length:Math.min(refocusCaret,n.value.length);
+      n.focus(); n.setSelectionRange(c,c); }
+    refocusCaret=null; }
 }
 
 /* ============ lined-up Deliveroo orders, across every shop ============
@@ -4618,7 +4762,7 @@ $('#doodle-file').onchange=e=>{
   e.target.value='';
 };
 function doBackup(){
-  const blob=new Blob([JSON.stringify({v:APP_VERSION,mine,overrides,removed,fridge,grocery,plan,todos,menu,nbdFav,nbdRecent,cookedIds,foodPrefs,basket,shopHist,shopOrders},null,2)],{type:'application/json'});
+  const blob=new Blob([JSON.stringify({v:APP_VERSION,mine,overrides,removed,fridge,grocery,plan,todos,menu,nbdFav,nbdRecent,cookedIds,foodPrefs,basket,shopHist,shopOrders,shopStaples,priceOverrides},null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='half-baked-'+todayISO()+'.json';
   a.click(); URL.revokeObjectURL(a.href);
@@ -4654,24 +4798,25 @@ $('#import-file').onchange=e=>{
       staged.cookedIds=arr(d.cookedIds,'cooked ids').filter(x=>typeof x==='string');
       staged.basket=obj(d.basket,'baskets'); staged.shopHist=obj(d.shopHist,'shop history');
       staged.shopOrders=arr(d.shopOrders,'Deliveroo orders');
+      staged.shopStaples=obj(d.shopStaples,'usual items'); staged.priceOverrides=obj(d.priceOverrides,'price corrections');
     }catch(err){ banner('That backup could not be read — '+(err&&err.message||'unrecognised format')+'. Nothing was changed.'); return; }
 
-    const before={mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,menu,nbdFav,nbdRecent,cookedIds,basket,shopHist,shopOrders};
+    const before={mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,menu,nbdFav,nbdRecent,cookedIds,basket,shopHist,shopOrders,shopStaples,priceOverrides};
     try{
       /* Undoable: a restore replaces every store, and picking the wrong file
          used to be recoverable only from another backup. */
       snapshot();
-      ({mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,menu,nbdFav,nbdRecent,cookedIds,basket,shopHist,shopOrders}=staged);
+      ({mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,menu,nbdFav,nbdRecent,cookedIds,basket,shopHist,shopOrders,shopStaples,priceOverrides}=staged);
       rebuild(); currentId=recipes[0]?.id??null; editing=false; mode='recipes';
       /* persist every restored store as one batch — baskets and history included */
       await Promise.all([
         saveRecipeStores(), saveFridge(), saveGrocery(), savePlan(), saveTodos(),
         savePrefs(), saveMenu(), saveNbdFav(), saveNbdRecent(), saveCooked(),
-        saveBasket(), saveHist(), saveShopOrders()
+        saveBasket(), saveHist(), saveShopOrders(), saveStaples(), savePriceOverrides()
       ]);
       render(); toast('Restored '+recipes.length+' recipes', true);
     }catch(err){
-      ({mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,menu,nbdFav,nbdRecent,cookedIds,basket,shopHist,shopOrders}=before);
+      ({mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,menu,nbdFav,nbdRecent,cookedIds,basket,shopHist,shopOrders,shopStaples,priceOverrides}=before);
       undoSnap=null;                    /* rolled back already — nothing to undo */
       rebuild(); render();
       banner('The backup could not be applied cleanly — nothing was changed. '+(err&&err.message||err));
@@ -4716,14 +4861,15 @@ async function doReset(){
      eleven sequential round-trips were the reason startup felt slow. */
   /* In share mode fetch ONLY the three recipe keys. The fridge, grocery list,
      meal plan, baskets and purchase history are never requested at all. */
-  const [_mine,_over,_rem,_fri,_gro,_pl,_td,_bk,_hs,_pr,_mn,_nf,_nr,_ck,_pa,_so,meta] = SHARE
+  const [_mine,_over,_rem,_fri,_gro,_pl,_td,_bk,_hs,_pr,_mn,_nf,_nr,_ck,_pa,_so,_st,_po,meta] = SHARE
     ? [...await Promise.all([sget(S.mine), sget(S.overrides), sget(S.removed)]),
-       null,null,null,null,null,null,null,null,null,null,null,null,null,null]
+       null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]
     : await Promise.all([
         sget(S.mine), sget(S.overrides), sget(S.removed), sget(S.fridge),
         sget(S.grocery), sget(S.plan), sget(S.todos), sget(S.basket),
         sget(S.hist), sget(S.prefs), sget(S.menu), sget(S.nbdfav),
-        sget(S.nbdrecent), sget(S.cooked), sget(S.putaway), sget(S.orders), sget(S.meta)
+        sget(S.nbdrecent), sget(S.cooked), sget(S.putaway), sget(S.orders),
+        sget(S.staples), sget(S.prices), sget(S.meta)
       ]);
   mine      = _mine || [];
   overrides = _over || {};
@@ -4741,6 +4887,8 @@ async function doReset(){
   cookedIds = _ck   || [];
   putAwayList = (Array.isArray(_pa)&&_pa.length) ? _pa : null;
   shopOrders  = Array.isArray(_so) ? _so : [];
+  shopStaples = _st || {};
+  priceOverrides = _po || {};
 
   /* one-time lift from the old single-blob store into the split stores */
   if(!meta && !API_BASE){
