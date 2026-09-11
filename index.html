@@ -680,7 +680,8 @@ async function sset(k,v){
       const r=await fetch(API_BASE,{method:'PUT',headers:apiHeaders({'Content-Type':'application/json'}),
         body:JSON.stringify({key:k,value:v})});
       if(!r.ok) throw new Error('HTTP '+r.status);
-      return true;
+      localSet(k,v);          /* mirror so an offline next session starts from fresh data */
+      return 'server';
     }catch(e){
       apiDown=true;
       banner('Cannot reach the database ('+e.message+'). Saving on this device for now.');
@@ -702,8 +703,17 @@ const ICONS=['croissant','breadbag','bun','shortcake','cakeslice','jar','butter'
 /* If an icon file is missing on disk, fall back to the blank plate rather than
    showing a broken image — the same neutral placeholder the guesser uses. */
 const ICO_FALLBACK=` onerror="this.onerror=null;this.src='${ART['empty-plate']}'"`;
+/* r.img can come from a restored backup or a paste/photo import — untrusted.
+   Only allow an inline image data URI or an https URL, and it is still escaped
+   before it goes near the markup so it can't break out of the src attribute. */
+function safeImg(v){
+  v=String(v==null?'':v);
+  return (/^data:image\/(png|jpe?g|gif|webp|avif);base64,[a-z0-9+/=\s]+$/i.test(v)
+       || /^https:\/\/[^\s"'<>\\]+$/i.test(v)) ? v : '';
+}
 function art(r){
-  if(r && r.img) return `<img class="ico" src="${r.img}" alt=""${ICO_FALLBACK}>`;
+  const img=r&&r.img&&safeImg(r.img);
+  if(img) return `<img class="ico" src="${esc(img)}" alt=""${ICO_FALLBACK}>`;
   /* no chosen icon and nothing the guesser recognises -> blank plate, which
      reads as "not set up yet" rather than a wrong-but-confident croissant */
   const n=(r && (r.icon||guessIcon(r)))||'empty-plate';
@@ -1879,11 +1889,15 @@ async function shareRecipeLink(id){
   if(!r){ toast('Open a recipe first, then come back'); return; }
   const url=location.origin+location.pathname+'#/r/'+encodeURIComponent(id);
   const clean={}; for(const k in r){ if(k[0]!=='_') clean[k]=r[k]; }
-  try{
-    await sset('hbs:share.'+id, {recipe:JSON.parse(JSON.stringify(clean)), at:Date.now()});
-    try{ await navigator.clipboard.writeText(url); toast('Link to '+r.name+' copied'); }
-    catch(_){ banner('Copy this link: '+url); }
-  }catch(e){ banner('Could not create the share link — '+(e&&e.message||e)); }
+  let res;
+  try{ res=await sset('hbs:share.'+id, {recipe:JSON.parse(JSON.stringify(clean)), at:Date.now()}); }
+  catch(e){ res=false; }
+  if(res!=='server'){
+    banner('The link isn’t ready — the recipe could only be saved on this device, so no one else could open it. Try again when the database is reachable.');
+    return;
+  }
+  try{ await navigator.clipboard.writeText(url); toast('Link to '+r.name+' copied'); }
+  catch(_){ banner('Copy this link: '+url); }
 }
 
 /* ============ recipe view ============ */
@@ -2720,6 +2734,7 @@ async function handlePhoto(file){
           {type:'image',source:{type:'base64',media_type:file.type||'image/jpeg',data:b64}},
           {type:'text',text:'This is a photo of groceries: a shop receipt, or food items, or a fridge shelf. List the food and drink items only (skip bags, totals, discounts, non-food). Respond with ONLY a JSON array, no markdown, no preamble: [{"name":"specific item name e.g. jasmine rice not rice","qty":"short amount like 2 or 400g or empty string","shelf":"Fridge"|"Freezer"|"Cupboard"}]. shelf = where it is normally stored.'}
         ]}]})});
+    if(!resp.ok) throw new Error('http '+resp.status);
     const data=await resp.json();
     const txt=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
     const clean=txt.replace(/```json|```/g,'').trim();
@@ -2728,7 +2743,12 @@ async function handlePhoto(file){
     photoReview=items.slice(0,25).map(p=>({name:String(p.name||''),qty:String(p.qty||''),
       shelf:SHELVES.includes(p.shelf)?p.shelf:shelfFor(p.name||''),on:true}));
   }catch(e){
-    banner('Could not read anything from that photo. A clearer shot of the receipt or items usually does it.');
+    const m=String(e&&e.message||e);
+    banner(/http 413/.test(m) ? 'That photo is too large to send — try a smaller shot.'
+      : /http 401/.test(m) ? 'Photo intake needs the owner key — open the app from your ?k=… link first.'
+      : /http 501/.test(m) ? 'Photo intake is not set up on this deployment (no AI key).'
+      : /http 5\d\d|http 4\d\d/.test(m) ? 'The photo service had a problem — try again in a moment.'
+      : 'Could not read anything from that photo. A clearer shot of the receipt or items usually does it.');
   }
   photoBusy=false; render();
 }
@@ -2854,7 +2874,7 @@ function renderPlan(){
         }
         if(p.note!=null && p.id==null){   /* a plain written line — stored as-is for Claude Code to read */
           return wrap(p.done?'done':'',
-            `<button class="tick-sm" data-note-done="${iso}|${idx}" aria-pressed="${!!p.done}"><span class="box"></span></button>
+            `<button class="tick-sm" data-note-done="${iso}|${idx}" aria-pressed="${!!p.done}" aria-label="Mark done"><span class="box"></span></button>
              <span class="pm-name" contenteditable="true" data-note-edit="${iso}|${idx}">${esc(p.note)}</span>`);
         }
         const r=find(p.id); if(!r) return '';
@@ -3316,7 +3336,7 @@ function renderHome(){
       </div>
       ${todos.length?`<ul class="todos">${todos.map((t,i)=>`
         <li class="${t.done?'done':''}">
-          <button class="tick-sm" data-todo="${i}" aria-pressed="${t.done}"><span class="box"></span></button>
+          <button class="tick-sm" data-todo="${i}" aria-pressed="${t.done}" aria-label="Mark done"><span class="box"></span></button>
           <span class="todo-text" contenteditable="true" data-edit-todo="${i}">${esc(t.text)}</span>
           <button class="row-x" data-todo-x="${i}" aria-label="Remove">×</button>
         </li>`).join('')}</ul>
@@ -3469,8 +3489,9 @@ function searchEverywhere(q){
     if(!a.up&&b.up) return 1;
     return a.price-b.price;
   });
-  return hits;
+  return hits.slice(0,120);
 }
+let shopSearchT=null;
 
 function bask(){ return basket[shopStore]||(basket[shopStore]=[]); }
 function basketTotal(){ return bask().reduce((a,i)=>a+i.price*i.qty,0); }
@@ -3545,8 +3566,10 @@ async function loadBootsProducts(){
     }
     if(!parsed) throw new Error('no boots data');
     bootsCat={slug:BOOTS_SLUG,store:parsed.store||'Boots Borehamwood',items:parsed.items};
+    if(shopStore!==BOOTS_SLUG) return;    /* switched away while this loaded */
     shopCat=bootsCat;
   }catch(e){
+    if(shopStore!==BOOTS_SLUG) return;
     shopCat=null;
     shopErr='The Boots product list is not available here — add items by hand below and the £'+MIN_ORDER+' maths still works.';
   }
@@ -3570,8 +3593,10 @@ async function loadCatalogue(slug){
       const j=await r.json();
       cat={slug,store:j.store,items:j.items.map(a=>({name:a[0],price:a[1],cat:a[2],size:a[3]}))};
     }
+    if(slug!==shopStore) return;          /* the user switched shops while this loaded — drop it */
     shopCat=cat;
   }catch(e){
+    if(slug!==shopStore) return;
     shopCat=null;
     shopErr='The price list for this shop is not available here — add items by hand below and the £'+MIN_ORDER+' maths still works.';
   }
@@ -3868,7 +3893,10 @@ function renderShop(){
   if(refocus==='shop-store' && !shopBusy){ refocus=null;
     pane.querySelector('.shop-stores .ball[aria-pressed="true"]')?.scrollIntoView({inline:'center',block:'nearest'}); }
   const sq=$('#shop-q');
-  if(sq){ sq.oninput=()=>{ shopQ=sq.value; shopFam=''; refocus='shop-q'; render(); }; }
+  if(sq){ sq.oninput=()=>{ shopQ=sq.value; shopFam=''; refocus='shop-q';
+    clearTimeout(shopSearchT);
+    shopSearchT=setTimeout(render, shopScope==='all'?200:60);   /* every-shop search scans ~100k rows — don't do it per keystroke */
+  }; }
   pane.querySelectorAll('[data-fam]').forEach(b=>b.onclick=()=>{ shopFam=b.dataset.fam; render(); });
   pane.querySelectorAll('[data-scope]').forEach(b=>b.onclick=()=>{
     shopScope=b.dataset.scope; shopFam='';
@@ -4066,23 +4094,29 @@ function renderPaste(){
         method:'POST',headers:apiHeaders({'Content-Type':'application/json'}),
         body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:
           'Parse this recipe into JSON. Respond with ONLY the JSON object, no markdown fences, no preamble. Shape: {"name":string,"blurb":"one short sentence describing the dish, written in your own words","makesQty":number,"makesUnit":"servings or ml or pancake etc","kcal":integer estimate of total calories for the whole recipe,"ingredients":[{"qty":number or null,"unit":"tsp/Tbsp/cup/g/ml or empty","name":"specific ingredient name"}],"method":["each step rewritten concisely in your own words"]} . Use null qty for garnish/optional/free-text lines. Recipe text follows:\n\n'+txt}]})});
+      if(!resp.ok) throw new Error('http '+resp.status);
       const data=await resp.json();
       const raw=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
       const p=JSON.parse(raw.replace(/```json|```/g,'').trim());
       if(!p||!p.name||!Array.isArray(p.ingredients)) throw new Error('shape');
+      const qOf=q=>(q==null||q==='')?null:(Number.isFinite(+q)?+q:null);
       draft={_isNew:true,img:null,
         name:String(p.name),blurb:String(p.blurb||''),
         icon:guessIcon({name:p.name,ingredients:p.ingredients}),
         kcal:Number.isFinite(+p.kcal)?Math.round(+p.kcal):null,
         makesQty:Number.isFinite(+p.makesQty)?+p.makesQty:2,
         makesUnit:String(p.makesUnit||'servings'),
-        ingredients:p.ingredients.map(i=>({qty:Number.isFinite(+i.qty)?+i.qty:null,unit:String(i.unit||''),name:String(i.name||'')})).filter(i=>i.name),
+        ingredients:p.ingredients.map(i=>({qty:qOf(i.qty),unit:String(i.unit||''),name:String(i.name||'')})).filter(i=>i.name),
         method:(p.method||[]).map(String).filter(Boolean)};
       pasteBusy=false; pasteText=''; mode='recipe'; editing=true; render();
       toast('Check it over, then save');
     }catch(e){
       pasteBusy=false; render();
-      banner('Could not make sense of that text as a recipe. Ingredients plus method usually does it.');
+      const m=String(e&&e.message||e);
+      banner(/http 401/.test(m) ? 'The recipe importer needs the owner key — open the app from your ?k=… link first.'
+        : /http 501/.test(m) ? 'The recipe importer is not set up on this deployment (no AI key).'
+        : /http 5\d\d|http 4\d\d/.test(m) ? 'The importer service had a problem — try again in a moment.'
+        : 'Could not make sense of that text as a recipe. Ingredients plus method usually does it.');
     }
   };
 }
@@ -4108,6 +4142,9 @@ function openRecipe(id){
    file so there is a single copy of the app to maintain. */
 const ROUTES=['home','recipes','fridge','grocery','plan','shop','settings'];
 let routing=false;                    /* guards against hashchange feedback loops */
+let booting=true;                     /* true until saved data has hydrated; keeps
+                                        syncHash from rewriting a deep link to #/
+                                        before the recipe it points at exists */
 
 function hashFor(){
   if(SHARE) return null;
@@ -4117,7 +4154,7 @@ function hashFor(){
   return ROUTES.includes(mode)?'#/'+mode:'#/';
 }
 function syncHash(){
-  if(SHARE) return;
+  if(SHARE||booting) return;
   const h=hashFor();
   if(!h || location.hash===h) return;
   /* pushState changes the URL WITHOUT firing hashchange, so the app's own
@@ -4133,6 +4170,9 @@ function applyHash(){
   if(m){
     const id=decodeURIComponent(m[1]);
     if(find(id)){ if(id!==currentId) resetRecipeView(); currentId=id; mode='recipe'; editing=false; return; }
+    /* recipe not loaded yet — hold the route so the bookmark still resolves once
+       saved recipes arrive, rather than snapping to Home */
+    if(booting){ currentId=id; mode='recipe'; editing=false; return; }
   }
   const seg=h.split('/')[0];
   mode = ROUTES.includes(seg) ? seg : 'home';
@@ -4219,30 +4259,48 @@ $('#import-file').onchange=e=>{
   const f=e.target.files[0]; if(!f) return;
   const fr=new FileReader();
   fr.onload=async()=>{
+    /* stage the whole backup into a clean object first — a field that is present
+       but the wrong type rejects the whole file, so a malformed backup can never
+       half-apply or silently blank a store */
+    let staged;
     try{
       const d=JSON.parse(fr.result);
+      const arr=(v,name)=>{ if(v===undefined) return []; if(!Array.isArray(v)) throw new Error(name+' is not a list'); return v; };
+      const obj=(v,name)=>{ if(v===undefined) return {}; if(!v||typeof v!=='object'||Array.isArray(v)) throw new Error(name+' is not an object'); return v; };
+      staged={};
       if(Array.isArray(d)||Array.isArray(d.recipes)){        /* older backup: one flat list */
         const list=Array.isArray(d)?d:d.recipes;
         const ids=new Set(seed().map(s=>s.id));
-        mine=list.filter(r=>!ids.has(r.id));
-        overrides={}; list.filter(r=>ids.has(r.id)).forEach(r=>{ const p=diffFromSeed(r.id,r); if(p) overrides[r.id]=p; });
+        staged.mine=list.filter(r=>r&&!ids.has(r.id));
+        staged.overrides={}; list.filter(r=>r&&ids.has(r.id)).forEach(r=>{ const p=diffFromSeed(r.id,r); if(p) staged.overrides[r.id]=p; });
       }else{
-        mine=d.mine||[]; overrides=d.overrides||{};
+        staged.mine=arr(d.mine,'recipes'); staged.overrides=obj(d.overrides,'overrides');
       }
-      removed=Array.isArray(d.removed)?d.removed:[];
-      if(d.fridge) fridge=d.fridge; if(d.grocery) grocery=d.grocery;
-      if(d.plan) plan=d.plan; if(d.todos) todos=d.todos; if(d.foodPrefs) foodPrefs=d.foodPrefs;
-      if(d.menu) menu=d.menu;
-      if(d.nbdFav) nbdFav=d.nbdFav; if(d.nbdRecent) nbdRecent=d.nbdRecent;
-      if(Array.isArray(d.cookedIds)) cookedIds=d.cookedIds;
-      if(d.basket) basket=d.basket; if(d.shopHist) shopHist=d.shopHist;
-      rebuild(); currentId=recipes[0]?.id??null;
-  editing=false; mode='recipes';
-      await saveRecipeStores(); await saveFridge(); await saveGrocery();
-      await savePlan(); await saveTodos(); await savePrefs(); await saveMenu();
-      await saveNbdFav(); await saveNbdRecent(); await saveCooked();
+      if(!staged.mine.every(r=>r&&typeof r.id==='string'&&typeof r.name==='string')) throw new Error('recipe entries are malformed');
+      staged.removed=arr(d.removed,'removed').filter(x=>typeof x==='string');
+      staged.fridge=arr(d.fridge,'fridge'); staged.grocery=arr(d.grocery,'grocery list');
+      staged.plan=obj(d.plan,'meal plan'); staged.todos=arr(d.todos,'to-dos'); staged.foodPrefs=obj(d.foodPrefs,'food prefs');
+      staged.menu=arr(d.menu,'menu'); staged.nbdFav=arr(d.nbdFav,'NBD favourites'); staged.nbdRecent=arr(d.nbdRecent,'NBD recent');
+      staged.cookedIds=arr(d.cookedIds,'cooked ids').filter(x=>typeof x==='string');
+      staged.basket=obj(d.basket,'baskets'); staged.shopHist=obj(d.shopHist,'shop history');
+    }catch(err){ banner('That backup could not be read — '+(err&&err.message||'unrecognised format')+'. Nothing was changed.'); return; }
+
+    const before={mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,menu,nbdFav,nbdRecent,cookedIds,basket,shopHist};
+    try{
+      ({mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,menu,nbdFav,nbdRecent,cookedIds,basket,shopHist}=staged);
+      rebuild(); currentId=recipes[0]?.id??null; editing=false; mode='recipes';
+      /* persist every restored store as one batch — baskets and history included */
+      await Promise.all([
+        saveRecipeStores(), saveFridge(), saveGrocery(), savePlan(), saveTodos(),
+        savePrefs(), saveMenu(), saveNbdFav(), saveNbdRecent(), saveCooked(),
+        saveBasket(), saveHist()
+      ]);
       render(); toast('Restored '+recipes.length+' recipes');
-    }catch(err){ banner('That file is not a Half Baked backup. Pick the .json you downloaded from here.'); }
+    }catch(err){
+      ({mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,menu,nbdFav,nbdRecent,cookedIds,basket,shopHist}=before);
+      rebuild(); render();
+      banner('The backup could not be applied cleanly — nothing was changed. '+(err&&err.message||err));
+    }
   };
   fr.readAsText(f); e.target.value='';
 };
@@ -4352,11 +4410,13 @@ async function doReset(){
     if(SHARE_ID && find(SHARE_ID)) currentId=SHARE_ID;
   } else {
     if(!userNavigated) applyHash();   /* user recipes now exist, so a deep link to one resolves */
-    if(currentId==null) currentId=recipes[0]?.id??null;
+    if((currentId==null||(mode==='recipe'&&!find(currentId)))) { currentId=recipes[0]?.id??null; if(mode==='recipe'&&!currentId) mode='home'; }
   }
+  booting=false;                      /* hydration done — the URL may track state again */
   render();
  }catch(e){
   /* whatever went wrong, still show the app rather than a blank page */
+  booting=false;
   try{ rebuild(); currentId=recipes[0]?.id??null;
   mode='home'; render(); }catch(_){}
   banner('Something went wrong starting up: '+(e&&e.message||e)+'. Your data is safe; try reloading.');
