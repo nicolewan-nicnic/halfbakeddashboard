@@ -1414,8 +1414,7 @@ let anchorOpt=null;
    backwards from the depth the recipe was written for. */
 let tins=null, tinMode='even';
 let shopStore='waitrose-barnet', shopCat=null, shopQ='', shopBusy=false, shopErr='';
-let basket={}, shopHist={}, shopSplit=null, shopFam='';
-let shopManualSplit=null;   /* [[unit,…],…] once the user has moved items between orders by hand; null = automatic */
+let basket={}, shopHist={}, shopFam='';
 let shopScope='store', allCat=null, allBusy=false, topsOpen=false;
 let putAwayList=null, basketQ='';
 let editingPriceIdx=null;   /* basket row (index into bask()) whose price is being corrected, or null */
@@ -3917,122 +3916,48 @@ function planOrders(k){
   g.push(last);
   return g.filter((o,i)=>o.items.length||i===0);
 }
-function maxOrders(){ return Math.max(1, bask().reduce((a,i)=>a+i.qty,0)); }
 function autoSplit(){ return Math.max(1, Math.floor(basketTotal()/MIN_ORDER)); }
 
-/* You can lump the basket into FEWER orders, never more than the total can fund:
-   three orders of £15 need £45 in the basket, full stop. autoSplit() is that
-   ceiling, so a stale shopSplit from a bigger basket can't ask for the impossible. */
-function splitCount(){ return Math.min(shopSplit||autoSplit(), autoSplit(), maxOrders()); }
-
-/* The orders as shown: the automatic pack, unless the user has moved items
-   between orders by hand (shopManualSplit). The manual arrangement is dropped
-   the moment it no longer matches the basket or the chosen order count. */
-function currentOrders(){
-  const k=splitCount();
-  if(shopManualSplit){
-    const flat=shopManualSplit.flat();
-    const okCount = flat.length === bask().reduce((a,i)=>a+i.qty,0);
-    const okTotal = Math.abs(flat.reduce((a,u)=>a+u.price,0) - basketTotal()) < 0.01;
-    if(shopManualSplit.length===k && okCount && okTotal)
-      return shopManualSplit.map(items=>({items:items.slice(),total:items.reduce((a,u)=>a+u.price,0)}));
-    shopManualSplit=null;
-  }
-  return planOrders(k);
+/* As many close-to-£15 orders as the basket can fund, with genuine leftover —
+   whatever doesn't complete another order — left as plain, still-editable
+   basket items rather than forced into whichever order happens to be last.
+   No new packing algorithm: planOrders(n+1)'s final slot already has no £15
+   requirement of its own, which is exactly what a leftover pool is, so the
+   first n slots become the carved orders and the (n+1)th becomes leftover.
+   Returns nothing to offer when there's only one order and nothing spare —
+   #shop-done already covers "take the whole basket as one order" for that
+   case, and repeating it here would just be a second way to say the same
+   thing (the "dodgy" duplication from before). */
+function carveOrders(){
+  if(basketTotal()<MIN_ORDER) return {orders:[],leftover:null};
+  const n=autoSplit();
+  const all=planOrders(n+1);
+  const orders=all.slice(0,n).filter(o=>o.items.length);
+  const leftover=all[n]&&all[n].items.length?all[n]:null;
+  if(orders.length<=1&&!leftover) return {orders:[],leftover:null};
+  return {orders,leftover};
 }
-function moveOrderItem(oi,idx,dir){
-  const k=splitCount(), target=oi+dir;
-  if(target<0||target>=k) return;
-  if(!shopManualSplit){                       /* freeze the current split, then start moving */
-    const auto=planOrders(k);
-    shopManualSplit=Array.from({length:k},(_,i)=>auto[i]?auto[i].items.slice():[]);
-  }
-  const [u]=shopManualSplit[oi].splice(idx,1);
-  if(u) shopManualSplit[target].push(u);
-  render();
-}
-/* "Take one order out now, leave the rest for next time" — different from
-   everything else on this page: renderSplit() and #shop-done both commit the
-   WHOLE basket, to one order or several. This carves out only the tightest
-   possible single order and leaves everything else exactly where it is, still
-   a plain editable basket, for a later shop. planOrders(2)'s second "order" is
-   already built to absorb whatever's left with no £15 requirement of its own
-   — that's precisely "leftover for next time", so this reuses it rather than
-   inventing a second packing algorithm. Returns null when there's nothing
-   meaningful to leave behind (one big item already clears £15 alone, or the
-   whole basket barely clears it) — offering to "carve" would just be a second
-   way to say what #shop-done already does. */
-function carveOneOrder(){
-  if(basketTotal()<MIN_ORDER) return null;
-  const two=planOrders(2);
-  if(two.length<2||!two[1].items.length) return null;
-  return {order:two[0], leftover:two[1]};
-}
-function renderCarveOne(){
-  const c=carveOneOrder(); if(!c) return '';
-  const over=c.order.total-MIN_ORDER;
+function renderCarveMany(){
+  const {orders,leftover}=carveOrders(); if(!orders.length) return '';
+  const many=orders.length>1;
   return `<div class="useup" style="margin-top:16px">
-    <h4>Or just take one order for now</h4>
-    <p class="hint" style="margin:2px 0 8px">£${c.order.total.toFixed(2)} now, £${c.leftover.total.toFixed(2)} stays in the basket for next time.</p>
-    <div class="order ok">
-      <h5><b>£${c.order.total.toFixed(2)}</b>
-        ${over>=0.005?`<span class="chip">over by £${over.toFixed(2)}</span>`:`<span class="chip">right on £${MIN_ORDER}</span>`}</h5>
-      <ul>${c.order.items.map(i=>`<li class="single"><span class="oi-name">${esc(i.name)}</span><span class="b-price">£${i.price.toFixed(2)}</span></li>`).join('')}</ul>
-      <button class="link-btn" id="carve-go">Order lined up — leave the rest for next time</button>
-    </div>
-  </div>`;
-}
-function renderSplit(){
-  /* Nothing to split unless the basket can fund at least two £15 orders. Below
-     that, renderShop's single-order "Tips it over £15" panel is the whole story —
-     showing the multi-order UI here is what produced the "2 orders selected but
-     only 1 shown / won't fill more" contradiction on a sub-£15 basket. */
-  const feasible=autoSplit();
-  if(feasible<2||maxOrders()<2) return '';
-  const want=splitCount(), orders=currentOrders();
-  const k=Math.min(want,orders.length), mx=Math.min(4,feasible);
-  const choices=[]; for(let n=1;n<=mx;n++) choices.push(n);
-  return `<div class="split">
-    <div class="split-head">
-      <span class="batch-label">Split into</span>
-      <div class="calc-presets">${choices.map(n=>`
-        <button class="ball" data-split="${n}" aria-pressed="${k===n}">${n} order${n===1?'':'s'}</button>`).join('')}</div>
-      ${shopManualSplit?`<button class="link-btn" id="split-auto">back to automatic</button>`
-        :shopSplit?`<button class="link-btn" id="split-auto">back to automatic</button>`
-        :`<span class="calc-sync">automatic — ${autoSplit()} order${autoSplit()===1?'':'s'} clears the minimum</span>`}
-    </div>
-    ${!shopManualSplit&&want>k?`<p class="calc-sync" style="margin:2px 0 0">Splits into ${k} — the rest of the basket can't reach £${MIN_ORDER}. Use the arrows to rearrange.</p>`:''}
-    ${k===1
-      /* Consolidated to one order, the "order" IS the whole basket — the item list
-         with its qty steppers, and the "Order lined up" button, are both already
-         on screen just above (renderShop's basket list and its #shop-done button,
-         which does exactly what this order's data-placed would). Repeating both
-         here as a second, sparser copy — no steppers, a second identical button —
-         was the "dodgy" duplication. Nothing left to show but the chooser above. */
-      ? ''
-      : `<p class="calc-sync" style="margin:2px 0 6px">Use the ‹ › arrows on an item to shift it to the next order and land each one on £${MIN_ORDER} by hand.</p>
+    <h4>${many?`Or take ${orders.length} orders out now`:'Or just take one order for now'}</h4>
+    <p class="hint" style="margin:2px 0 8px">${leftover?`£${leftover.total.toFixed(2)} stays in the basket for next time.`:'Nothing is left over — this covers the whole basket.'}</p>
     <div class="orders">${orders.map((o,n)=>{
-      const short=MIN_ORDER-o.total, tops=topUps(o.total,o.items.map(x=>x.name),topsOpen);
+      const short=MIN_ORDER-o.total, tops=topUps(o.total,o.items.map(x=>x.name),false);
       const over=o.total-MIN_ORDER;
       return `<div class="order ${o.total>=MIN_ORDER-0.005?'ok':'under'}">
-        <h5>Order ${n+1} <b>£${o.total.toFixed(2)}</b>
+        <h5>${many?`Order ${n+1} `:''}<b>£${o.total.toFixed(2)}</b>
           ${over>=0.005?`<span class="chip">over by £${over.toFixed(2)}</span>`
             :over>-0.005?`<span class="chip">right on £${MIN_ORDER}</span>`
             :`<span class="chip soon">£${short.toFixed(2)} to go</span>`}</h5>
-        <ul>${o.items.map((i,ii)=>`<li>
-          <button class="ord-move" data-mv="${n}|${ii}|-1" aria-label="Move ${esc(i.name)} to order ${n}" ${n===0?'disabled':''}>‹</button>
-          <span class="oi-name">${esc(i.name)}</span>
-          <span class="b-price">£${i.price.toFixed(2)}</span>
-          <button class="ord-move" data-mv="${n}|${ii}|1" aria-label="Move ${esc(i.name)} to order ${n+2}" ${n===k-1?'disabled':''}>›</button>
-        </li>`).join('')||'<li class="empty" style="border:0;padding:6px 0">empty — move items in with ›</li>'}</ul>
+        <ul>${o.items.map(i=>`<li class="single"><span class="oi-name">${esc(i.name)}</span><span class="b-price">£${i.price.toFixed(2)}</span></li>`).join('')}</ul>
         ${short>0?(tops.length?`<div class="order-tops"><span class="picker-label" style="margin:0 0 4px">Add one of these</span>
-          ${(topsOpen?tops.slice(0,12):tops.slice(0,3)).map(t=>`<button class="ball" data-top="${esc(t.name)}|${t.price}|${esc(t.size||'')}">
-            ${t.staple?'★ ':''}${esc(t.name.length>30?t.name.slice(0,28)+'…':t.name)} <span class="n">£${t.price.toFixed(2)}${t.offer?' · offer':''}</span></button>`).join('')}
-          ${tops.length>3?`<button class="link-btn" id="tops-more2">${topsOpen?'fewer':'more options'}</button>`:''}</div>`
+          ${tops.slice(0,3).map(t=>`<button class="ball" data-top="${esc(t.name)}|${t.price}|${esc(t.size||'')}">
+            ${t.staple?'★ ':''}${esc(t.name.length>30?t.name.slice(0,28)+'…':t.name)} <span class="n">£${t.price.toFixed(2)}${t.offer?' · offer':''}</span></button>`).join('')}</div>`
           :`<p class="hint" style="margin:6px 0 0">Nothing in this shop lands neatly on the gap — add something by hand.</p>`)
-        :`<button class="link-btn" data-placed="${n}">Order lined up — set it aside</button>`}
-      </div>`;}).join('')}</div>`
-    }
+        :`<button class="link-btn" data-carve="${n}">Order lined up${leftover||many?' — leave the rest for next time':''}</button>`}
+      </div>`;}).join('')}</div>
   </div>`;
 }
 /* Placed-order items waiting for the fridge. Accumulates across several orders
@@ -4301,11 +4226,9 @@ function renderShop(){
         <button class="pill" id="pl-skip">Not this time</button>
       </div></div>`:''}
 
-    ${items.length?renderCarveOne():''}
+    ${items.length?renderCarveMany():''}
 
-    ${items.length?renderSplit():''}
-
-    ${short>0&&tops.length&&splitCount()===1?`<div class="useup" style="margin-top:20px"><h4>Tips it over £${MIN_ORDER}</h4>
+    ${short>0&&tops.length?`<div class="useup" style="margin-top:20px"><h4>Tips it over £${MIN_ORDER}</h4>
       <ul class="topups">${(topsOpen?tops:tops.slice(0,4)).map(t=>`
         <li><button data-top="${esc(t.name)}|${t.price}|${esc(t.size||'')}">
           <span class="t-name">${t.staple?'★ ':''}${esc(t.name)} ${priceBadge(t,t.overridden)}</span>
@@ -4333,9 +4256,9 @@ function renderShop(){
 
   const back=$('#back'); if(back) back.onclick=()=>{ mode='home'; render(); };
   pane.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>{
-    shopStore=b.dataset.jump; basketQ=''; shopSplit=null; shopManualSplit=null; shopCat=null; loadCatalogue(shopStore); });
+    shopStore=b.dataset.jump; basketQ=''; shopCat=null; loadCatalogue(shopStore); });
   pane.querySelectorAll('[data-store]').forEach(b=>b.onclick=()=>{
-    shopStore=b.dataset.store; shopQ=''; shopSplit=null; shopManualSplit=null; refocus='shop-store'; editingPriceIdx=null;
+    shopStore=b.dataset.store; shopQ=''; refocus='shop-store'; editingPriceIdx=null;
     if(shopStore===BOOTS_SLUG){ shopCat=null; loadBootsProducts(); } else loadCatalogue(shopStore); });
   if(refocus==='shop-store' && !shopBusy){ refocus=null;
     pane.querySelector('.shop-stores .ball[aria-pressed="true"]')?.scrollIntoView({inline:'center',block:'nearest'}); }
@@ -4367,7 +4290,7 @@ function renderShop(){
     if(ex) ex.qty++; else bask().push({name:n,price:+p,size:s||'',qty:1});
     bump(slug,n,'a');
     await saveBasket(); await saveHist();
-    if(prev!==slug){ shopCat=null; shopSplit=null; shopManualSplit=null; loadCatalogue(slug); }
+    if(prev!==slug){ shopCat=null; loadCatalogue(slug); }
     else render();
     toast('Added to the '+(STORES.find(x=>x[0]===slug)||[,slug])[1]+' basket');
   });
@@ -4430,19 +4353,12 @@ function renderShop(){
   };
   const mn=$('#man-name'); if(mn) mn.onkeydown=e=>{ if(e.key==='Enter') $('#man-price').focus(); };
   const mp=$('#man-price'); if(mp) mp.onkeydown=e=>{ if(e.key==='Enter') ma.click(); };
-  pane.querySelectorAll('[data-split]').forEach(b=>b.onclick=()=>{ shopSplit=Number(b.dataset.split); shopManualSplit=null; render(); });
-  const sa=$('#split-auto'); if(sa) sa.onclick=()=>{ shopSplit=null; shopManualSplit=null; render(); };
-  pane.querySelectorAll('[data-mv]').forEach(b=>b.onclick=()=>{
-    const [oi,idx,dir]=b.dataset.mv.split('|').map(Number); moveOrderItem(oi,idx,dir);
-  });
-  pane.querySelectorAll('[data-placed]').forEach(b=>b.onclick=async()=>{
-    const o=currentOrders()[+b.dataset.placed];
+  pane.querySelectorAll('[data-carve]').forEach(b=>b.onclick=async()=>{
+    const o=(carveOrders().orders)[+b.dataset.carve];
     if(!o||!o.items.length) return;
     snapshot();
     lineUpOrder(shopStore,o.items);
-    takeUnitsFromBasket(shopStore,o.items);
-    shopSplit=null;                           /* let the split recompute from what's left, don't decrement a stale count */
-    shopManualSplit=null;                     /* the arrangement is spent once an order is lined up */
+    takeUnitsFromBasket(shopStore,o.items);   /* only these units leave the basket — everything else stays put */
     await saveBasket(); await saveShopOrders(); render();
     toast('Order lined up', true);
   });
@@ -4467,18 +4383,8 @@ function renderShop(){
     snapshot();
     lineUpOrder(shopStore,items);
     basket[shopStore]=[];
-    shopSplit=null; shopManualSplit=null;
     await saveBasket(); await saveShopOrders(); render();
     toast('Order lined up', true);
-  };
-  const cg=$('#carve-go'); if(cg) cg.onclick=async()=>{
-    const c=carveOneOrder(); if(!c) return;
-    snapshot();
-    lineUpOrder(shopStore,c.order.items);
-    takeUnitsFromBasket(shopStore,c.order.items);   /* only these units leave the basket — the rest stays put */
-    shopSplit=null; shopManualSplit=null;
-    await saveBasket(); await saveShopOrders(); render();
-    toast('Order lined up — the rest is still in the basket', true);
   };
   const sc=$('#shop-clear'); if(sc) sc.onclick=async()=>{ snapshot();
     bask().forEach(i=>unbump(shopStore,i.name,i.qty));
@@ -4541,7 +4447,7 @@ function renderShopOrders(){
     const store=await dissolveOrder(b.dataset.unlock2); if(!store) return;
     mode='shop';
     if(store!==shopStore){
-      shopStore=store; shopCat=null; shopSplit=null; shopManualSplit=null;
+      shopStore=store; shopCat=null;
       if(shopStore===BOOTS_SLUG) loadBootsProducts(); else loadCatalogue(shopStore);
     }
     render();
