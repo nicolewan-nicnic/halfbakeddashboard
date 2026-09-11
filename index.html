@@ -3674,6 +3674,42 @@ function unitPrice(price,size){
   if(u==='cl') return {v:price/(n/100),  u:'L'};
   return null;
 }
+
+/* Whole-egg cartons: a search for "eggs" turns up "egg noodles" and "egg
+   mayonnaise" just as readily as an actual dozen eggs. Recognise the real
+   cartons by name (not by the shop's own category — that's too coarse, and
+   one mis-scraped row had "Eggs" as its category despite being cans of
+   energy drink) so they can be pushed to the top and priced per egg. Liquid
+   egg, egg white, egg pots and the like are still "eggs" but there's no
+   honest way to say what one unit costs, so they're excluded rather than
+   guessed at. */
+const EGG_NOT_A_CARTON=/noodle|fried rice|\bmayo\b|mayonnaise|custard|creme egg|cadbury|meringue|quiche|benedict|florentine|sandwich|\bwrap\b|\bsalad\b|sushi|onigiri|frittata|omelette|pancake|waffle|batter|\bnog\b|liqueur|scotch egg|picnic egg|\bnest\b|chocolate|easter|marshmallow|\bmini\b|liquid egg|egg white|egg alternative|aquafaba|egg pot|boiled egg|egg powder|dried egg|egg yolk/i;
+function eggCount(name,size){
+  const words=String(name||'').toLowerCase().split(/\s+/);
+  const eggIdx=words.findIndex(w=>/^eggs?[.,]?$/.test(w));
+  if(eggIdx===-1) return null;
+  let best=null,bestDist=Infinity;
+  words.forEach((w,i)=>{
+    const m=w.match(/^(\d{1,2})(?:s|pk|pack)?[.,]?$/);
+    if(!m) return;
+    const n=parseInt(m[1],10);
+    if(n<1||n>30) return;
+    const d=Math.abs(i-eggIdx);
+    if(d<bestDist){ bestDist=d; best=n; }
+  });
+  if(best==null&&size){ const m=String(size).match(/^(\d{1,2})pk$/i); if(m) best=parseInt(m[1],10); }
+  return best;
+}
+/* {count, perEgg} for a real carton, or null for anything else (including
+   an egg product with no discoverable count — still "an egg thing", just
+   not one we can price per egg). */
+function eggInfo(item){
+  const name=String(item.name||'');
+  if(!/\begg/i.test(name)) return null;
+  if(EGG_NOT_A_CARTON.test(name)) return null;
+  const count=eggCount(name,item.size);
+  return {count, perEgg:count?item.price/count:null};
+}
 async function loadAllCatalogues(){
   if(allCat||allBusy) return;
   allBusy=true; render();
@@ -3707,8 +3743,16 @@ function searchEverywhere(q){
   const hits=[];
   for(const slug in allCat)
     for(const i of allCat[slug]) if(i.name.toLowerCase().includes(q)) hits.push(i);
-  hits.forEach(i=>{ i.up=unitPrice(i.price,i.size); });
+  hits.forEach(i=>{ i.up=unitPrice(i.price,i.size); i.egg=eggInfo(i); });
+  const eggQuery=/\begg/.test(q);
   hits.sort((a,b)=>{
+    if(eggQuery){
+      const ap=a.egg&&a.egg.perEgg!=null, bp=b.egg&&b.egg.perEgg!=null;
+      if(ap&&bp) return a.egg.perEgg-b.egg.perEgg;
+      if(ap!==bp) return ap?-1:1;
+      const ac=a.egg?1:0, bc=b.egg?1:0;
+      if(ac!==bc) return bc-ac;
+    }
     if(a.up&&b.up&&a.up.u===b.up.u) return a.up.v-b.up.v;
     if(a.up&&!b.up) return -1;
     if(!a.up&&b.up) return 1;
@@ -4080,9 +4124,23 @@ function renderShop(){
     .sort((a,b)=>(b[1].b*4+b[1].a)-(a[1].b*4+a[1].a)).slice(0,8);
   const q=shopQ.trim().toLowerCase();
   const results=(q.length>1&&shopScope==='store'&&shopCat)
-    ? shopCat.items.filter(i=>i.name.toLowerCase().includes(q)).slice(0,60)
-        .map(i=>({...i,price:priceFor(shopStore,i.name,i.price),
-          overridden:!!(priceOverrides[shopStore]&&priceOverrides[shopStore][i.name]!=null)}))
+    ? (()=>{
+        const list=shopCat.items.filter(i=>i.name.toLowerCase().includes(q))
+          .map(i=>({...i,price:priceFor(shopStore,i.name,i.price),
+            overridden:!!(priceOverrides[shopStore]&&priceOverrides[shopStore][i.name]!=null)}));
+        list.forEach(i=>{ i.egg=eggInfo(i); });
+        /* Only reorder for an actual egg search — a real carton of eggs
+           first, cheapest per egg first among those, everything else
+           (egg noodles, egg mayo…) pushed after in its usual order. */
+        if(/\begg/.test(q)) list.sort((a,b)=>{
+          const ap=a.egg&&a.egg.perEgg!=null, bp=b.egg&&b.egg.perEgg!=null;
+          if(ap&&bp) return a.egg.perEgg-b.egg.perEgg;
+          if(ap!==bp) return ap?-1:1;
+          const ac=a.egg?1:0, bc=b.egg?1:0;
+          return bc-ac;
+        });
+        return list.slice(0,60);
+      })()
     : [];
   const gResults=(q.length>1&&shopScope==='all') ? searchEverywhere(q) : [];
   const tops=topUps(total,[],true);
@@ -4129,7 +4187,17 @@ function renderShop(){
       results.forEach(i=>{ const f=famOf(i.cat);
         if(!groups.has(f[0])) groups.set(f[0],{fam:f,items:[]});
         groups.get(f[0]).items.push(i); });
-      const order=FAMS.filter(f=>groups.has(f[0]));
+      let order=FAMS.filter(f=>groups.has(f[0]));
+      /* An egg search sorts items within each family, but a genuine carton
+         sitting in "Dairy & chilled" is still no use to someone if a
+         false-start like "Meat & fish" (vegetarian egg alternatives) prints
+         above it — sort the families themselves so any with a real carton
+         come first. */
+      if(/\begg/.test(q)) order=[...order].sort((a,b)=>{
+        const ac=groups.get(a[0]).items.some(i=>i.egg&&i.egg.perEgg!=null)?1:0;
+        const bc=groups.get(b[0]).items.some(i=>i.egg&&i.egg.perEgg!=null)?1:0;
+        return bc-ac;
+      });
       return `<div class="fam-filter">
           <button class="ball ${shopFam?'':'on'}" data-fam="" aria-pressed="${!shopFam}">all ${results.length}</button>
           ${order.map(f=>`<button class="ball fam-${f[3]} ${f[4]?'solid':'hollow'}" data-fam="${f[0]}" aria-pressed="${shopFam===f[0]}">
@@ -4141,10 +4209,11 @@ function renderShop(){
             g.items.map(i=>{ const staple=isStaple(shopStore,i.name);
               return `<li class="fam-${f[3]} ${f[4]?'solid':'hollow'}">
               <button data-add="${esc(i.name)}|${i.price}|${esc(i.size||'')}">
-                <span class="r-name">${esc(i.name)}</span>
+                <span class="r-name">${esc(i.name)}${i.egg&&i.egg.count?` <span class="chip">${i.egg.count} eggs</span>`:''}</span>
                 <span class="r-cat">${esc(i.cat)}</span>
                 <span class="r-size">${esc(i.size||'')}</span>
                 ${priceBadge(i,i.overridden)}${wasPriceHTML(i,i.overridden)}
+                ${i.egg&&i.egg.perEgg!=null?`<span class="r-unit">${(i.egg.perEgg*100).toFixed(0)}p/egg</span>`:''}
                 <span class="r-price">£${i.price.toFixed(2)}</span></button>
               <button class="star-btn" type="button" data-staple="${esc(i.name)}" aria-pressed="${staple}"
                 aria-label="${staple?'Stop always adding '+esc(i.name):'Always add '+esc(i.name)+' to top up an order'}">${staple?'★':'☆'}</button>
@@ -4167,13 +4236,14 @@ function renderShop(){
 
     ${shopScope==='all'?(gResults.length?(()=>{
       const shown=gResults.slice(0,60);
-      const best=shown.find(i=>i.up);
+      const bestEgg=shown.find(i=>i.egg&&i.egg.perEgg!=null);
+      const best=bestEgg||shown.find(i=>i.up);
       return `<ul class="results compare">${shown.map(i=>`
         <li class="${i===best?'best':''}"><button data-gadd="${esc(i.slug)}|${esc(i.name)}|${i.price}|${esc(i.size||'')}">
-          <span class="r-name">${esc(i.name)}${i===best?' <span class="chip">cheapest per '+i.up.u+'</span>':''}</span>
+          <span class="r-name">${esc(i.name)}${i.egg&&i.egg.count?` <span class="chip">${i.egg.count} eggs</span>`:''}${i===best?` <span class="chip">cheapest per ${bestEgg?'egg':i.up.u}</span>`:''}</span>
           <span class="r-store">${esc(i.store)}</span>
           <span class="r-size">${esc(i.size||'')}</span>
-          <span class="r-unit">${i.up?'£'+i.up.v.toFixed(2)+'/'+i.up.u:'—'}</span>
+          <span class="r-unit">${i.egg&&i.egg.perEgg!=null?(i.egg.perEgg*100).toFixed(0)+'p/egg':(i.up?'£'+i.up.v.toFixed(2)+'/'+i.up.u:'—')}</span>
           <span class="r-price">£${i.price.toFixed(2)}</span></button></li>`).join('')}</ul>
         ${gResults.length>60?`<p class="hint">Showing the 60 best value of ${gResults.length} matches.</p>`:''}`;})()
       :(q.length>1&&allCat?`<p class="home-none" style="margin-top:10px">Nothing matching that in any shop.</p>`
