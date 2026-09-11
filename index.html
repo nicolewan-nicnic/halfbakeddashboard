@@ -25,7 +25,14 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
-body{background:var(--ivory);color:var(--crumb);font-family:var(--body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+body{background:var(--ivory);color:var(--crumb);font-family:var(--body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;
+  /* Names come from the user, a pasted recipe or a shop's price list, and a long
+     unbroken one (no spaces) used to paint straight out of its box and give the
+     whole page a horizontal scrollbar. Inherited, so this covers every name.
+     `anywhere` rather than `break-word` because most of these sit in flex rows:
+     break-word leaves the min-content width intact, so the flex item still grew
+     to fit the whole word and pushed the page wide anyway. */
+  overflow-wrap:anywhere}
 button,input,textarea{font-family:inherit;font-size:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:2.5px solid var(--orange);outline-offset:3px;border-radius:5px}
@@ -175,7 +182,10 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
 .edit-actions{display:flex;gap:10px;margin-top:26px}
 
 .utility{display:flex;gap:8px 18px;flex-wrap:wrap;margin-top:30px;padding-top:22px;background:var(--wave) repeat-x top left}
-.link-btn{background:none;border:0;padding:0;font-size:13px;color:var(--rye);text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1.5px}
+/* padding + matching negative margin: the tap target grows to ~28px (WCAG 2.5.8
+   wants 24) while the text sits exactly where it did before. Vertical only, so
+   two link buttons side by side can't end up with overlapping hit areas. */
+.link-btn{background:none;border:0;padding:6px 0;margin:-6px 0;font-size:13px;color:var(--rye);text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1.5px}
 .link-btn:hover{color:var(--orange)}
 .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);background:var(--sage);color:var(--ivory);padding:11px 20px;border-radius:var(--wob3);font-size:14px;font-weight:500;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:60}
 .toast.show{opacity:1;transform:translate(-50%,0)}
@@ -523,6 +533,13 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
   .search{width:100%;flex:none}
   .card-head .thumb{width:76px;height:76px}
 }
+/* Two grid columns leave the "Amount" cell about 140px, and the fixed 80px
+   number input plus its border and padding takes 113 of that — the unit select
+   was rendering 27px wide, too narrow to read "pack" or to tap. One column. */
+@media (max-width:560px){
+  .add-item{grid-template-columns:1fr}
+  .unitrow input{width:96px}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 @media print{
   .shelf,.head-actions,.dough,.custom,.batch-label,.calc,.cook-actions,.cookoff,.pantry-line,
@@ -593,6 +610,11 @@ const API_BASE = '/api/kv';                    /* '' = this device · '/api/kv' 
    (api/ai.js) so the API key never reaches the browser. The direct endpoint is
    only a fallback for running with no server, where the feature cannot work.  */
 const AI_ENDPOINT = API_BASE ? '/api/ai' : 'https://api.anthropic.com/v1/messages';
+/* One place for the model both AI features use — photo intake needs vision, the
+   paste importer needs to follow a JSON shape, and Sonnet does both cheaply.
+   This was 'claude-sonnet-4-6', which is not a real identifier: every call came
+   back 400 and both features were dead. */
+const AI_MODEL = 'claude-sonnet-5';
 const APP_VERSION = 10;                 /* bump when shipping new seed recipes  */
 
 const S = {
@@ -711,12 +733,26 @@ function safeImg(v){
   return (/^data:image\/(png|jpe?g|gif|webp|avif);base64,[a-z0-9+/=\s]+$/i.test(v)
        || /^https:\/\/[^\s"'<>\\]+$/i.test(v)) ? v : '';
 }
+/* guessIcon walks the name plus every ingredient through ~15 regexes. Around 90
+   imported recipes carry no icon of their own, so browsing the drawer used to
+   re-run all of that for every tile on every keystroke of the search box. The
+   answer only changes when the recipe does, so cache it per id; rebuild() drops
+   the cache, which is exactly when a recipe's name or ingredients can change. */
+const _iconGuess=new Map();
+function iconCacheClear(){ _iconGuess.clear(); }
+function guessedIcon(r){
+  const id=r&&r.id;
+  if(id==null) return guessIcon(r);
+  let v=_iconGuess.get(id);
+  if(v===undefined){ v=guessIcon(r); _iconGuess.set(id,v); }
+  return v;
+}
 function art(r){
   const img=r&&r.img&&safeImg(r.img);
   if(img) return `<img class="ico" src="${esc(img)}" alt=""${ICO_FALLBACK}>`;
   /* no chosen icon and nothing the guesser recognises -> blank plate, which
      reads as "not set up yet" rather than a wrong-but-confident croissant */
-  const n=(r && (r.icon||guessIcon(r)))||'empty-plate';
+  const n=(r && (r.icon||guessedIcon(r)))||'empty-plate';
   return `<img class="ico" src="${ART[n]||ART['empty-plate']}" alt=""${ICO_FALLBACK}>`;
 }
 function artByName(n){ return `<img class="ico" src="${ART[n]||ART['empty-plate']}" alt=""${ICO_FALLBACK}>`; }
@@ -777,6 +813,7 @@ const FOOD=[
  {k:['sugar'],life:{Cupboard:720},units:['kg','bag'],shelf:'Cupboard'},
  {k:['oil','olive oil','sunflower oil'],life:{Cupboard:365},units:['bottle','ml'],shelf:'Cupboard'},
  {k:['soy sauce','soy','fish sauce','vinegar','mirin','sake','shaoxing'],life:{Cupboard:365},units:['bottle','ml'],shelf:'Cupboard'},
+ {k:['ice cream','gelato','sorbet','frozen yogurt','frozen yoghurt'],life:{Freezer:180},units:['tub','ml','l'],shelf:'Freezer'},
  {k:['miso'],life:{Fridge:365},units:['tub','g'],shelf:'Fridge'},
  {k:['curry paste'],life:{Fridge:90,Cupboard:180},units:['jar','tin','g'],shelf:'Fridge'},
  {k:['coconut milk'],life:{Cupboard:365,Fridge:4},units:['tin','ml'],shelf:'Cupboard'},
@@ -785,11 +822,27 @@ const FOOD=[
  {k:['condensed milk'],life:{Cupboard:365,Fridge:5},units:['tin'],shelf:'Cupboard'},
 ];
 const GENERIC_UNITS=['x','g','kg','ml','pack'];
+/* Match on whole words, and let the HEAD noun decide. Plain `includes` plus
+   "longest keyword wins" made "ice cream" a kind of cream (10 days in the
+   fridge) and "chicken stock" a kind of chicken (2 days), because the wrong
+   half of the phrase matched. The last word is what the thing actually is.
+     3 = the name is exactly this keyword          "rice"          -> rice
+     2 = keyword covers the head noun              "chicken stock" -> stock
+     1 = keyword is in there, but not the head     "chicken stock" -> chicken
+     0 = the name is part of a longer keyword      "soy"           -> soy sauce
+   Ties inside a band go to the longer keyword, so "ice cream" beats "cream". */
+function wholeWord(hay,needle){ return hay===needle || (' '+hay+' ').includes(' '+needle+' '); }
 function foodInfo(name){
   const b=norm(String(name).split(',')[0]); if(!b) return null;
-  let best=null,bl=0;
+  const head=b.split(' ').pop();
+  let best=null,bs=-1,bl=0;
   for(const f of FOOD) for(const k of f.k){
-    if((b.includes(k)||k.includes(b)) && k.length>bl){ best=f; bl=k.length; }
+    let score;
+    if(b===k) score=3;
+    else if(wholeWord(b,k)) score=wholeWord(k,head)?2:1;
+    else if(wholeWord(k,b)) score=0;
+    else continue;
+    if(score>bs || (score===bs && k.length>bl)){ best=f; bs=score; bl=k.length; }
   }
   return best;
 }
@@ -1316,6 +1369,11 @@ let currentId=null, scale=1, editing=false, draft=null;
 let mode='home', cookOff=false, editItem=null, putAway=null, pickDay=null;
 let formDate='', photoReview=null, photoBusy=false, armed=null, pasteBusy=false, pasteText='';
 let calcCoco=null, refocus=null, searchQ='', pickQ='', todoText='', tagFilter='', cuisineFilter='', mealFilter='';
+/* Typing in the drawer search used to repaint the nav, the tab bar and all 115
+   recipe tiles on every keystroke — the reason the box needed its caret put
+   back afterwards at all. Wait for a short pause instead, and remember where
+   the caret actually was rather than shoving it to the end of the line. */
+let searchTimer=null, refocusCaret=null;
 let moreOpen=false;        /* bottom-bar "More" sheet (Grocery / Deliveroo / Settings) */
 let gridView=false;
 let recipeLang='en';       /* per-recipe language toggle; only recipes with an i18n block offer it */
@@ -1355,6 +1413,7 @@ const pane=$('#pane');
    the fields you actually changed; anything you made yourself is untouched.   */
 const PATCHABLE=['name','blurb','prep','icon','img','kcal','makesQty','makesUnit','ingredients','method','calc','cuisine','tags','link'];
 function rebuild(){
+  iconCacheClear();          /* recipe fields may have changed — re-guess on demand */
   const out=[];
   seed().forEach(s=>{
     if(removed.includes(s.id)) return;
@@ -1508,21 +1567,26 @@ function nbdAuto(p){
 function nbdInst(){ const n=new Date().toISOString();
   return {tmpl:'nbd',id:NBD_ID,carb:null,protein:null,veg:[],cook:null,fav:null,status:'planned',done:false,created:n,updated:n}; }
 
-function banner(m){ $('#banner-slot').innerHTML='<div class="banner">'+m+'</div>'; }
+/* Escaped: banners carry error text and copied-out links, which can contain
+   characters that would otherwise be parsed as markup. */
+function banner(m){ $('#banner-slot').innerHTML='<div class="banner">'+esc(m)+'</div>'; }
 let undoSnap=null;
-function snapshot(){ undoSnap={mine:structuredClone(mine),overrides:structuredClone(overrides),
-  removed:[...removed],fridge:structuredClone(fridge),grocery:structuredClone(grocery),
-  plan:structuredClone(plan),todos:structuredClone(todos),basket:structuredClone(basket),
-  shopHist:structuredClone(shopHist),menu:structuredClone(menu),nbdRecent:structuredClone(nbdRecent)}; }
+/* Every store an undoable action can touch, in one list, so snapshot and undo
+   can never drift apart. nbdFav / cookedIds / foodPrefs used to be missing, so
+   "I've made this" and a restored backup were quietly not undoable. */
+const UNDO_STORES=['mine','overrides','removed','fridge','grocery','plan','todos',
+  'basket','shopHist','menu','nbdFav','nbdRecent','cookedIds','foodPrefs'];
+function snapshot(){
+  const g={mine,overrides,removed,fridge,grocery,plan,todos,basket,shopHist,menu,nbdFav,nbdRecent,cookedIds,foodPrefs};
+  undoSnap={}; UNDO_STORES.forEach(k=>{ undoSnap[k]=structuredClone(g[k]); });
+}
 async function doUndo(){
   if(!undoSnap) return;
-  ({mine,overrides,fridge,grocery,plan,todos}=structuredClone(undoSnap)); removed=[...undoSnap.removed];
-  if(undoSnap.basket) basket=structuredClone(undoSnap.basket);
-  if(undoSnap.shopHist) shopHist=structuredClone(undoSnap.shopHist);
-  if(undoSnap.menu) menu=structuredClone(undoSnap.menu);
-  if(undoSnap.nbdRecent) nbdRecent=structuredClone(undoSnap.nbdRecent);
+  const s=structuredClone(undoSnap);
+  ({mine,overrides,removed,fridge,grocery,plan,todos,basket,shopHist,menu,nbdFav,nbdRecent,cookedIds,foodPrefs}=s);
   undoSnap=null; rebuild();
-  await saveRecipeStores(); await saveFridge(); await saveGrocery(); await savePlan(); await saveTodos(); await saveBasket(); await saveHist(); await saveMenu(); await saveNbdRecent();
+  await Promise.all([saveRecipeStores(),saveFridge(),saveGrocery(),savePlan(),saveTodos(),
+    saveBasket(),saveHist(),saveMenu(),saveNbdFav(),saveNbdRecent(),saveCooked(),savePrefs()]);
   if(currentId&&!find(currentId)) currentId=recipes[0]?.id??null;
   render(); toast('Put back');
 }
@@ -1557,6 +1621,7 @@ function fmt(n){
   return String(Math.round(v*100)/100);
 }
 function slug(s){return String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'recipe';}
+function todoId(){ return 't'+Date.now()+Math.random().toString(36).slice(2,6); }
 function uid(b){let s=slug(b),i=2,t=s;while(recipes.some(r=>r.id===t))t=s+'-'+i++;return t;}
 function find(id){return recipes.find(r=>r.id===id);}
 function perServing(r){
@@ -1573,22 +1638,47 @@ const ALIAS={'scallion':'spring onion','spring onion':'scallion','cilantro':'cor
 function isAssumed(n){ const b=norm(String(n).split(',')[0]); return ASSUMED.includes(b); }
 function isSection(n){ return /:\s*$/.test(String(n||'')); }
 function sing(s){ return String(s||'').replace(/\b(\w{3,})(?:ies)\b/g,'$1y').replace(/\b(\w{3,}?)(?:es|s)\b/g,'$1'); }
-function fridgeMatch(ingName){
-  const base=norm(String(ingName).split(',')[0]); if(!base) return null;
-  const cands=new Set([base,sing(base)]);
-  [base,sing(base)].forEach(b=>{ if(ALIAS[b]){ cands.add(ALIAS[b]); cands.add(sing(ALIAS[b])); } });
-  const HEADS=['rice','flour','sugar','potato','egg','onion'];
+/* Matching an ingredient against the fridge is the hottest code in the app: the
+   home and fridge screens run it for every ingredient of all ~115 recipes, and
+   it used to re-normalise every fridge row (norm + sing + alias lookups, all
+   regex) on every single call. Both halves are now cached for the duration of
+   one render — the fridge rows are prepared once, and repeat ingredient names
+   ("garlic", "soy sauce") are answered from a memo. render() drops both, so a
+   repaint always sees the current fridge. */
+const HEADS=['rice','flour','sugar','potato','egg','onion'];
+let _fxRows=null, _fxMemo=null;
+function fridgeCacheClear(){ _fxRows=null; _fxMemo=null; }
+function fridgeRows(){
+  if(_fxRows) return _fxRows;
+  _fxRows=[];
   for(const f of fridge){
     const fn0=norm(f.name); if(fn0.length<3) continue;
-    const fns=new Set([fn0,sing(fn0)]);
-    [fn0,sing(fn0)].forEach(b=>{ if(ALIAS[b]){ fns.add(ALIAS[b]); fns.add(sing(ALIAS[b])); } });
-    for(const c of cands) for(const fn of fns){
-      if(c.includes(fn)||fn.includes(c)) return f;
-      const ca=sing(c).split(' ').pop(), fa=sing(fn).split(' ').pop();
-      if(ca===fa&&HEADS.includes(ca)) return f;   /* white rice ~ jasmine rice */
+    const forms=new Set([fn0,sing(fn0)]);
+    [fn0,sing(fn0)].forEach(b=>{ if(ALIAS[b]){ forms.add(ALIAS[b]); forms.add(sing(ALIAS[b])); } });
+    const heads=new Set(); forms.forEach(fn=>heads.add(sing(fn).split(' ').pop()));
+    _fxRows.push({f,forms,heads});
+  }
+  return _fxRows;
+}
+function fridgeMatch(ingName){
+  const base=norm(String(ingName).split(',')[0]); if(!base) return null;
+  if(!_fxMemo) _fxMemo=new Map();
+  if(_fxMemo.has(base)) return _fxMemo.get(base);
+  const cands=new Set([base,sing(base)]);
+  [base,sing(base)].forEach(b=>{ if(ALIAS[b]){ cands.add(ALIAS[b]); cands.add(sing(ALIAS[b])); } });
+  const candHeads=new Set(); cands.forEach(c=>candHeads.add(sing(c).split(' ').pop()));
+  let hit=null;
+  search:
+  for(const row of fridgeRows()){
+    for(const c of cands) for(const fn of row.forms){
+      if(c.includes(fn)||fn.includes(c)){ hit=row.f; break search; }
+    }
+    for(const ca of candHeads){                 /* white rice ~ jasmine rice */
+      if(HEADS.includes(ca)&&row.heads.has(ca)){ hit=row.f; break search; }
     }
   }
-  return null;
+  _fxMemo.set(base,hit);
+  return hit;
 }
 function inFridge(n){ return !!fridgeMatch(n); }
 function matchInfo(r){
@@ -1656,16 +1746,21 @@ function wireCal(idPrefix,onPick){
 }
 
 /* ============ nav ============ */
+/* aria-current is "the current one" or absent — writing aria-current="false"
+   still announces the attribute to some screen readers. */
+function setCurrent(el,on){ if(!el) return; if(on) el.setAttribute('aria-current','page'); else el.removeAttribute('aria-current'); }
 function renderNav(){
   if(SHARE) return;              /* no dashboard nav on a shared link */
   const soon=urgentItems().length;
   const gN=grocery.filter(g=>!g.done).length;
   const t0=todayISO();
-  const planned=Object.entries(plan).reduce((a,[d,v])=>d>=t0?a+v.filter(p=>!p.done).length:a,0);
+  /* a day's entries should always be a list, but a hand-edited or half-written
+     store shouldn't be able to take the whole nav bar down with it */
+  const planned=Object.entries(plan).reduce((a,[d,v])=>(d>=t0&&Array.isArray(v))?a+v.filter(p=>p&&!p.done).length:a,0);
   const set=(id,icon,label,note)=>{
     const el=$(id); if(!el) return;
     el.innerHTML=`<span class="thumb" style="width:30px;height:30px">${artByName(icon)}</span>${label} <span class="n">${note}</span>`;
-    el.setAttribute('aria-current', mode===id.slice(1).replace('-btn',''));
+    setCurrent(el, mode===id.slice(1).replace('-btn',''));
   };
   set('#home-btn','croissant','Home', soon?soon+' to use up':'all calm');
   set('#recipes-btn','cakeslice','Recipes', recipes.length+' recipes');
@@ -1673,9 +1768,12 @@ function renderNav(){
   set('#grocery-btn','breadbag','Grocery list', gN?gN+' to get':'empty');
   set('#plan-btn','chickenrice','Meal plan', planned?planned+' planned':'nothing yet');
   set('#settings-btn','jar','Settings', API_BASE?(apiDown?'offline':'synced'):'this device');
-  const bt=Object.values(basket).reduce((a,v)=>a+v.reduce((x,i)=>x+i.price*i.qty,0),0);
+  /* same defensiveness as the plan count above — one malformed basket must not
+     stop the whole nav from rendering */
+  const bt=Object.values(basket).reduce((a,v)=>Array.isArray(v)
+    ? a+v.reduce((x,i)=>x+((i&&+i.price||0)*(i&&+i.qty||0)),0) : a, 0);
   set('#shop-btn','bun','Deliveroo', bt?'£'+bt.toFixed(2):'nothing yet');
-  $('#recipes-btn').setAttribute('aria-current', mode==='recipes'||mode==='recipe'||mode==='paste');
+  setCurrent($('#recipes-btn'), mode==='recipes'||mode==='recipe'||mode==='paste');
 }
 
 /* The section nav. On desktop it's a full horizontal bar across the top with
@@ -1699,8 +1797,12 @@ function renderTabbar(){
       + tab('fridge','cabbage','Fridge')+tab('plan','chickenrice','Plan')+tab('more','','More');
   tb.querySelectorAll('.tb').forEach(b=>b.onclick=()=>{
     const m=b.dataset.m;
-    if(m==='more'){ moreOpen=!moreOpen; renderMoreSheet(); return; }
-    moreOpen=false;
+    if(m==='more'){
+      if(moreOpen){ closeMoreSheet(); }
+      else { moreReturnFocus=b; moreOpen=true; renderMoreSheet(); }
+      return;
+    }
+    moreOpen=false; moreReturnFocus=null;
     if(mode===m||(m==='recipes'&&mode==='recipe')){ renderMoreSheet(); return; }
     goMode(m)();
   });
@@ -1708,11 +1810,34 @@ function renderTabbar(){
 }
 /* the tab set differs across the 960px line, so rebuild it on resize */
 window.addEventListener('resize',()=>{ if(!SHARE) renderTabbar(); });
+/* The sheet is a real modal (role=dialog, aria-modal), so it has to behave like
+   one: focus moves in when it opens, Tab cycles inside it, Escape closes it, and
+   focus goes back to the button that opened it. None of that was happening —
+   opening it left focus on <body>, and Escape did nothing. */
+let moreReturnFocus=null;
+function closeMoreSheet(){
+  if(!moreOpen) return;
+  moreOpen=false; renderMoreSheet();
+  if(moreReturnFocus&&document.contains(moreReturnFocus)) moreReturnFocus.focus();
+  moreReturnFocus=null;
+}
+document.addEventListener('keydown',e=>{
+  if(!moreOpen) return;
+  if(e.key==='Escape'){ e.preventDefault(); closeMoreSheet(); return; }
+  if(e.key!=='Tab') return;
+  const f=[...document.querySelectorAll('.more-sheet button')].filter(b=>b.offsetParent);
+  if(!f.length) return;
+  const first=f[0], last=f[f.length-1];
+  if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+  else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
+  else if(!document.querySelector('.more-sheet').contains(document.activeElement)){ e.preventDefault(); first.focus(); }
+});
 function renderMoreSheet(){
   const slot=$('#more-slot'); if(!slot) return;
   if(!moreOpen||SHARE){ slot.innerHTML=''; return; }
   const gN=grocery.filter(g=>!g.done).length;
-  const bt=Object.values(basket).reduce((a,v)=>a+v.reduce((x,i)=>x+i.price*i.qty,0),0);
+  const bt=Object.values(basket).reduce((a,v)=>Array.isArray(v)
+    ? a+v.reduce((x,i)=>x+((i&&+i.price||0)*(i&&+i.qty||0)),0) : a, 0);
   const row=(m,icon,label,note)=>`<button class="mrow" type="button" data-m="${m}">
     <span class="thumb">${artByName(icon)}</span>${label}<span class="n">${note}</span></button>`;
   slot.innerHTML=`<div class="more-backdrop" id="more-bd"></div>
@@ -1722,8 +1847,9 @@ function renderMoreSheet(){
       ${row('shop','bun','Deliveroo', bt?'£'+bt.toFixed(2):'nothing yet')}
       ${row('settings','jar','Settings', API_BASE?(apiDown?'offline':'synced'):'this device')}
     </div>`;
-  $('#more-bd').onclick=()=>{ moreOpen=false; renderMoreSheet(); };
-  slot.querySelectorAll('.mrow').forEach(b=>b.onclick=()=>{ moreOpen=false; goMode(b.dataset.m)(); });
+  $('#more-bd').onclick=closeMoreSheet;
+  slot.querySelectorAll('.mrow').forEach(b=>b.onclick=()=>{ moreOpen=false; moreReturnFocus=null; goMode(b.dataset.m)(); });
+  const first=slot.querySelector('.mrow'); if(first) first.focus();
 }
 
 /* ============ recipe drawer (its own page) ============ */
@@ -1863,7 +1989,11 @@ function renderRecipes(){
   </article>`;
   const back=$('#back'); if(back) back.onclick=()=>{ mode='home'; render(); };
   const s=$('#search');
-  s.oninput=()=>{ searchQ=s.value; refocus='search'; render(); };
+  s.oninput=()=>{
+    searchQ=s.value;
+    clearTimeout(searchTimer);
+    searchTimer=setTimeout(()=>{ refocus='search'; refocusCaret=s.selectionStart; render(); },140);
+  };
   pane.querySelectorAll('.fchip[data-cuis]').forEach(b=>b.onclick=()=>{ cuisineFilter=b.dataset.cuis||''; tagFilter=''; render(); });
   pane.querySelectorAll('.fchip[data-meal]').forEach(b=>b.onclick=()=>{ mealFilter=b.dataset.meal||''; tagFilter=''; render(); });
   pane.querySelectorAll('.fchip[data-tag]').forEach(b=>b.onclick=()=>{ tagFilter=b.dataset.tag||''; render(); });
@@ -1878,7 +2008,10 @@ function renderRecipes(){
   /* keep the chosen cuisine / meal chip visible in its scrolling row */
   ['cuis','meal'].forEach(k=>{ const on=pane.querySelector('#'+k+'-row .fchip.on');
     if(on&&on.dataset[k]) on.scrollIntoView({inline:'nearest',block:'nearest'}); });
-  if(refocus==='search'){ refocus=null; const n=$('#search'); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } }
+  if(refocus==='search'){ refocus=null; const n=$('#search');
+    if(n){ const c=refocusCaret==null?n.value.length:Math.min(refocusCaret,n.value.length);
+      n.focus(); n.setSelectionRange(c,c); }
+    refocusCaret=null; }
 }
 
 /* Write a self-contained snapshot of one recipe to hbs:share.<id> and copy a
@@ -2012,11 +2145,16 @@ function renderRecipe(){
   };
   $('#edit').onclick=()=>{editing=true;cookOff=false;draft=structuredClone(r);draft.icon=r.icon||guessIcon(r);render();};
   $('#delete').onclick=e=>arm(e.currentTarget,'Really delete?',async()=>{
-    snapshot(); if(!removed.includes(currentId)) removed.push(currentId);
-    mine=mine.filter(x=>x.id!==currentId); delete overrides[currentId]; rebuild();
-    for(const d in plan){ plan[d]=plan[d].filter(p=>p.id!==currentId); if(!plan[d].length) delete plan[d]; }
+    const gone=currentId;
+    snapshot(); if(!removed.includes(gone)) removed.push(gone);
+    mine=mine.filter(x=>x.id!==gone); delete overrides[gone]; rebuild();
+    for(const d in plan){ plan[d]=plan[d].filter(p=>p.id!==gone); if(!plan[d].length) delete plan[d]; }
     currentId=recipes[0]?.id??null;
-    mode='recipes'; await saveRecipeStores(); await savePlan(); render(); toast('Recipe deleted', true);
+    mode='recipes'; await saveRecipeStores(); await savePlan();
+    /* Retire any share snapshot too. It is readable without the owner key, so a
+       deleted recipe would otherwise stay published at its #/r/<id> link. */
+    await sset('hbs:share.'+gone, null);
+    render(); toast('Recipe deleted', true);
   });
   const bk=$('#back'); if(bk) bk.onclick=()=>{ mode='recipes'; render(); };
   pane.querySelectorAll('.batch .ball').forEach(b=>b.onclick=()=>{scale=Number(b.dataset.scale);render();});
@@ -2036,7 +2174,7 @@ function renderRecipe(){
   const cm=$('#copy-missing'); if(cm) cm.onclick=async()=>{
     const ok=await copyText(mi.missing.join('\n'));
     if(ok) toast('Copied '+mi.missing.length+' item'+(mi.missing.length===1?'':'s'));
-    else banner('The clipboard is blocked here. The list: '+esc(mi.missing.join(', ')));
+    else banner('The clipboard is blocked here. The list: '+mi.missing.join(', '));   /* banner() escapes */
   };
   const ct=$('#cooked-this'); if(ct) ct.onclick=()=>{ cookOff=true; render(); };
   const cg=$('#cookoff-go'); if(cg) cg.onclick=async()=>{
@@ -2509,6 +2647,17 @@ function collect(){
     method:$('#f-method').value.split('\n').map(s=>s.trim()).filter(Boolean)};
 }
 async function onSave(){
+  /* Every other form here refuses an empty name and puts the cursor back in the
+     field. This one quietly saved "Untitled recipe" with no ingredients and no
+     method, then closed the editor — easy to do by tapping Save on a blank form,
+     and the result is hard to find again precisely because it has no name. */
+  const nameEl=$('#f-name');
+  if(nameEl && !nameEl.value.trim()){
+    nameEl.focus();
+    if(nameEl.scrollIntoView) nameEl.scrollIntoView({block:'center',behavior:'smooth'});
+    toast('Give the recipe a name first');
+    return;
+  }
   const data=collect();
   if(draft._isNew){
     const rec=Object.assign({id:uid(data.name)},data);
@@ -2533,6 +2682,7 @@ function addToFridge({name,qty,shelf,until,staple}){
   /* Merge only with the *same* item (plurals allowed) — not any stored name that
      merely contains this one, which used to fold "red onion" into "onion" and
      "chicken stock" into "chicken". */
+  fridgeCacheClear();                      /* the fridge is about to change under the cache */
   const nk=sing(norm(name));
   const existing=nk.length>=3?fridge.find(f=>sing(norm(f.name))===nk):null;
   if(existing){
@@ -2729,7 +2879,7 @@ async function handlePhoto(file){
     });
     const resp=await fetch(AI_ENDPOINT,{
       method:'POST',headers:apiHeaders({'Content-Type':'application/json'}),
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,
+      body:JSON.stringify({model:AI_MODEL,max_tokens:1000,
         messages:[{role:'user',content:[
           {type:'image',source:{type:'base64',media_type:file.type||'image/jpeg',data:b64}},
           {type:'text',text:'This is a photo of groceries: a shop receipt, or food items, or a fridge shelf. List the food and drink items only (skip bags, totals, discounts, non-food). Respond with ONLY a JSON array, no markdown, no preamble: [{"name":"specific item name e.g. jasmine rice not rice","qty":"short amount like 2 or 400g or empty string","shelf":"Fridge"|"Freezer"|"Cupboard"}]. shelf = where it is normally stored.'}
@@ -2799,6 +2949,16 @@ function renderGrocery(){
   const back=$('#back'); if(back) back.onclick=()=>{ mode='home'; render(); };
   const add=async()=>{
     const name=$('#g-name').value.trim(); if(!name){ $('#g-name').focus(); return; }
+    /* Every other way into this list dedupes (running low, the plan, a recipe's
+       missing items, the basket, a No-Brainer Dinner) — typing it by hand was
+       the one path that would happily add "milk" twice. */
+    const dup=grocery.find(g=>norm(g.name)===norm(name));
+    if(dup){
+      if(dup.done){ dup.done=false; await saveGrocery(); render(); toast('“'+name+'” is back on the list'); }
+      else toast('“'+name+'” is already on the list');
+      const n=$('#g-name'); if(n){ n.value=''; n.focus(); }
+      return;
+    }
     grocery.push({id:'g'+Date.now()+Math.random().toString(36).slice(2,6),name,qty:$('#g-qty').value.trim(),done:false,src:''});
     await saveGrocery(); render(); $('#g-name').focus();
   };
@@ -3334,11 +3494,11 @@ function renderHome(){
         <input id="todo-in" placeholder="Anything at all — call the fishmonger, defrost the stock" autocomplete="off" value="${esc(todoText)}">
         <button class="pill solid" id="todo-add">Add</button>
       </div>
-      ${todos.length?`<ul class="todos">${todos.map((t,i)=>`
+      ${todos.length?`<ul class="todos">${todos.map(t=>`
         <li class="${t.done?'done':''}">
-          <button class="tick-sm" data-todo="${i}" aria-pressed="${t.done}" aria-label="Mark done"><span class="box"></span></button>
-          <span class="todo-text" contenteditable="true" data-edit-todo="${i}">${esc(t.text)}</span>
-          <button class="row-x" data-todo-x="${i}" aria-label="Remove">×</button>
+          <button class="tick-sm" data-todo="${esc(t.id)}" aria-pressed="${t.done}" aria-label="Mark done"><span class="box"></span></button>
+          <span class="todo-text" contenteditable="true" data-edit-todo="${esc(t.id)}">${esc(t.text)}</span>
+          <button class="row-x" data-todo-x="${esc(t.id)}" aria-label="Remove">×</button>
         </li>`).join('')}</ul>
         ${todos.some(t=>t.done)?`<button class="link-btn" id="todo-clear" style="margin-top:10px">Clear the finished ones</button>`:''}`
       :`<p class="home-none">Nothing to do. Suspicious.</p>`}
@@ -3390,25 +3550,34 @@ function renderHome(){
   const ti=$('#todo-in');
   const addTodo=async()=>{
     const v=ti.value.trim(); if(!v){ ti.focus(); return; }
-    todos.unshift({text:v,done:false,at:todayISO()}); todoText='';
+    todos.unshift({id:todoId(),text:v,done:false,at:todayISO()}); todoText='';
     await saveTodos(); refocus='todo-in'; render();
   };
   if(ti){ ti.oninput=()=>{ todoText=ti.value; };
     ti.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); addTodo(); } }; }
   const ta=$('#todo-add'); if(ta) ta.onclick=addTodo;
+  /* Keyed by id, never by array position: ticking a to-do moves it to the
+     bottom, so an index captured when the row was drawn can point at a
+     different to-do by the time a blur or a click lands on it. */
+  const todoAt=id=>todos.findIndex(t=>t.id===id);
   pane.querySelectorAll('[data-todo]').forEach(b=>b.onclick=async()=>{
-    const i=+b.dataset.todo; todos[i].done=!todos[i].done;
+    const i=todoAt(b.dataset.todo); if(i<0) return;
+    todos[i].done=!todos[i].done;
     if(todos[i].done){ const [d]=todos.splice(i,1); todos.push(d); }   /* finished drop to the bottom */
     await saveTodos(); render();
   });
   pane.querySelectorAll('[data-todo-x]').forEach(b=>b.onclick=async()=>{
-    snapshot(); const [d]=todos.splice(+b.dataset.todoX,1);
-    await saveTodos(); render(); toast(esc(d.text.slice(0,28))+' removed', true);
+    const i=todoAt(b.dataset.todoX); if(i<0) return;
+    snapshot(); const [d]=todos.splice(i,1);
+    await saveTodos(); render(); toast(d.text.slice(0,28)+' removed', true);
   });
   pane.querySelectorAll('[data-edit-todo]').forEach(el=>{
-    el.onblur=async()=>{ const i=+el.dataset.editTodo, v=el.textContent.trim();
-      if(!v){ todos.splice(i,1); } else if(v!==todos[i].text){ todos[i].text=v; } else return;
-      await saveTodos(); render(); };
+    el.onblur=async()=>{
+      const i=todoAt(el.dataset.editTodo); if(i<0) return;
+      const v=el.textContent.trim();
+      if(!v){ el.textContent=todos[i].text; return; }   /* clearing the text is not a delete — use × */
+      if(v===todos[i].text) return;
+      todos[i].text=v; await saveTodos(); };
     el.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); el.blur(); } };
   });
   const tc=$('#todo-clear'); if(tc) tc.onclick=async()=>{
@@ -4043,6 +4212,9 @@ function renderSettings(){
   </article>`;
   const back=$('#back'); if(back) back.onclick=()=>{ mode='home'; render(); };
   $('#backup-btn').onclick=doBackup;
+    /* This button was never wired to anything, so restore was unreachable. It
+       replaces every store, so it asks twice — the same two-tap the reset uses. */
+    $('#import-btn').onclick=e=>arm(e.currentTarget,'Replace everything?',()=>$('#import-file').click());
     $('#reset-btn').onclick=e=>arm(e.currentTarget,'Really reset?',doReset);
     const shareLink=id=>location.origin+location.pathname+'#/share'+(id?'/'+encodeURIComponent(id):'');
     const copy=async(txt,label)=>{
@@ -4092,7 +4264,7 @@ function renderPaste(){
     try{
       const resp=await fetch(AI_ENDPOINT,{
         method:'POST',headers:apiHeaders({'Content-Type':'application/json'}),
-        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:
+        body:JSON.stringify({model:AI_MODEL,max_tokens:1000,messages:[{role:'user',content:
           'Parse this recipe into JSON. Respond with ONLY the JSON object, no markdown fences, no preamble. Shape: {"name":string,"blurb":"one short sentence describing the dish, written in your own words","makesQty":number,"makesUnit":"servings or ml or pancake etc","kcal":integer estimate of total calories for the whole recipe,"ingredients":[{"qty":number or null,"unit":"tsp/Tbsp/cup/g/ml or empty","name":"specific ingredient name"}],"method":["each step rewritten concisely in your own words"]} . Use null qty for garnish/optional/free-text lines. Recipe text follows:\n\n'+txt}]})});
       if(!resp.ok) throw new Error('http '+resp.status);
       const data=await resp.json();
@@ -4149,7 +4321,9 @@ let booting=true;                     /* true until saved data has hydrated; kee
 function hashFor(){
   if(SHARE) return null;
   if(editing||mode==='paste'||mode==='nbd') return null;   /* transient states — leave the URL where it was */
-  if(mode==='recipe'&&currentId) return '#/recipe/'+encodeURIComponent(currentId);
+  if(mode==='recipe') return currentId?'#/recipe/'+encodeURIComponent(currentId):null;
+  /* ^ a recipe view with nothing selected has no honest URL — leaving the hash
+       alone beats claiming the user is on the home screen while they are not */
   if(mode==='home') return '#/';
   return ROUTES.includes(mode)?'#/'+mode:'#/';
 }
@@ -4194,6 +4368,7 @@ function shapeBalls(){
 }
 function render(){
   armed=null;
+  fridgeCacheClear();       /* fridge-match caches live for exactly one repaint */
   syncHash();
   renderNav();
   renderTabbar();
@@ -4279,7 +4454,9 @@ $('#import-file').onchange=e=>{
       if(!staged.mine.every(r=>r&&typeof r.id==='string'&&typeof r.name==='string')) throw new Error('recipe entries are malformed');
       staged.removed=arr(d.removed,'removed').filter(x=>typeof x==='string');
       staged.fridge=arr(d.fridge,'fridge'); staged.grocery=arr(d.grocery,'grocery list');
-      staged.plan=obj(d.plan,'meal plan'); staged.todos=arr(d.todos,'to-dos'); staged.foodPrefs=obj(d.foodPrefs,'food prefs');
+      staged.plan=obj(d.plan,'meal plan'); staged.foodPrefs=obj(d.foodPrefs,'food prefs');
+      /* a backup taken before to-dos had ids still restores — give them one now */
+      staged.todos=arr(d.todos,'to-dos').map(t=>(t&&!t.id)?{...t,id:todoId()}:t);
       staged.menu=arr(d.menu,'menu'); staged.nbdFav=arr(d.nbdFav,'NBD favourites'); staged.nbdRecent=arr(d.nbdRecent,'NBD recent');
       staged.cookedIds=arr(d.cookedIds,'cooked ids').filter(x=>typeof x==='string');
       staged.basket=obj(d.basket,'baskets'); staged.shopHist=obj(d.shopHist,'shop history');
@@ -4287,6 +4464,9 @@ $('#import-file').onchange=e=>{
 
     const before={mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,menu,nbdFav,nbdRecent,cookedIds,basket,shopHist};
     try{
+      /* Undoable: a restore replaces every store, and picking the wrong file
+         used to be recoverable only from another backup. */
+      snapshot();
       ({mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,menu,nbdFav,nbdRecent,cookedIds,basket,shopHist}=staged);
       rebuild(); currentId=recipes[0]?.id??null; editing=false; mode='recipes';
       /* persist every restored store as one batch — baskets and history included */
@@ -4295,9 +4475,10 @@ $('#import-file').onchange=e=>{
         savePrefs(), saveMenu(), saveNbdFav(), saveNbdRecent(), saveCooked(),
         saveBasket(), saveHist()
       ]);
-      render(); toast('Restored '+recipes.length+' recipes');
+      render(); toast('Restored '+recipes.length+' recipes', true);
     }catch(err){
       ({mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,menu,nbdFav,nbdRecent,cookedIds,basket,shopHist}=before);
+      undoSnap=null;                    /* rolled back already — nothing to undo */
       rebuild(); render();
       banner('The backup could not be applied cleanly — nothing was changed. '+(err&&err.message||err));
     }
@@ -4381,7 +4562,10 @@ async function doReset(){
       await saveRecipeStores(); await saveFridge(); await saveGrocery(); await savePlan(); await savePrefs();
     }
   }
-  await sset(S.meta,{version:APP_VERSION,seen:(meta&&meta.seen)||new Date().toISOString()});
+  /* Only write when something actually changed. This used to fire on every page
+     load, sending an identical row to the database each time the app opened. */
+  if(!meta || meta.version!==APP_VERSION || !meta.seen)
+    await sset(S.meta,{version:APP_VERSION,seen:(meta&&meta.seen)||new Date().toISOString()});
 
   /* Self-heal: an earlier build could save a *guessed* icon into a recipe's
      override (e.g. Mayak Eggs -> icedcoffee). If a stored icon is exactly what
@@ -4398,10 +4582,23 @@ async function doReset(){
   });
   if(healed) await saveRecipeStores();
 
+  /* Same heal for recipes you wrote yourself: an icon name that is no longer in
+     ART gets re-guessed. This used to run over `recipes`, which rebuild() below
+     replaces wholesale a few lines later — so it healed a throwaway copy and
+     nothing was ever saved. `mine` is the stored array, so this one sticks. */
+  let mineFixed=false;
+  mine.forEach(r=>{ if(!r.img && r.icon && !ART[r.icon]){ r.icon=guessIcon(r); mineFixed=true; } });
+  if(mineFixed) await sset(S.mine,mine);
+
   let dirty=false;
-  recipes.forEach(r=>{ if(!r.img && r.icon && !ART[r.icon]){ r.icon=guessIcon(r); } });
   fridge.forEach(f=>{ if(!f.addedAt){ f.addedAt=todayISO(); dirty=true; } });
   if(dirty) await saveFridge();
+
+  /* To-dos saved before they had stable ids — give them one so the row handlers
+     can stop keying off array position. */
+  let todosFixed=false;
+  todos.forEach(t=>{ if(!t.id){ t.id=todoId(); todosFixed=true; } });
+  if(todosFixed) await saveTodos();
 
   /* Merge the saved data in and repaint. Keep the user's place if they've
      already tapped into something during the brief load. */
