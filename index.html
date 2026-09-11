@@ -3705,7 +3705,15 @@ function renderSplit(){
         :`<span class="calc-sync">automatic — ${autoSplit()} order${autoSplit()===1?'':'s'} clears the minimum</span>`}
     </div>
     ${!shopManualSplit&&want>k?`<p class="calc-sync" style="margin:2px 0 0">Splits into ${k} — the rest of the basket can't reach £${MIN_ORDER}. Use the arrows to rearrange.</p>`:''}
-    ${k>1?`<p class="calc-sync" style="margin:2px 0 6px">Use the ‹ › arrows on an item to shift it to the next order and land each one on £${MIN_ORDER} by hand.</p>`:''}
+    ${k===1
+      /* Consolidated to one order, the "order" IS the whole basket — the item list
+         with its qty steppers, and the "Order placed" button, are both already on
+         screen just above (renderShop's basket list and its #shop-done button, which
+         does exactly what this order's data-placed would). Repeating both here as a
+         second, sparser copy — no steppers, a second identical button — was the
+         "dodgy" duplication. Nothing left to show but the chooser above. */
+      ? ''
+      : `<p class="calc-sync" style="margin:2px 0 6px">Use the ‹ › arrows on an item to shift it to the next order and land each one on £${MIN_ORDER} by hand.</p>
     <div class="orders">${orders.map((o,n)=>{
       const short=MIN_ORDER-o.total, tops=topUps(o.total,o.items.map(x=>x.name),topsOpen);
       const over=o.total-MIN_ORDER;
@@ -3726,7 +3734,8 @@ function renderSplit(){
           ${tops.length>3?`<button class="link-btn" id="tops-more2">${topsOpen?'fewer':'more options'}</button>`:''}</div>`
           :`<p class="hint" style="margin:6px 0 0">Nothing in this shop lands neatly on the gap — add something by hand.</p>`)
         :`<button class="link-btn" data-placed="${n}">Order placed — remember these</button>`}
-      </div>`;}).join('')}</div>
+      </div>`;}).join('')}</div>`
+    }
   </div>`;
 }
 /* Placed-order items waiting for the fridge. Accumulates across several orders
