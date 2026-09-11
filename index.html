@@ -600,11 +600,11 @@ window.addEventListener('error',function(e){
     <nav class="shelf" aria-label="Sections">
       <div class="areas">
         <button class="fridge-btn" id="home-btn"></button>
+        <button class="fridge-btn" id="shop-btn"></button>
         <button class="fridge-btn" id="recipes-btn"></button>
         <button class="fridge-btn" id="fridge-btn"></button>
         <button class="fridge-btn" id="grocery-btn"></button>
         <button class="fridge-btn" id="plan-btn"></button>
-        <button class="fridge-btn" id="shop-btn"></button>
         <button class="fridge-btn" id="settings-btn"></button>
       </div>
         <input type="file" id="import-file" accept="application/json" hidden>
@@ -1413,7 +1413,7 @@ let anchorOpt=null;
    Depth is what decides whether a deep bake sets, so everything works
    backwards from the depth the recipe was written for. */
 let tins=null, tinMode='even';
-let shopStore='waitrose-barnet', shopCat=null, shopQ='', shopBusy=false, shopErr='';
+let shopStore='waitrose-barnet', shopCat=null, shopQ='', shopBusy=false, shopErr='', shopStoresScroll=0;
 let basket={}, shopHist={}, shopFam='';
 let shopScope='store', allCat=null, allBusy=false, topsOpen=false;
 let putAwayList=null, basketQ='';
@@ -1824,16 +1824,16 @@ function renderTabbar(){
   if(SHARE){ tb.innerHTML=''; renderMoreSheet(); return; }
   const wide = window.matchMedia('(min-width:960px)').matches;
   const isOn=m=> m==='recipes' ? ['recipes','recipe','paste'].includes(mode)
-              : m==='more'    ? ['grocery','shop','settings'].includes(mode)
+              : m==='more'    ? ['grocery','recipes','recipe','paste','settings'].includes(mode)
               : mode===m;
   const tab=(m,icon,label)=>`<button class="tb" type="button" data-m="${m}" aria-current="${isOn(m)}">
     ${icon?`<span class="thumb">${artByName(icon)}</span>`:'<span class="dots" aria-hidden="true">···</span>'}
     <span>${label}</span></button>`;
   tb.innerHTML = wide
-    ? tab('home','croissant','Home')+tab('recipes','cakeslice','Recipes')
+    ? tab('home','croissant','Home')+tab('shop','bun','Deliveroo')+tab('recipes','cakeslice','Recipes')
       + tab('fridge','cabbage','Fridge')+tab('grocery','breadbag','Grocery')
-      + tab('plan','chickenrice','Plan')+tab('shop','bun','Deliveroo')+tab('settings','jar','Settings')
-    : tab('home','croissant','Home')+tab('recipes','cakeslice','Recipes')
+      + tab('plan','chickenrice','Plan')+tab('settings','jar','Settings')
+    : tab('home','croissant','Home')+tab('shop','bun','Deliveroo')
       + tab('fridge','cabbage','Fridge')+tab('plan','chickenrice','Plan')+tab('more','','More');
   tb.querySelectorAll('.tb').forEach(b=>b.onclick=()=>{
     const m=b.dataset.m;
@@ -1876,15 +1876,13 @@ function renderMoreSheet(){
   const slot=$('#more-slot'); if(!slot) return;
   if(!moreOpen||SHARE){ slot.innerHTML=''; return; }
   const gN=grocery.filter(g=>!g.done).length;
-  const bt=Object.values(basket).reduce((a,v)=>Array.isArray(v)
-    ? a+v.reduce((x,i)=>x+((i&&+i.price||0)*(i&&+i.qty||0)),0) : a, 0);
   const row=(m,icon,label,note)=>`<button class="mrow" type="button" data-m="${m}">
     <span class="thumb">${artByName(icon)}</span>${label}<span class="n">${note}</span></button>`;
   slot.innerHTML=`<div class="more-backdrop" id="more-bd"></div>
     <div class="more-sheet" role="dialog" aria-label="More sections" aria-modal="true">
       <h4>More</h4>
+      ${row('recipes','cakeslice','Recipes', recipes.length+' recipes')}
       ${row('grocery','breadbag','Grocery list', gN?gN+' to get':'empty')}
-      ${row('shop','bun','Deliveroo', bt?'£'+bt.toFixed(2):'nothing yet')}
       ${row('settings','jar','Settings', API_BASE?(apiDown?'offline':'synced'):'this device')}
     </div>`;
   $('#more-bd').onclick=closeMoreSheet;
@@ -4260,8 +4258,16 @@ function renderShop(){
   pane.querySelectorAll('[data-store]').forEach(b=>b.onclick=()=>{
     shopStore=b.dataset.store; shopQ=''; refocus='shop-store'; editingPriceIdx=null;
     if(shopStore===BOOTS_SLUG){ shopCat=null; loadBootsProducts(); } else loadCatalogue(shopStore); });
+  /* loadCatalogue/loadBootsProducts re-render the whole pane mid-click (once for
+     the loading state, again once the price list arrives) — each rebuild is a
+     fresh .shop-stores element, so it starts back at scrollLeft 0. Restore the
+     row's last scroll position immediately so it doesn't visibly snap to the
+     start and then jump back once the fetch resolves. */
+  const shopStoresEl=pane.querySelector('.shop-stores');
+  if(shopStoresEl){ shopStoresEl.scrollLeft=shopStoresScroll;
+    shopStoresEl.onscroll=()=>{ shopStoresScroll=shopStoresEl.scrollLeft; }; }
   if(refocus==='shop-store' && !shopBusy){ refocus=null;
-    pane.querySelector('.shop-stores .ball[aria-pressed="true"]')?.scrollIntoView({inline:'center',block:'nearest'}); }
+    shopStoresEl?.querySelector('.ball[aria-pressed="true"]')?.scrollIntoView({inline:'center',block:'nearest'}); }
   const sq=$('#shop-q');
   if(sq){ sq.oninput=()=>{ shopQ=sq.value; shopFam=''; refocus='shop-q';
     clearTimeout(shopSearchT);
