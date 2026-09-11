@@ -3951,6 +3951,37 @@ function moveOrderItem(oi,idx,dir){
   if(u) shopManualSplit[target].push(u);
   render();
 }
+/* "Take one order out now, leave the rest for next time" — different from
+   everything else on this page: renderSplit() and #shop-done both commit the
+   WHOLE basket, to one order or several. This carves out only the tightest
+   possible single order and leaves everything else exactly where it is, still
+   a plain editable basket, for a later shop. planOrders(2)'s second "order" is
+   already built to absorb whatever's left with no £15 requirement of its own
+   — that's precisely "leftover for next time", so this reuses it rather than
+   inventing a second packing algorithm. Returns null when there's nothing
+   meaningful to leave behind (one big item already clears £15 alone, or the
+   whole basket barely clears it) — offering to "carve" would just be a second
+   way to say what #shop-done already does. */
+function carveOneOrder(){
+  if(basketTotal()<MIN_ORDER) return null;
+  const two=planOrders(2);
+  if(two.length<2||!two[1].items.length) return null;
+  return {order:two[0], leftover:two[1]};
+}
+function renderCarveOne(){
+  const c=carveOneOrder(); if(!c) return '';
+  const over=c.order.total-MIN_ORDER;
+  return `<div class="useup" style="margin-top:16px">
+    <h4>Or just take one order for now</h4>
+    <p class="hint" style="margin:2px 0 8px">£${c.order.total.toFixed(2)} now, £${c.leftover.total.toFixed(2)} stays in the basket for next time.</p>
+    <div class="order ok">
+      <h5><b>£${c.order.total.toFixed(2)}</b>
+        ${over>=0.005?`<span class="chip">over by £${over.toFixed(2)}</span>`:`<span class="chip">right on £${MIN_ORDER}</span>`}</h5>
+      <ul>${c.order.items.map(i=>`<li class="single"><span class="oi-name">${esc(i.name)}</span><span class="b-price">£${i.price.toFixed(2)}</span></li>`).join('')}</ul>
+      <button class="link-btn" id="carve-go">Order lined up — leave the rest for next time</button>
+    </div>
+  </div>`;
+}
 function renderSplit(){
   /* Nothing to split unless the basket can fund at least two £15 orders. Below
      that, renderShop's single-order "Tips it over £15" panel is the whole story —
@@ -4270,6 +4301,8 @@ function renderShop(){
         <button class="pill" id="pl-skip">Not this time</button>
       </div></div>`:''}
 
+    ${items.length?renderCarveOne():''}
+
     ${items.length?renderSplit():''}
 
     ${short>0&&tops.length&&splitCount()===1?`<div class="useup" style="margin-top:20px"><h4>Tips it over £${MIN_ORDER}</h4>
@@ -4437,6 +4470,15 @@ function renderShop(){
     shopSplit=null; shopManualSplit=null;
     await saveBasket(); await saveShopOrders(); render();
     toast('Order lined up', true);
+  };
+  const cg=$('#carve-go'); if(cg) cg.onclick=async()=>{
+    const c=carveOneOrder(); if(!c) return;
+    snapshot();
+    lineUpOrder(shopStore,c.order.items);
+    takeUnitsFromBasket(shopStore,c.order.items);   /* only these units leave the basket — the rest stays put */
+    shopSplit=null; shopManualSplit=null;
+    await saveBasket(); await saveShopOrders(); render();
+    toast('Order lined up — the rest is still in the basket', true);
   };
   const sc=$('#shop-clear'); if(sc) sc.onclick=async()=>{ snapshot();
     bask().forEach(i=>unbump(shopStore,i.name,i.qty));
