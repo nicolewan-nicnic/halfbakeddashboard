@@ -217,6 +217,10 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
 .order{background:var(--ivory);border:2.5px solid var(--taupe);border-radius:var(--wob3);padding:12px 14px}
 .order.ok{border-color:var(--sage)}
 .order.under{border-color:var(--orange)}
+/* Lined up but not yet placed: set apart from the editable basket above it —
+   a filled, dashed card with no steppers on its rows, so it plainly isn't
+   something you can nudge by mistake. "Edit" is the only door back in. */
+.order.lined{background:var(--beige);border-style:dashed;border-color:var(--taupe)}
 .order h5{margin:0 0 8px;font-family:var(--display);font-weight:600;font-size:14.5px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .order h5 b{font-family:var(--mono);font-size:16px;font-weight:500}
 .order ul{list-style:none;margin:0;padding:0}
@@ -631,6 +635,8 @@ const S = {
   cooked:    'hbs:cooked',              /* recipe ids the user has made at least once   */
   basket:    'hbs:shop.basket',
   hist:      'hbs:shop.history',
+  putaway:   'hbs:shop.putaway',         /* items from placed orders still waiting to be put away */
+  orders:    'hbs:shop.orders',          /* lined-up + placed Deliveroo orders, across every store */
   prefs:     'hbs:foodprefs',
   meta:      'hbs:meta'
 };
@@ -1395,6 +1401,12 @@ let basket={}, shopHist={}, shopSplit=null, shopFam='';
 let shopManualSplit=null;   /* [[unit,…],…] once the user has moved items between orders by hand; null = automatic */
 let shopScope='store', allCat=null, allBusy=false, topsOpen=false;
 let putAwayList=null, basketQ='';
+/* Deliveroo orders once you've grouped items and tapped "Order lined up": held
+   here (not removed from the app) until you actually mark them placed on the
+   "Lined-up orders" screen — that's the only step that touches purchase
+   history or the put-away queue. {id,store,items:[{name,price,size}],total,
+   linedAt,placedAt,status:'lined'|'placed'} */
+let shopOrders=[];
 const STORES=[
   ['waitrose-barnet','Waitrose Barnet',1],['longdan','Longdan',1],['morrisons','Morrisons',1],
   ['waitrose-kentish-town','Waitrose Kentish Town',0],['sainsbury-s-local',"Sainsbury's Local",0],
@@ -1435,6 +1447,8 @@ const saveRecipeStores=async()=>{ await sset(S.mine,mine); await sset(S.override
 const saveFridge=()=>sset(S.fridge,fridge), saveGrocery=()=>sset(S.grocery,grocery),
       savePlan=()=>sset(S.plan,plan), savePrefs=()=>sset(S.prefs,foodPrefs),
       saveTodos=()=>sset(S.todos,todos), saveBasket=()=>sset(S.basket,basket), saveHist=()=>sset(S.hist,shopHist),
+      savePutaway=()=>sset(S.putaway,putAwayList&&putAwayList.length?putAwayList:null),
+      saveShopOrders=()=>sset(S.orders,shopOrders&&shopOrders.length?shopOrders:null),
       saveMenu=()=>sset(S.menu,menu),
       saveNbdFav=()=>sset(S.nbdfav,nbdFav), saveNbdRecent=()=>sset(S.nbdrecent,nbdRecent),
       saveCooked=()=>sset(S.cooked,cookedIds);
@@ -1575,18 +1589,18 @@ let undoSnap=null;
    can never drift apart. nbdFav / cookedIds / foodPrefs used to be missing, so
    "I've made this" and a restored backup were quietly not undoable. */
 const UNDO_STORES=['mine','overrides','removed','fridge','grocery','plan','todos',
-  'basket','shopHist','menu','nbdFav','nbdRecent','cookedIds','foodPrefs'];
+  'basket','shopHist','menu','nbdFav','nbdRecent','cookedIds','foodPrefs','shopOrders'];
 function snapshot(){
-  const g={mine,overrides,removed,fridge,grocery,plan,todos,basket,shopHist,menu,nbdFav,nbdRecent,cookedIds,foodPrefs};
+  const g={mine,overrides,removed,fridge,grocery,plan,todos,basket,shopHist,menu,nbdFav,nbdRecent,cookedIds,foodPrefs,shopOrders};
   undoSnap={}; UNDO_STORES.forEach(k=>{ undoSnap[k]=structuredClone(g[k]); });
 }
 async function doUndo(){
   if(!undoSnap) return;
   const s=structuredClone(undoSnap);
-  ({mine,overrides,removed,fridge,grocery,plan,todos,basket,shopHist,menu,nbdFav,nbdRecent,cookedIds,foodPrefs}=s);
+  ({mine,overrides,removed,fridge,grocery,plan,todos,basket,shopHist,menu,nbdFav,nbdRecent,cookedIds,foodPrefs,shopOrders}=s);
   undoSnap=null; rebuild();
   await Promise.all([saveRecipeStores(),saveFridge(),saveGrocery(),savePlan(),saveTodos(),
-    saveBasket(),saveHist(),saveMenu(),saveNbdFav(),saveNbdRecent(),saveCooked(),savePrefs()]);
+    saveBasket(),saveHist(),saveMenu(),saveNbdFav(),saveNbdRecent(),saveCooked(),savePrefs(),saveShopOrders()]);
   if(currentId&&!find(currentId)) currentId=recipes[0]?.id??null;
   render(); toast('Put back');
 }
@@ -3781,7 +3795,13 @@ function topUps(total,exclude,deep){
   return shopCat.items
     .filter(i=>i.price>=short-0.001&&i.price<=short+band&&!skip.has(i.name))
     .map(i=>({...i,over:i.price-short,seen:(h[i.name]?h[i.name].b*4+h[i.name].a:0)}))
-    .sort((a,b)=>(b.seen>0)-(a.seen>0)||a.over-b.over)
+    /* "You've bought this before" only earns top billing when the item actually
+       lands the order within £1 of £15 — a familiar item that overshoots by £4
+       is no more useful than any other, so past that band it's pure closeness. */
+    .sort((a,b)=>{
+      const qa=a.seen>0&&a.over<=1, qb=b.seen>0&&b.over<=1;
+      return (qb-qa)||a.over-b.over;
+    })
     .slice(0,deep?40:6);
 }
 /* Best small combination of `units` (sorted desc) to cover `need`: reach it with
@@ -3840,7 +3860,10 @@ function planOrders(k){
 function maxOrders(){ return Math.max(1, bask().reduce((a,i)=>a+i.qty,0)); }
 function autoSplit(){ return Math.max(1, Math.floor(basketTotal()/MIN_ORDER)); }
 
-function splitCount(){ return Math.min(shopSplit||autoSplit(), maxOrders()); }
+/* You can lump the basket into FEWER orders, never more than the total can fund:
+   three orders of £15 need £45 in the basket, full stop. autoSplit() is that
+   ceiling, so a stale shopSplit from a bigger basket can't ask for the impossible. */
+function splitCount(){ return Math.min(shopSplit||autoSplit(), autoSplit(), maxOrders()); }
 
 /* The orders as shown: the automatic pack, unless the user has moved items
    between orders by hand (shopManualSplit). The manual arrangement is dropped
@@ -3869,7 +3892,14 @@ function moveOrderItem(oi,idx,dir){
   render();
 }
 function renderSplit(){
-  const k=splitCount(), orders=currentOrders(), mx=Math.min(4,maxOrders());
+  /* Nothing to split unless the basket can fund at least two £15 orders. Below
+     that, renderShop's single-order "Tips it over £15" panel is the whole story —
+     showing the multi-order UI here is what produced the "2 orders selected but
+     only 1 shown / won't fill more" contradiction on a sub-£15 basket. */
+  const feasible=autoSplit();
+  if(feasible<2||maxOrders()<2) return '';
+  const want=splitCount(), orders=currentOrders();
+  const k=Math.min(want,orders.length), mx=Math.min(4,feasible);
   const choices=[]; for(let n=1;n<=mx;n++) choices.push(n);
   return `<div class="split">
     <div class="split-head">
@@ -3880,8 +3910,16 @@ function renderSplit(){
         :shopSplit?`<button class="link-btn" id="split-auto">back to automatic</button>`
         :`<span class="calc-sync">automatic — ${autoSplit()} order${autoSplit()===1?'':'s'} clears the minimum</span>`}
     </div>
-    ${!shopManualSplit&&orders.length<k?`<p class="calc-sync" style="margin:2px 0 0">Only ${orders.length} order${orders.length===1?'':'s'} — the basket won't fill more.</p>`:''}
-    ${k>1?`<p class="calc-sync" style="margin:2px 0 6px">Use the ‹ › arrows on an item to shift it to the next order and land each one on £${MIN_ORDER} by hand.</p>
+    ${!shopManualSplit&&want>k?`<p class="calc-sync" style="margin:2px 0 0">Splits into ${k} — the rest of the basket can't reach £${MIN_ORDER}. Use the arrows to rearrange.</p>`:''}
+    ${k===1
+      /* Consolidated to one order, the "order" IS the whole basket — the item list
+         with its qty steppers, and the "Order lined up" button, are both already
+         on screen just above (renderShop's basket list and its #shop-done button,
+         which does exactly what this order's data-placed would). Repeating both
+         here as a second, sparser copy — no steppers, a second identical button —
+         was the "dodgy" duplication. Nothing left to show but the chooser above. */
+      ? ''
+      : `<p class="calc-sync" style="margin:2px 0 6px">Use the ‹ › arrows on an item to shift it to the next order and land each one on £${MIN_ORDER} by hand.</p>
     <div class="orders">${orders.map((o,n)=>{
       const short=MIN_ORDER-o.total, tops=topUps(o.total,o.items.map(x=>x.name),topsOpen);
       const over=o.total-MIN_ORDER;
@@ -3901,10 +3939,78 @@ function renderSplit(){
             ${esc(t.name.length>30?t.name.slice(0,28)+'…':t.name)} <span class="n">£${t.price.toFixed(2)}</span></button>`).join('')}
           ${tops.length>3?`<button class="link-btn" id="tops-more2">${topsOpen?'fewer':'more options'}</button>`:''}</div>`
           :`<p class="hint" style="margin:6px 0 0">Nothing in this shop lands neatly on the gap — add something by hand.</p>`)
-        :`<button class="link-btn" data-placed="${n}">Order placed — remember these</button>`}
+        :`<button class="link-btn" data-placed="${n}">Order lined up — set it aside</button>`}
       </div>`;}).join('')}</div>`
-    :''}
+    }
   </div>`;
+}
+/* Placed-order items waiting for the fridge. Accumulates across several orders
+   (each "Order placed" used to overwrite the last one) and is saved, so the
+   chance to put them away survives a reload or a trip to another screen.
+   `store` defaults to the shop currently on screen, but the "Lined-up orders"
+   screen finalises orders for shops that aren't — it always passes one. */
+function queuePutaway(rows,store){
+  if((store||shopStore)===BOOTS_SLUG) return;   /* Boots is toiletries, not food */
+  const list=putAwayList?putAwayList.slice():[];
+  rows.forEach(r=>{
+    if(!r||!r.name) return;
+    const hit=list.find(p=>p.name===r.name&&p.shelf===r.shelf);
+    if(hit){ if(r.qty&&!String(hit.qty).includes(String(r.qty))) hit.qty=[hit.qty,r.qty].filter(Boolean).join(' + '); }
+    else list.push(r);
+  });
+  putAwayList = list.length ? list : null;
+}
+
+/* ============ Deliveroo orders: lined up now, placed later ============
+   "Order lined up" groups a set of basket units into a record here and takes
+   them out of the editable basket — it does NOT touch purchase history or the
+   put-away queue. Only marking that record placed (from the "Lined-up orders"
+   screen, across every shop) does that, because that's the point groceries
+   are actually on their way. A lined-up order can also be dissolved back into
+   its basket unedited — nothing here is a one-way door until it's placed. */
+function unitKey(u){ return u.name+'|'+u.price+'|'+(u.size||''); }
+function lineUpOrder(store,items){
+  const id='o'+Date.now()+Math.random().toString(36).slice(2,6);
+  shopOrders.push({id,store,items:items.map(i=>({name:i.name,price:i.price,size:i.size||''})),
+    total:items.reduce((a,i)=>a+i.price,0),linedAt:new Date().toISOString(),placedAt:null,status:'lined'});
+  return id;
+}
+/* Remove exactly these units from a store's basket — matched by name+price+size
+   so a same-named item at a different pack size or price isn't confused with it. */
+function takeUnitsFromBasket(store,items){
+  const arr=basket[store]||(basket[store]=[]);
+  items.forEach(u=>{
+    const line=arr.find(i=>unitKey(i)===unitKey(u));
+    if(line){ line.qty--; if(line.qty<1) arr.splice(arr.indexOf(line),1); }
+  });
+}
+function returnUnitsToBasket(store,items){
+  const arr=basket[store]||(basket[store]=[]);
+  items.forEach(u=>{
+    const line=arr.find(i=>unitKey(i)===unitKey(u));
+    if(line) line.qty++; else arr.push({name:u.name,price:u.price,qty:1,size:u.size||''});
+  });
+}
+/* Dissolve a lined-up order back into its basket, unedited — the "Edit" action
+   wherever a lined-up order is shown. Only ever offered while status is
+   'lined'; a placed order is history, not a draft. */
+async function dissolveOrder(id){
+  const idx=shopOrders.findIndex(x=>x.id===id); if(idx<0) return null;
+  const o=shopOrders[idx]; if(o.status!=='lined') return null;
+  returnUnitsToBasket(o.store,o.items);
+  shopOrders.splice(idx,1);
+  await saveBasket(); await saveShopOrders();
+  return o.store;
+}
+/* The actual "I've ordered this on Deliveroo" moment — the one place purchase
+   history and the put-away queue get touched for a lined-up order. */
+async function markOrderPlaced(id){
+  const o=shopOrders.find(x=>x.id===id); if(!o||o.status!=='lined') return;
+  queuePutaway(o.items.map(u=>({name:u.name,qty:u.size||'',shelf:shelfFor(u.name),
+    until:sugDate(u.name,shelfFor(u.name)),on:true})), o.store);
+  o.items.forEach(u=>bump(o.store,u.name,'b'));
+  o.status='placed'; o.placedAt=new Date().toISOString();
+  await saveHist(); await savePutaway(); await saveShopOrders();
 }
 function renderShop(){
   const items=bask(), total=basketTotal(), short=MIN_ORDER-total;
@@ -3918,6 +4024,9 @@ function renderShop(){
     ? shopCat.items.filter(i=>i.name.toLowerCase().includes(q)).slice(0,60) : [];
   const gResults=(q.length>1&&shopScope==='all') ? searchEverywhere(q) : [];
   const tops=topUps(total,[],true);
+  const storeLined=shopOrders.filter(o=>o.store===shopStore&&o.status==='lined');
+  const linedCount=shopOrders.reduce((a,o)=>a+(o.status==='lined'?1:0),0);
+  const placedCount=shopOrders.reduce((a,o)=>a+(o.status==='placed'?1:0),0);
 
   pane.innerHTML=`<article class="card">
     <div class="card-head">
@@ -3931,6 +4040,17 @@ function renderShop(){
       <button class="ball ${fav?'fav':''}" data-store="${slug}" aria-pressed="${shopStore===slug}">${esc(name)}</button>`).join('')}
       <button class="ball" data-store="boots" aria-pressed="${shopStore==='boots'}">Boots Borehamwood</button>
     </div>
+    ${linedCount||placedCount?`<p class="calc-sync" style="margin:6px 0 0"><button class="link-btn" id="view-lined">Lined-up orders
+      ${linedCount?` · ${linedCount} ready to place`:''}${placedCount?` · ${placedCount} in history`:''}</button></p>`:''}
+
+    ${storeLined.length?`<div class="lined-block" style="margin-top:14px">
+      <h4 style="font-family:var(--mono);font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--rye);margin:0 0 8px;font-weight:400">Lined up for ${esc(shopStore===BOOTS_SLUG?'Boots Borehamwood':(shopCat?shopCat.store:storeName(shopStore)))}</h4>
+      ${storeLined.map(o=>`<div class="order lined" style="margin-bottom:10px">
+        <h5><span class="chip">lined up</span> <b>£${o.total.toFixed(2)}</b></h5>
+        <ul>${o.items.map(i=>`<li class="single"><span class="oi-name">${esc(i.name)}</span><span class="b-price">£${i.price.toFixed(2)}</span></li>`).join('')}</ul>
+        <button class="link-btn" data-unlock="${esc(o.id)}">Edit</button>
+      </div>`).join('')}
+    </div>`:''}
 
     <h3 class="section-title" style="margin-top:20px">Search</h3><div class="section-rule"></div>
     <div class="scope">
@@ -4009,7 +4129,7 @@ function renderShop(){
         <span class="b-price">£${(i.price*i.qty).toFixed(2)}</span>
         <button class="row-x" data-bx="${n}" aria-label="Remove">×</button></li>`).join('')}</ul>
       <div class="cook-actions" style="margin-top:12px">
-        <button class="pill solid" id="shop-done">${splitCount()>1?'All ordered':'Order placed'} — remember these</button>
+        <button class="pill solid" id="shop-done">Order lined up — set it aside</button>
         <button class="link-btn" id="shop-clear">Empty the basket</button>
         <button class="link-btn" id="shop-tolist">Copy to grocery list</button>
       </div>`
@@ -4123,39 +4243,37 @@ function renderShop(){
     const o=currentOrders()[+b.dataset.placed];
     if(!o||!o.items.length) return;
     snapshot();
-    putAwayList=o.items.map(u=>({name:u.name,qty:u.size||'',shelf:shelfFor(u.name),
-      until:sugDate(u.name,shelfFor(u.name)),on:true}));
-    o.items.forEach(u=>{
-      bump(shopStore,u.name,'b');
-      const line=bask().find(i=>i.name===u.name);
-      if(line){ line.qty--; if(line.qty<1) bask().splice(bask().indexOf(line),1); }
-    });
-    if(shopSplit) shopSplit=Math.max(1,shopSplit-1);
-    shopManualSplit=null;                     /* the arrangement is spent once an order is placed */
-    await saveBasket(); await saveHist(); render();
-    toast('Order noted — '+o.items.length+' item'+(o.items.length===1?'':'s')+' remembered', true);
+    lineUpOrder(shopStore,o.items);
+    takeUnitsFromBasket(shopStore,o.items);
+    shopSplit=null;                           /* let the split recompute from what's left, don't decrement a stale count */
+    shopManualSplit=null;                     /* the arrangement is spent once an order is lined up */
+    await saveBasket(); await saveShopOrders(); render();
+    toast('Order lined up', true);
   });
+  pane.querySelectorAll('[data-unlock]').forEach(b=>b.onclick=async()=>{
+    await dissolveOrder(b.dataset.unlock); render();
+    toast('Back in the basket to edit');
+  });
+  const vl=$('#view-lined'); if(vl) vl.onclick=()=>{ mode='shoporders'; render(); };
   pane.querySelectorAll('[data-pl]').forEach(el=>el.onchange=()=>{ putAwayList[+el.dataset.pl].on=el.checked; });
   pane.querySelectorAll('[data-plshelf]').forEach(el=>el.onchange=()=>{ const i=+el.dataset.plshelf;
     putAwayList[i].shelf=el.value; putAwayList[i].until=sugDate(putAwayList[i].name,el.value); });
   const pg2=$('#pl-go'); if(pg2) pg2.onclick=async()=>{
     let n=0,m=0;
     putAwayList.filter(p=>p.on).forEach(p=>{ const res=addToFridge({name:p.name,qty:p.qty,shelf:p.shelf,until:p.until}); res.merged?m++:n++; });
-    putAwayList=null; await saveFridge(); render();
+    putAwayList=null; await saveFridge(); await savePutaway(); render();
     toast(n+' into the kitchen'+(m?', '+m+' merged':''));
   };
-  const pc2=$('#pl-skip'); if(pc2) pc2.onclick=()=>{ putAwayList=null; render(); };
+  const pc2=$('#pl-skip'); if(pc2) pc2.onclick=async()=>{ putAwayList=null; await savePutaway(); render(); };
   const sd=$('#shop-done'); if(sd) sd.onclick=async()=>{
-    const n=bask().length;
-    /* Boots is toiletries and pharmacy, not food — it still counts toward the
-       £15 minimum, but nothing from it should be offered for the fridge. */
-    putAwayList=(shopStore===BOOTS_SLUG?[]:bask().map(i=>({name:i.name,qty:(i.qty>1?i.qty+'× ':'')+(i.size||''),shelf:shelfFor(i.name),
-      until:sugDate(i.name,shelfFor(i.name)),on:true})));
-    if(!putAwayList.length) putAwayList=null;
-    bask().forEach(i=>{ for(let k=0;k<i.qty;k++) bump(shopStore,i.name,'b'); });
-    snapshot(); basket[shopStore]=[];
-    await saveBasket(); await saveHist(); render();
-    toast(n+' item'+(n===1?'':'s')+' remembered', true);
+    const items=bask().flatMap(i=>Array.from({length:i.qty},()=>({name:i.name,price:i.price,size:i.size||''})));
+    if(!items.length) return;
+    snapshot();
+    lineUpOrder(shopStore,items);
+    basket[shopStore]=[];
+    shopSplit=null; shopManualSplit=null;
+    await saveBasket(); await saveShopOrders(); render();
+    toast('Order lined up', true);
   };
   const sc=$('#shop-clear'); if(sc) sc.onclick=async()=>{ snapshot();
     bask().forEach(i=>unbump(shopStore,i.name,i.qty));
@@ -4169,6 +4287,58 @@ function renderShop(){
     await saveGrocery(); render(); toast(n+' copied to the grocery list');
   };
   if(refocus==='shop-q'){ refocus=null; const n=$('#shop-q'); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } }
+}
+
+/* ============ lined-up Deliveroo orders, across every shop ============
+   Reached from the "Lined-up orders" link on any store's basket page — not a
+   bookmarkable route of its own (see hashFor), same as the recipe editor or
+   the No-Brainer builder. Two lists: the ones still to actually place on
+   Deliveroo, and everything placed before, oldest dropping off past 60. */
+function renderShopOrders(){
+  const lined=shopOrders.filter(o=>o.status==='lined').sort((a,b)=>a.linedAt<b.linedAt?-1:1);
+  const placed=shopOrders.filter(o=>o.status==='placed').sort((a,b)=>b.placedAt.localeCompare(a.placedAt));
+
+  pane.innerHTML=`<article class="card">
+    <div class="card-head">
+      <div style="flex:1;min-width:180px"><h2>Lined-up orders</h2>
+        <p class="blurb">Everything you've grouped into an order, across every shop. Mark one placed once you've actually put it through on Deliveroo — that's the point purchase history and the fridge reminder get recorded.</p></div>
+      <div class="head-actions"><button class="pill back-only" id="back">← Deliveroo</button></div>
+    </div>
+
+    <h3 class="section-title" style="margin-top:20px">Ready to place</h3><div class="section-rule"></div>
+    ${lined.length?lined.map(o=>`<div class="order lined" style="margin-bottom:12px">
+        <h5><span class="chip">${esc(storeName(o.store))}</span> <b>£${o.total.toFixed(2)}</b></h5>
+        <ul>${o.items.map(i=>`<li class="single"><span class="oi-name">${esc(i.name)}</span><span class="b-price">£${i.price.toFixed(2)}</span></li>`).join('')}</ul>
+        <div class="edit-actions" style="margin-top:8px;padding:0;border:0">
+          <button class="pill solid" data-order-placed="${esc(o.id)}">Order placed</button>
+          <button class="link-btn" data-unlock2="${esc(o.id)}">Edit</button>
+        </div>
+      </div>`).join(''):`<p class="home-none">Nothing lined up yet. Build a basket, group it into an order, and "Order lined up" puts it here.</p>`}
+
+    <h3 class="section-title" style="margin-top:28px">History</h3><div class="section-rule"></div>
+    ${placed.length?`<ul class="items">${placed.slice(0,60).map(o=>`
+      <li><span class="item-name">${esc(storeName(o.store))}</span>
+        <span class="chip">£${o.total.toFixed(2)}</span>
+        <span class="item-qty">${o.items.length} item${o.items.length===1?'':'s'}</span>
+        <span class="item-qty">${esc(prettyDay(o.placedAt.slice(0,10)))}</span></li>`).join('')}</ul>`
+      :`<p class="home-none">Nothing placed yet.</p>`}
+  </article>`;
+
+  const back=$('#back'); if(back) back.onclick=()=>{ mode='shop'; render(); };
+  pane.querySelectorAll('[data-order-placed]').forEach(b=>b.onclick=async()=>{
+    await markOrderPlaced(b.dataset.orderPlaced); render();
+    toast('Order placed — remembered', true);
+  });
+  pane.querySelectorAll('[data-unlock2]').forEach(b=>b.onclick=async()=>{
+    const store=await dissolveOrder(b.dataset.unlock2); if(!store) return;
+    mode='shop';
+    if(store!==shopStore){
+      shopStore=store; shopCat=null; shopSplit=null; shopManualSplit=null;
+      if(shopStore===BOOTS_SLUG) loadBootsProducts(); else loadCatalogue(shopStore);
+    }
+    render();
+    toast('Back in the '+storeName(store)+' basket to edit');
+  });
 }
 
 /* ============ settings ============ */
@@ -4320,7 +4490,7 @@ let booting=true;                     /* true until saved data has hydrated; kee
 
 function hashFor(){
   if(SHARE) return null;
-  if(editing||mode==='paste'||mode==='nbd') return null;   /* transient states — leave the URL where it was */
+  if(editing||mode==='paste'||mode==='nbd'||mode==='shoporders') return null;   /* transient states — leave the URL where it was */
   if(mode==='recipe') return currentId?'#/recipe/'+encodeURIComponent(currentId):null;
   /* ^ a recipe view with nothing selected has no honest URL — leaving the hash
        alone beats claiming the user is on the home screen while they are not */
@@ -4383,6 +4553,7 @@ function renderBody(){
   if(mode==='nbd'&&!SHARE){ renderNbd(); return; }
   if(mode==='settings'&&!SHARE){ renderSettings(); return; }
   if(mode==='shop'&&!SHARE){ renderShop(); return; }
+  if(mode==='shoporders'&&!SHARE){ renderShopOrders(); return; }
   if(mode==='home'&&!SHARE){ renderHome(); return; }
   if(mode==='recipes'){ renderRecipes(); return; }
   (editing&&!SHARE)?renderEditor():renderRecipe();
@@ -4425,7 +4596,7 @@ $('#doodle-file').onchange=e=>{
   e.target.value='';
 };
 function doBackup(){
-  const blob=new Blob([JSON.stringify({v:APP_VERSION,mine,overrides,removed,fridge,grocery,plan,todos,menu,nbdFav,nbdRecent,cookedIds,foodPrefs,basket,shopHist},null,2)],{type:'application/json'});
+  const blob=new Blob([JSON.stringify({v:APP_VERSION,mine,overrides,removed,fridge,grocery,plan,todos,menu,nbdFav,nbdRecent,cookedIds,foodPrefs,basket,shopHist,shopOrders},null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='half-baked-'+todayISO()+'.json';
   a.click(); URL.revokeObjectURL(a.href);
@@ -4460,24 +4631,25 @@ $('#import-file').onchange=e=>{
       staged.menu=arr(d.menu,'menu'); staged.nbdFav=arr(d.nbdFav,'NBD favourites'); staged.nbdRecent=arr(d.nbdRecent,'NBD recent');
       staged.cookedIds=arr(d.cookedIds,'cooked ids').filter(x=>typeof x==='string');
       staged.basket=obj(d.basket,'baskets'); staged.shopHist=obj(d.shopHist,'shop history');
+      staged.shopOrders=arr(d.shopOrders,'Deliveroo orders');
     }catch(err){ banner('That backup could not be read — '+(err&&err.message||'unrecognised format')+'. Nothing was changed.'); return; }
 
-    const before={mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,menu,nbdFav,nbdRecent,cookedIds,basket,shopHist};
+    const before={mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,menu,nbdFav,nbdRecent,cookedIds,basket,shopHist,shopOrders};
     try{
       /* Undoable: a restore replaces every store, and picking the wrong file
          used to be recoverable only from another backup. */
       snapshot();
-      ({mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,menu,nbdFav,nbdRecent,cookedIds,basket,shopHist}=staged);
+      ({mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,menu,nbdFav,nbdRecent,cookedIds,basket,shopHist,shopOrders}=staged);
       rebuild(); currentId=recipes[0]?.id??null; editing=false; mode='recipes';
       /* persist every restored store as one batch — baskets and history included */
       await Promise.all([
         saveRecipeStores(), saveFridge(), saveGrocery(), savePlan(), saveTodos(),
         savePrefs(), saveMenu(), saveNbdFav(), saveNbdRecent(), saveCooked(),
-        saveBasket(), saveHist()
+        saveBasket(), saveHist(), saveShopOrders()
       ]);
       render(); toast('Restored '+recipes.length+' recipes', true);
     }catch(err){
-      ({mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,menu,nbdFav,nbdRecent,cookedIds,basket,shopHist}=before);
+      ({mine,overrides,removed,fridge,grocery,plan,todos,foodPrefs,menu,nbdFav,nbdRecent,cookedIds,basket,shopHist,shopOrders}=before);
       undoSnap=null;                    /* rolled back already — nothing to undo */
       rebuild(); render();
       banner('The backup could not be applied cleanly — nothing was changed. '+(err&&err.message||err));
@@ -4522,14 +4694,14 @@ async function doReset(){
      eleven sequential round-trips were the reason startup felt slow. */
   /* In share mode fetch ONLY the three recipe keys. The fridge, grocery list,
      meal plan, baskets and purchase history are never requested at all. */
-  const [_mine,_over,_rem,_fri,_gro,_pl,_td,_bk,_hs,_pr,_mn,_nf,_nr,_ck,meta] = SHARE
+  const [_mine,_over,_rem,_fri,_gro,_pl,_td,_bk,_hs,_pr,_mn,_nf,_nr,_ck,_pa,_so,meta] = SHARE
     ? [...await Promise.all([sget(S.mine), sget(S.overrides), sget(S.removed)]),
-       null,null,null,null,null,null,null,null,null,null,null,null]
+       null,null,null,null,null,null,null,null,null,null,null,null,null,null]
     : await Promise.all([
         sget(S.mine), sget(S.overrides), sget(S.removed), sget(S.fridge),
         sget(S.grocery), sget(S.plan), sget(S.todos), sget(S.basket),
         sget(S.hist), sget(S.prefs), sget(S.menu), sget(S.nbdfav),
-        sget(S.nbdrecent), sget(S.cooked), sget(S.meta)
+        sget(S.nbdrecent), sget(S.cooked), sget(S.putaway), sget(S.orders), sget(S.meta)
       ]);
   mine      = _mine || [];
   overrides = _over || {};
@@ -4545,6 +4717,8 @@ async function doReset(){
   nbdFav    = _nf   || [];
   nbdRecent = _nr   || [];
   cookedIds = _ck   || [];
+  putAwayList = (Array.isArray(_pa)&&_pa.length) ? _pa : null;
+  shopOrders  = Array.isArray(_so) ? _so : [];
 
   /* one-time lift from the old single-blob store into the split stores */
   if(!meta && !API_BASE){
