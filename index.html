@@ -1440,6 +1440,15 @@ const STORES=[
 function storeName(slug){ const s=STORES.find(x=>x[0]===slug); return s?s[1]:slug; }
 const MIN_ORDER=15;
 const BOOTS_SLUG='boots';  /* Boots: searchable but not in baskets/fridge */
+/* The display name for whichever shop is selected right now. shopCat is
+   only trustworthy once it's actually loaded for shopStore — while a
+   switch is in flight it still holds the PREVIOUS shop's catalogue, so
+   using shopCat.store unconditionally briefly named the wrong shop. */
+function curShopName(){
+  if(shopStore===BOOTS_SLUG) return 'Boots Borehamwood';
+  if(shopCat&&shopCat.slug===shopStore) return shopCat.store;
+  return storeName(shopStore);
+}
 const SHELVES=['Fridge','Freezer','Cupboard'];
 const ticked={ing:new Set(), step:new Set()};
 const $=s=>document.querySelector(s);
@@ -3883,7 +3892,14 @@ async function loadCatalogue(slug){
 /* what to add so the basket lands on or just over the minimum, with least waste */
 function topUps(total,exclude,deep){
   const short=MIN_ORDER-total;
-  if(short<=0||!shopCat) return [];
+  /* shopCat can briefly still hold the PREVIOUS shop's catalogue: switching
+     stores updates shopStore immediately but shopCat only once its fetch
+     resolves, so for one render there's a stale catalogue paired with the
+     new store's (usually empty) basket total. That produced a burst of
+     "Tips it over £15" suggestions from the wrong shop — a much longer list
+     than the real one — which collapsed back down a moment later and read
+     as the whole page bouncing. */
+  if(short<=0||!shopCat||shopCat.slug!==shopStore) return [];
   const h=histFor(shopStore);
   const skip=new Set([...(exclude||[]), ...bask().map(i=>i.name)]);
   const band=deep?6:2.5;
@@ -4164,7 +4180,7 @@ function renderShop(){
       ${linedCount?` · ${linedCount} ready to place`:''}${placedCount?` · ${placedCount} in history`:''}</button></p>`:''}
 
     ${storeLined.length?`<div class="lined-block" style="margin-top:14px">
-      <h4 style="font-family:var(--mono);font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--rye);margin:0 0 8px;font-weight:400">Lined up for ${esc(shopStore===BOOTS_SLUG?'Boots Borehamwood':(shopCat?shopCat.store:storeName(shopStore)))}</h4>
+      <h4 style="font-family:var(--mono);font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--rye);margin:0 0 8px;font-weight:400">Lined up for ${esc(curShopName())}</h4>
       ${storeLined.map(o=>`<div class="order lined" style="margin-bottom:10px">
         <h5><span class="chip">lined up</span> <b>£${o.total.toFixed(2)}</b></h5>
         <ul>${o.items.map(i=>`<li class="single"><span class="oi-name">${esc(i.name)}</span><span class="b-price">£${i.price.toFixed(2)}</span></li>`).join('')}</ul>
@@ -4175,13 +4191,13 @@ function renderShop(){
     <h3 class="section-title" style="margin-top:20px">Search</h3><div class="section-rule"></div>
     <div class="scope">
       <button class="ball" data-scope="all" aria-pressed="${shopScope==='all'}">Every shop</button>
-      <button class="ball" data-scope="store" aria-pressed="${shopScope==='store'}">${esc(shopStore==='boots'?'Boots Borehamwood':(shopCat?shopCat.store:'This shop'))} only</button>
+      <button class="ball" data-scope="store" aria-pressed="${shopScope==='store'}">${esc(curShopName())} only</button>
       <button class="ball" data-scope="baskets" aria-pressed="${shopScope==='baskets'}">In my baskets</button>
       ${shopScope==='all'?`<span class="calc-sync">${allBusy?'loading every price list…':(allCat?'every shop · cheapest per kilo first':'')}</span>`:''}
     </div>
     ${shopBusy?`<p class="home-none">Loading the price list…</p>`:''}
     ${shopErr?`<div class="banner" style="margin-bottom:14px">${esc(shopErr)}</div>`:''}
-    <input class="search" id="shop-q" type="search" placeholder="${shopScope==='baskets'?'Search your baskets':shopScope==='store'?'Search '+esc(shopStore===BOOTS_SLUG?'Boots Borehamwood':(shopCat?shopCat.store:'this shop')):'Search every shop'}" autocomplete="off" value="${esc(shopQ)}">
+    <input class="search" id="shop-q" type="search" placeholder="${shopScope==='baskets'?'Search your baskets':shopScope==='store'?'Search '+esc(curShopName()):'Search every shop'}" autocomplete="off" value="${esc(shopQ)}">
     ${results.length?(()=>{
       const groups=new Map();
       results.forEach(i=>{ const f=famOf(i.cat);
