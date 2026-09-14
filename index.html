@@ -146,6 +146,10 @@ body.shared .share-note{margin:0 0 14px;font-size:13px;opacity:.6}
 .tick{width:100%;display:flex;gap:12px;align-items:flex-start;text-align:left;background:none;border:0;padding:7px 6px 7px 0;border-radius:9px}
 .tick:hover{background:var(--beige)}
 .box{width:18px;height:18px;flex:none;margin-top:3px;border:2.5px solid var(--crumb);border-radius:7px 5px 8px 5px/5px 8px 5px 7px;background:var(--ivory);position:relative}
+/* the small dot beside a colour-tagged ingredient's checkbox — its <li>'s
+   coloured left border is the main cue, this just repeats it so the row
+   still reads as tagged once ticked and the border is the only other mark */
+.ing-dot{width:8px;height:8px;border-radius:50%;flex:none;margin-top:7px}
 .tick[aria-pressed="true"] .box{background:var(--sage);border-color:var(--sage)}
 .tick[aria-pressed="true"] .box::after{content:"";position:absolute;left:3px;top:4px;width:9px;height:4px;border-left:2.5px solid var(--ivory);border-bottom:2.5px solid var(--ivory);transform:rotate(-45deg)}
 .tick[aria-pressed="true"] .qty,.tick[aria-pressed="true"] .ing-name,.tick[aria-pressed="true"] .step-text{opacity:.4;text-decoration:line-through}
@@ -1361,38 +1365,41 @@ function seed(){return [
  makesQty:2,makesUnit:'servings',
  /* Ingredients and method both carry `opt` — the recipe page's "Made with"
     picker filters whichever version is selected out of both together.
-    Untagged rows/steps are shared by all three. */
+    Each ingredient also carries `step`: the absolute index (into `method`
+    below) of the step that uses it, so the ingredient list can sort itself
+    into that order and colour-match each row to its step (see stepColorMap
+    in the shared render code) instead of listing in typed-in order. */
  ingredients:[
-  {qty:160,unit:'g',name:'Whole milk',opt:'plain'},
-  {qty:70,unit:'g',name:'Heavy cream',opt:'plain'},
-  {qty:30,unit:'g',name:'Condensed milk',opt:'plain'},
-  {qty:10,unit:'g',name:'Whole milk powder',opt:'plain'},
-  {qty:2,unit:'g',name:'Tapioca starch, or cornflour',opt:'plain'},
-  {qty:2,unit:'g',name:'Gelatin sheets, dry weight',opt:'plain'},
-  {qty:null,unit:'',name:'Salt, a small pinch',opt:'plain'},
-  {qty:2,unit:'g',name:'Dark rum, optional',opt:'plain'},
-  {qty:8,unit:'g',name:'Assam tea leaves',opt:'royal milk tea'},
-  {qty:210,unit:'g',name:'Whole milk, for the tea infusion',opt:'royal milk tea'},
-  {qty:6,unit:'g',name:'Whole milk powder',opt:'royal milk tea'},
-  {qty:160,unit:'g',name:'Strained milk tea, from the infusion above',opt:'royal milk tea'},
-  {qty:70,unit:'g',name:'Heavy cream',opt:'royal milk tea'},
-  {qty:22,unit:'g',name:'Condensed milk',opt:'royal milk tea'},
-  {qty:null,unit:'',name:'Salt, a tiny pinch',opt:'royal milk tea'},
-  {qty:2.2,unit:'g',name:'Gelatin sheets',opt:'royal milk tea'},
-  {qty:60,unit:'g',name:'Espresso, or strong coffee',opt:'coffee'},
-  {qty:160,unit:'g',name:'Whole milk',opt:'coffee'},
-  {qty:70,unit:'g',name:'Heavy cream',opt:'coffee'},
-  {qty:30,unit:'g',name:'Condensed milk',opt:'coffee'},
-  {qty:10,unit:'g',name:'Whole milk powder',opt:'coffee'},
-  {qty:2,unit:'g',name:'Tapioca starch, or cornflour',opt:'coffee'},
-  {qty:null,unit:'',name:'Salt, a tiny pinch',opt:'coffee'},
-  {qty:2.5,unit:'g',name:'Gelatin sheets',opt:'coffee'},
-  {qty:2,unit:'g',name:'Dark rum, or coffee liqueur, optional',opt:'coffee'},
-  {qty:null,unit:'',name:'Coffee cream topping, optional:',opt:'coffee'},
-  {qty:15,unit:'g',name:'Heavy cream, for the topping',opt:'coffee'},
-  {qty:10,unit:'g',name:'Whole milk, for the topping',opt:'coffee'},
-  {qty:1,unit:'g',name:'Condensed milk, for the topping',opt:'coffee'},
-  {qty:null,unit:'',name:'Espresso powder, a small pinch, for the topping',opt:'coffee'}
+  {qty:160,unit:'g',name:'Whole milk',opt:'plain',step:2},
+  {qty:70,unit:'g',name:'Heavy cream',opt:'plain',step:2},
+  {qty:30,unit:'g',name:'Condensed milk',opt:'plain',step:2},
+  {qty:10,unit:'g',name:'Whole milk powder',opt:'plain',step:2},
+  {qty:2,unit:'g',name:'Tapioca starch, or cornflour',opt:'plain',step:2},
+  {qty:2,unit:'g',name:'Gelatin sheets, dry weight',opt:'plain',step:1},
+  {qty:null,unit:'',name:'Salt, a small pinch',opt:'plain',step:2},
+  {qty:2,unit:'g',name:'Dark rum, optional',opt:'plain',step:4},
+  {qty:8,unit:'g',name:'Assam tea leaves',opt:'royal milk tea',step:0},
+  {qty:210,unit:'g',name:'Whole milk, for the tea infusion',opt:'royal milk tea',step:0},
+  {qty:6,unit:'g',name:'Whole milk powder',opt:'royal milk tea',step:5},
+  {qty:160,unit:'g',name:'Strained milk tea, from the infusion above',opt:'royal milk tea',step:5},
+  {qty:70,unit:'g',name:'Heavy cream',opt:'royal milk tea',step:5},
+  {qty:22,unit:'g',name:'Condensed milk',opt:'royal milk tea',step:5},
+  {qty:null,unit:'',name:'Salt, a tiny pinch',opt:'royal milk tea',step:5},
+  {qty:2.2,unit:'g',name:'Gelatin sheets',opt:'royal milk tea',step:1},
+  {qty:60,unit:'g',name:'Espresso, or strong coffee',opt:'coffee',step:8},
+  {qty:160,unit:'g',name:'Whole milk',opt:'coffee',step:8},
+  {qty:70,unit:'g',name:'Heavy cream',opt:'coffee',step:8},
+  {qty:30,unit:'g',name:'Condensed milk',opt:'coffee',step:8},
+  {qty:10,unit:'g',name:'Whole milk powder',opt:'coffee',step:8},
+  {qty:2,unit:'g',name:'Tapioca starch, or cornflour',opt:'coffee',step:8},
+  {qty:null,unit:'',name:'Salt, a tiny pinch',opt:'coffee',step:8},
+  {qty:2.5,unit:'g',name:'Gelatin sheets',opt:'coffee',step:1},
+  {qty:2,unit:'g',name:'Dark rum, or coffee liqueur, optional',opt:'coffee',step:10},
+  {qty:null,unit:'',name:'Coffee cream topping, optional:',opt:'coffee',step:13},
+  {qty:15,unit:'g',name:'Heavy cream, for the topping',opt:'coffee',step:13},
+  {qty:10,unit:'g',name:'Whole milk, for the topping',opt:'coffee',step:13},
+  {qty:1,unit:'g',name:'Condensed milk, for the topping',opt:'coffee',step:13},
+  {qty:null,unit:'',name:'Espresso powder, a small pinch, for the topping',opt:'coffee',step:13}
  ],
  method:[
   {text:'The day before, gently heat the Assam tea leaves with the milk until tiny bubbles form at the edges. Cover and refrigerate overnight, then strain out the leaves.',opt:'royal milk tea'},
@@ -1764,6 +1771,20 @@ function optLabelFor(r,T,k){
   if(T&&T.calcLabels&&T.calcLabels[k]) return T.calcLabels[k];
   const o=r.calc&&r.calc.options&&r.calc.options.find(x=>x.k===k);
   return o?o.label:k.charAt(0).toUpperCase()+k.slice(1);
+}
+/* Colour-coordinating ingredients with the method step that uses them
+   (an ingredient carries a `step` — the absolute index into `method` —
+   when a recipe has been tagged for this; most haven't, and simply don't
+   colour). Six muted, flat hues, clear of --sage (already means "ticked" /
+   "selected" everywhere) and --orange (the default step-number colour and
+   several unrelated accents) so a coloured row never reads as either. Keyed
+   by first appearance in `steps`, which callers pass in ascending step
+   order, so step 1 always gets the first colour, step 2 the second, etc. */
+const STEP_COLORS=['#5B7B9C','#8B5A7C','#A67C3D','#4A7A7A','#9C5B72','#6B5744'];
+function stepColorMap(steps){
+  const m=new Map(); let i=0;
+  steps.forEach(s=>{ if(s==null||m.has(s)) return; m.set(s,STEP_COLORS[i%STEP_COLORS.length]); i++; });
+  return m;
 }
 function sing(s){ return String(s||'').replace(/\b(\w{3,})(?:ies)\b/g,'$1y').replace(/\b(\w{3,}?)(?:es|s)\b/g,'$1'); }
 /* Matching an ingredient against the fridge is the hottest code in the app: the
@@ -2187,19 +2208,30 @@ function renderRecipe(){
   /* The table view is a full reference, not tied to whichever version is
      selected above — a variant recipe gets one table per version, stacked. */
   const grids=(optKeys.length?optKeys:[undefined]).map(k=>({key:k,grid:buildGrid(r,k)})).filter(g=>g.grid);
-  const ings=r.ingredients.map((i,n)=>({i,n}))
+  /* An ingredient tagged with `step` (see the milk pudding for the pattern)
+     sorts into that step's place — usage order, not typed-in order — and
+     both it and the step's number share a colour, so it's visible at a
+     glance what a step actually needs. Untagged ingredients (most recipes)
+     keep their typed order and no colour, same as before this existed. */
+  const ingsSorted=r.ingredients.map((i,n)=>({i,n}))
     .filter(({i})=>!i.opt||i.opt===curOpt)
-    .map(({i,n})=>{
+    .map((x,origOrder)=>({...x,origOrder}))
+    .sort((a,b)=>(a.i.step??Infinity)-(b.i.step??Infinity)||a.origOrder-b.origOrder);
+  const stepColors=stepColorMap(ingsSorted.map(({i})=>i.step));
+  const ings=ingsSorted.map(({i,n})=>{
     const free=i.qty===null||i.qty===undefined||i.qty==='';
-    return `<li><button class="tick ${free?'freeform':''}" data-kind="ing" data-n="${n}" aria-pressed="${ticked.ing.has(n)}">
+    const c=i.step!=null?stepColors.get(i.step):null;
+    return `<li${c?` style="border-left:3px solid ${c};padding-left:8px"`:''}><button class="tick ${free?'freeform':''}" data-kind="ing" data-n="${n}" aria-pressed="${ticked.ing.has(n)}">
       <span class="box"></span>
+      ${c?`<span class="ing-dot" style="background:${c}"></span>`:''}
       <span class="qty">${free?'—':esc(fmt(i.qty*scale))+`<span class="unit">${esc(i.unit||'')}</span>`}</span>
       <span class="ing-name">${esc(trList('ingredients',n,i.name))}${!SHARE&&inFridge(i.name)?'<span class="have">in fridge</span>':''}</span></button></li>`;}).join('');
   const methodShown=r.method.map((s,n)=>({s,n})).filter(({s})=>!optOf(s)||optOf(s)===curOpt);
-  const steps=methodShown.length?`<ol class="steps">${methodShown.map(({s,n},i)=>`
-    <li><button class="tick" data-kind="step" data-n="${n}" aria-pressed="${ticked.step.has(n)}">
-      <span class="box"></span><span class="step-no">${String(i+1).padStart(2,'0')}</span>
-      <span class="step-text">${esc(trList('method',n,methodText(s)))}</span></button></li>`).join('')}</ol>`
+  const steps=methodShown.length?`<ol class="steps">${methodShown.map(({s,n},i)=>{
+    const c=stepColors.get(n);
+    return `<li><button class="tick" data-kind="step" data-n="${n}" aria-pressed="${ticked.step.has(n)}">
+      <span class="box"></span><span class="step-no"${c?` style="color:${c}"`:''}>${String(i+1).padStart(2,'0')}</span>
+      <span class="step-text">${esc(trList('method',n,methodText(s)))}</span></button></li>`;}).join('')}</ol>`
     :`<p class="empty">${U('noMethod','No method written down yet. Hit Edit to add the steps.')}</p>`;
 
   pane.innerHTML=`<article class="card">
@@ -2662,10 +2694,16 @@ function buildGrid(r,opt){
      own method steps. A recipe with no opt groups at all is called with
      opt===undefined, which the !i.opt/!optOf(s) checks let straight through. */
   const ings=(r.ingredients||[]).filter(i=>i.name&&!isSection(i.name)&&(!i.opt||i.opt===opt));
-  const steps=(r.method||[]).filter(s=>!optOf(s)||optOf(s)===opt).map(methodText);
+  /* Keep each step's absolute index (its position in r.method, same one an
+     ingredient's `step` refers to) alongside its filtered position, so an
+     explicitly-tagged ingredient can be placed exactly rather than guessed. */
+  const stepsFiltered=(r.method||[]).map((s,idx)=>({idx,text:methodText(s),opt:optOf(s)})).filter(s=>!s.opt||s.opt===opt);
+  const steps=stepsFiltered.map(s=>s.text);
   if(!ings.length||steps.length<2) return null;
+  const absToLocal=new Map(stepsFiltered.map((s,li)=>[s.idx,li]));
   const head=n=>norm(String(n).split(',')[0]).split(' ').filter(w=>w.length>2);
   const at=ings.map(i=>{
+    if(i.step!=null && absToLocal.has(i.step)) return absToLocal.get(i.step);
     const words=head(i.name);
     for(let s=0;s<steps.length;s++){
       const t=norm(steps[s]);
@@ -2675,15 +2713,20 @@ function buildGrid(r,opt){
   });
   const placed=at.filter(x=>x>=0).length;
   if(placed<Math.ceil(ings.length*0.45)) return null;   /* too vague to draw honestly */
-  const rows=ings.map((i,n)=>({ing:i,step:at[n]}))
+  const rows=ings.map((i,n)=>({ing:i,step:at[n],absStep:at[n]>=0?stepsFiltered[at[n]].idx:null}))
     .sort((a,b)=>(a.step<0?99:a.step)-(b.step<0?99:b.step));
   const used=[...new Set(rows.map(r2=>r2.step).filter(s=>s>=0))].sort((a,b)=>a-b);
-  const cols=used.map(s=>({label:stageLabel(steps[s]),
+  const cols=used.map(s=>({label:stageLabel(steps[s]),absStep:stepsFiltered[s].idx,
     span:rows.filter(r2=>r2.step>=0&&r2.step<=s).length}));
   const tail=steps.length-1;
   if(!cols.length||cols[cols.length-1].span<rows.filter(r2=>r2.step>=0).length) return null;
-  cols.push({label:stageLabel(steps[tail]),span:rows.length,final:true});
-  return {rows,cols,unplaced:rows.filter(r2=>r2.step<0).length};
+  cols.push({label:stageLabel(steps[tail]),absStep:stepsFiltered[tail].idx,span:rows.length,final:true});
+  /* Colour only the stages an ingredient was explicitly tagged into —
+     word-matched guesses (every recipe without `step` tags) stay
+     uncoloured, exactly as the table looked before this existed. */
+  const taggedAbsSteps=new Set(ings.filter(i=>i.step!=null).map(i=>i.step));
+  const stepColors=stepColorMap(cols.map(c=>taggedAbsSteps.has(c.absStep)?c.absStep:null));
+  return {rows,cols,unplaced:rows.filter(r2=>r2.step<0).length,stepColors};
 }
 function gridHTML(r,grids,optLabel,curOpt){
   const jaIng=(recipeLang!=='en' && r.i18n && r.i18n[recipeLang] && r.i18n[recipeLang].ingredients)||null;
@@ -2694,15 +2737,18 @@ function gridHTML(r,grids,optLabel,curOpt){
      steps view via curOpt) rather than printing all of them at once. */
   const chosen=grids.find(g=>g.key===curOpt)||grids[0];
   const one=g=>`<table class="rgrid">
-    ${g.rows.map((row,n)=>`<tr>
-      <td class="gi"><span class="qty">${row.ing.qty!=null?esc(fmt(row.ing.qty*scale))+'<span class="unit">'+esc(row.ing.unit||'')+'</span>':'—'}</span>
+    ${g.rows.map((row,n)=>{
+      const rc=g.stepColors.get(row.absStep);
+      return `<tr>
+      <td class="gi"${rc?` style="border-left:5px solid ${rc}"`:''}><span class="qty">${row.ing.qty!=null?esc(fmt(row.ing.qty*scale))+'<span class="unit">'+esc(row.ing.unit||'')+'</span>':'—'}</span>
         <span class="gname">${esc(nm(row.ing))}</span></td>
       ${g.cols.map(c=>{
-        if(n===0) return `<td class="gs ${c.final?'final':''}" rowspan="${c.span}">${esc(c.label)}</td>`;
+        const cc=!c.final&&g.stepColors.get(c.absStep);
+        if(n===0) return `<td class="gs ${c.final?'final':''}"${cc?` style="background:${cc};color:var(--ivory)"`:''} rowspan="${c.span}">${esc(c.label)}</td>`;
         if(n>=c.span) return '<td class="gs pad"></td>';   /* bracket closed above — keep the column aligned */
         return '';                                          /* still under the row-0 rowspan */
       }).join('')}
-    </tr>`).join('')}
+    </tr>`;}).join('')}
   </table>
   ${g.unplaced?`<p class="hint">${jaIng?`作り方で個別に触れていない材料が${g.unplaced}件 — 下にまとめています。`:`${g.unplaced} item${g.unplaced===1?'':'s'} the method never names by hand — listed at the bottom.`}</p>`:''}`;
   return `<div class="gridwrap">
