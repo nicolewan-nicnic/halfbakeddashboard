@@ -2844,8 +2844,14 @@ function renderEditor(){
   $('#cancel').onclick=()=>{editing=false; const wasNew=draft&&draft._isNew; draft=null;
     if(wasNew||!find(currentId)) mode='recipes'; render();};
 }
+/* `opt` (which either/or version a row belongs to) and `step` (the method step
+   that uses it) have no field in this form, but they must survive a save —
+   without this, opening any tagged recipe and pressing Save wrote an override
+   that silently stripped its colour grouping and usage order for good. They
+   ride on the row element itself, so they also survive adding, removing and
+   reordering rows; a row added by hand simply has neither. */
 function rowHtml(i){
-  return `<div class="edit-row">
+  return `<div class="edit-row"${i.opt!=null?` data-opt="${esc(i.opt)}"`:''}${i.step!=null?` data-step="${i.step}"`:''}>
     <input class="num qty-input" type="number" step="any" value="${i.qty??''}" placeholder="Amt" aria-label="Amount">
     <input class="unit-input" value="${esc(i.unit||'')}" placeholder="Unit" aria-label="Unit">
     <input class="ing-input" value="${esc(i.name||'')}" placeholder="Ingredient" aria-label="Ingredient">
@@ -2855,7 +2861,10 @@ function bindRows(){ $('#rows').querySelectorAll('.row-x').forEach(b=>b.onclick=
 function collect(){
   const rows=[...$('#rows').querySelectorAll('.edit-row')].map(row=>{
     const q=row.querySelector('.qty-input').value.trim();
-    return {qty:q===''?null:Number(q),unit:row.querySelector('.unit-input').value.trim(),name:row.querySelector('.ing-input').value.trim()};
+    const ing={qty:q===''?null:Number(q),unit:row.querySelector('.unit-input').value.trim(),name:row.querySelector('.ing-input').value.trim()};
+    if(row.dataset.opt!=null) ing.opt=row.dataset.opt;                 /* see rowHtml — neither has a field */
+    if(row.dataset.step!=null) ing.step=Number(row.dataset.step);      /* in the form, so they ride the row */
+    return ing;
   }).filter(i=>i.name);
   return {name:$('#f-name').value.trim()||'Untitled recipe',
     blurb:$('#f-blurb').value.trim(), icon:draft.icon||'croissant', img:draft.img||null,
@@ -2866,7 +2875,22 @@ function collect(){
     link:($('#f-link')?$('#f-link').value.trim():'')||null,
     makesQty:$('#f-makes').value===''?null:Number($('#f-makes').value),
     makesUnit:$('#f-unit').value.trim(), ingredients:rows,
-    method:$('#f-method').value.split('\n').map(s=>s.trim()).filter(Boolean)};
+    /* The textarea is plain lines, so a step's `opt` (which version it belongs
+       to) would be lost on save. Carry it back by matching the line against the
+       text it was rendered from — an edited line drops its tag, which is the
+       honest outcome, but an untouched one keeps it. Each original is claimed
+       at most once: two versions of a recipe can share word-for-word identical
+       steps (the milk pudding heats plain and coffee the same way), and
+       matching the first one every time would retag the second. */
+    method:(()=>{
+      const claimed=new Set();
+      return $('#f-method').value.split('\n').map(s=>s.trim()).filter(Boolean).map(line=>{
+        const n=(draft.method||[]).findIndex((m,idx)=>!claimed.has(idx)&&m&&typeof m==='object'&&m.opt&&m.text===line);
+        if(n<0) return line;
+        claimed.add(n);
+        return {text:line,opt:draft.method[n].opt};
+      });
+    })()};
 }
 async function onSave(){
   /* Every other form here refuses an empty name and puts the cursor back in the
