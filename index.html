@@ -745,9 +745,9 @@ async function sset(k,v){
 }
 
 /* Every illustration is a Half Baked Society original, background removed. */
-const ART = {"croissant": "icons/croissant.webp", "shortcake": "icons/shortcake.webp", "breadbag": "icons/breadbag.webp", "butter": "icons/butter.webp", "jar": "icons/jar.webp", "cakeslice": "icons/cakeslice.webp", "bun": "icons/bun.webp", "noodlebowl": "icons/noodlebowl.webp", "carrot": "icons/carrot.webp", "icedcoffee": "icons/icedcoffee.webp", "chickenrice": "icons/chickenrice.webp", "steak": "icons/steak.webp", "cabbage": "icons/cabbage.webp", "eggtart": "icons/eggtart.webp", "friedchicken": "icons/friedchicken.webp", "banh-xeo": "icons/banh-xeo.png", "basque-cheesecake": "icons/basque-cheesecake.png", "kkaenip-jeon": "icons/kkaenip-jeon.png", "pajeon": "icons/pajeon.png", "maeuntang": "icons/maeuntang.png", "soft-eggs": "icons/soft-eggs.png", "green-salad": "icons/green-salad.png", "brown-soup": "icons/brown-soup.png", "red-soup": "icons/red-soup.png", "beef-soup": "icons/beef-soup.png", "ice-cream": "icons/ice-cream.png", "empty-plate": "icons/empty-plate.png", "__logo": "icons/logo.webp"};
+const ART = {"croissant": "icons/croissant.webp", "shortcake": "icons/shortcake.webp", "breadbag": "icons/breadbag.webp", "butter": "icons/butter.webp", "jar": "icons/jar.webp", "cakeslice": "icons/cakeslice.webp", "bun": "icons/bun.webp", "noodlebowl": "icons/noodlebowl.webp", "carrot": "icons/carrot.webp", "icedcoffee": "icons/icedcoffee.webp", "chickenrice": "icons/chickenrice.webp", "steak": "icons/steak.webp", "cabbage": "icons/cabbage.webp", "eggtart": "icons/eggtart.webp", "friedchicken": "icons/friedchicken.webp", "banh-xeo": "icons/banh-xeo.png", "basque-cheesecake": "icons/basque-cheesecake.png", "kkaenip-jeon": "icons/kkaenip-jeon.png", "pajeon": "icons/pajeon.png", "maeuntang": "icons/maeuntang.png", "soft-eggs": "icons/soft-eggs.png", "green-salad": "icons/green-salad.png", "brown-soup": "icons/brown-soup.png", "red-soup": "icons/red-soup.png", "beef-soup": "icons/beef-soup.png", "ice-cream": "icons/ice-cream.png", "empty-plate": "icons/empty-plate.png", "japaneseeggpudding": "icons/japaneseeggpudding.png", "__logo": "icons/logo.webp"};
 const LOGO = ART.__logo;
-const ICONS=['croissant','breadbag','bun','shortcake','cakeslice','jar','butter','steak','icedcoffee','ice-cream','noodlebowl','chickenrice','friedchicken','cabbage','carrot','eggtart','soft-eggs','green-salad','brown-soup','red-soup','beef-soup','empty-plate','banh-xeo','basque-cheesecake','kkaenip-jeon','pajeon','maeuntang'].filter(n=>ART[n]);
+const ICONS=['croissant','breadbag','bun','shortcake','cakeslice','jar','butter','steak','icedcoffee','ice-cream','noodlebowl','chickenrice','friedchicken','cabbage','carrot','eggtart','soft-eggs','green-salad','brown-soup','red-soup','beef-soup','empty-plate','banh-xeo','basque-cheesecake','kkaenip-jeon','pajeon','maeuntang','japaneseeggpudding'].filter(n=>ART[n]);
 
 /* If an icon file is missing on disk, fall back to the blank plate rather than
    showing a broken image — the same neutral placeholder the guesser uses. */
@@ -1355,7 +1355,7 @@ function seed(){return [
     'Transfer to freezer. To serve at original consistency, remove 5-10 minutes before eating. Makes approximately 2 pints (950ml).'
   ]
 },
-{id:'japanese-milk-pudding',name:'Japanese Milk Pudding',icon:'eggtart',cuisine:'Japanese',tags:['Dessert','Make-ahead'],kcal:500,
+{id:'japanese-milk-pudding',name:'Japanese Milk Pudding',icon:'japaneseeggpudding',cuisine:'Japanese',tags:['Dessert','Make-ahead'],kcal:500,
  blurb:'A silky, jiggly milk pudding set with gelatin rather than eggs — plain by default, with Royal milk tea and Coffee flavours to pick from below.',
  prep:'Making the Royal milk tea version? Brew and cold-infuse the tea the night before. Every version then needs at least 6 hours in the fridge to set.',
  makesQty:2,makesUnit:'servings',
@@ -1978,8 +1978,12 @@ function renderRecipes(){
 
   /* Ice cream recipes are pulled out of their real cuisine and shown as one
      "Ice cream" section — it's how people browse them. This is the grouping /
-     cuisine-filter key everywhere in the drawer. */
-  const isIceCream=r=>(r.tags||[]).includes('Ice cream');
+     cuisine-filter key everywhere in the drawer. Matched case/whitespace-
+     insensitively (both against the tag and, as a fallback, the cuisine
+     field itself) so a differently-typed "Ice Cream" doesn't silently split
+     off into its own one-recipe section next to the real one. */
+  const isIceCreamStr=s=>String(s||'').trim().toLowerCase()==='ice cream';
+  const isIceCream=r=>(r.tags||[]).some(isIceCreamStr)||isIceCreamStr(r.cuisine);
   const isBanchan=r=>(r.cuisine==='Korean')&&(r.tags||[]).includes('Side');
   const groupKey=r=>isIceCream(r)?'Ice cream':(r.cuisine||'Other');
 
