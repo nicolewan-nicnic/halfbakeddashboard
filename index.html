@@ -456,8 +456,12 @@ button.star-btn{flex:none;background:none;border:0;font-size:16px;line-height:1;
 .plan-day.drop-day{outline:2px dashed var(--sage);outline-offset:-1px;background:var(--beige)}
 .pm-name{flex:1;background:none;border:0;padding:0;text-align:left;font:inherit;color:inherit;cursor:pointer;min-width:0}
 .pm-name:hover{text-decoration:underline;text-underline-offset:3px}
-.pm-kcal{flex-basis:100%;font-family:var(--mono);font-size:10.5px;color:var(--rye);white-space:nowrap}
-.pm-sub{flex-basis:100%;font-size:12px;color:var(--rye);line-height:1.35;padding-left:0}
+/* the row's second line — the remove button sits to the left of whatever
+   summary (calories, or the No-Brainer combo) follows it, both on one line
+   instead of the button falling to a line of its own beneath them */
+.pm-foot{flex-basis:100%;display:flex;align-items:baseline;gap:2px}
+.pm-kcal{font-family:var(--mono);font-size:10.5px;color:var(--rye);white-space:nowrap}
+.pm-sub{font-size:12px;color:var(--rye);line-height:1.35;padding-left:0}
 .plan-add{background:none;border:1.5px dashed var(--taupe);border-radius:8px;color:var(--rye);font-size:12px;padding:4px;margin-top:auto;cursor:pointer}
 .plan-add:hover{border-color:var(--crumb);color:var(--crumb)}
 .chooser{margin-top:14px;background:var(--beige);border-radius:var(--wob2);padding:12px 14px}
@@ -3075,23 +3079,23 @@ function renderPlan(){
         const head=isNote
           ? `<span class="drag-grip${p.done?' on':''}" data-note-done="${iso}|${idx}" role="button" tabindex="0" aria-pressed="${!!p.done}" aria-label="Tick off, or drag to move">⠿</span>`
           : `<span class="drag-grip" aria-label="Drag to move">⠿</span>`;
-        const wrap=(cls,inner)=>`<div class="plan-meal ${cls}" data-iso="${iso}" data-pidx="${idx}">${head}${inner}
-          <button class="row-x" style="font-size:14px" data-unplan="${iso}|${idx}" aria-label="Remove">×</button></div>`;
+        const rowX=`<button class="row-x" style="font-size:14px" data-unplan="${iso}|${idx}" aria-label="Remove">×</button>`;
+        const wrap=(cls,inner)=>`<div class="plan-meal ${cls}" data-iso="${iso}" data-pidx="${idx}">${head}${inner}</div>`;
         if(p.tmpl==='nbd'){
           const miss=nbdMissing(p).length;
           return wrap(`${p.status==='completed'||p.done?'done':''} ${p.status==='skipped'?'skipped':''}`,
             `<button class="pm-name" data-nbd="${iso}|${idx}">No-Brainer Dinner</button>
-             <span class="pm-sub">${esc(nbdSummary(p))}${miss?` <span class="chip soon">${miss} to sort</span>`:''}</span>`);
+             <span class="pm-foot">${rowX}<span class="pm-sub">${esc(nbdSummary(p))}${miss?` <span class="chip soon">${miss} to sort</span>`:''}</span></span>`);
         }
         if(isNote){   /* a plain written line — stored as-is for Claude Code to read */
           return wrap(p.done?'done':'',
-            `<span class="pm-name" contenteditable="true" data-note-edit="${iso}|${idx}">${esc(p.note)}</span>`);
+            `<span class="pm-name" contenteditable="true" data-note-edit="${iso}|${idx}">${esc(p.note)}</span>${rowX}`);
         }
         const r=find(p.id); if(!r) return '';
         const ps=perServing(r);
         return wrap(p.done?'done':'',
           `<button class="pm-name" data-open="${esc(r.id)}">${esc(r.name)}</button>
-           ${ps?`<span class="pm-kcal">${ps} kcal</span>`:''}`);
+           ${ps?`<span class="pm-foot">${rowX}<span class="pm-kcal">${ps} kcal</span></span>`:rowX}`);
       }).join('');
       const open=pickDay===iso;
       return `<div class="plan-day ${iso===todayISO()?'today':''} ${open?'open':''}" data-iso="${iso}">
