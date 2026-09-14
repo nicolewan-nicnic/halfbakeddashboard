@@ -1359,6 +1359,9 @@ function seed(){return [
  blurb:'A silky, jiggly milk pudding set with gelatin rather than eggs — plain by default, with Royal milk tea and Coffee flavours to pick from below.',
  prep:'Making the Royal milk tea version? Brew and cold-infuse the tea the night before. Every version then needs at least 6 hours in the fridge to set.',
  makesQty:2,makesUnit:'servings',
+ /* Ingredients and method both carry `opt` — the recipe page's "Made with"
+    picker filters whichever version is selected out of both together.
+    Untagged rows/steps are shared by all three. */
  ingredients:[
   {qty:160,unit:'g',name:'Whole milk',opt:'plain'},
   {qty:70,unit:'g',name:'Heavy cream',opt:'plain'},
@@ -1392,14 +1395,20 @@ function seed(){return [
   {qty:null,unit:'',name:'Espresso powder, a small pinch, for the topping',opt:'coffee'}
  ],
  method:[
-  'For the Royal milk tea version, brew the day before: gently heat the Assam tea leaves with the milk until tiny bubbles form at the edges, then cover and refrigerate overnight before straining out the leaves.',
+  {text:'The day before, gently heat the Assam tea leaves with the milk until tiny bubbles form at the edges. Cover and refrigerate overnight, then strain out the leaves.',opt:'royal milk tea'},
   'Soak the gelatin sheets in cold water until softened.',
-  'In a saucepan, whisk together the milk (or the strained tea, or the coffee), cream, condensed milk, milk powder, tapioca starch (if using) and salt until completely smooth.',
-  'Heat over medium heat, stirring constantly, to about 70°C/158°F — a gentler 60°C/140°F for the tea version. Cornflour works as a 1:1 swap for the tapioca starch.',
-  'Take off the heat, add the softened gelatin and stir until fully dissolved. Stir in the rum or coffee liqueur now, if using — a little dark rum deepens the flavour nicely, though white rum is not recommended.',
+  {text:'In a saucepan, whisk together the milk, cream, condensed milk, milk powder, tapioca starch and salt until completely smooth.',opt:'plain'},
+  {text:'Heat over medium heat, stirring constantly, to about 70°C/158°F.',opt:'plain'},
+  {text:'Take off the heat, add the softened gelatin and stir until fully dissolved. Stir in the dark rum now, if using — white rum is not recommended.',opt:'plain'},
+  {text:'In a saucepan, whisk together the strained milk tea, cream, condensed milk, milk powder and salt until completely smooth.',opt:'royal milk tea'},
+  {text:'Heat gently, stirring constantly, to a lower 60°C/140°F — the tea base scorches more easily than the others.',opt:'royal milk tea'},
+  {text:'Take off the heat, add the softened gelatin and stir until fully dissolved.',opt:'royal milk tea'},
+  {text:'In a saucepan, whisk together the espresso, milk, cream, condensed milk, milk powder, tapioca starch and salt until completely smooth.',opt:'coffee'},
+  {text:'Heat over medium heat, stirring constantly, to about 70°C/158°F.',opt:'coffee'},
+  {text:'Take off the heat, add the softened gelatin and stir until fully dissolved. Stir in the rum or coffee liqueur now, if using.',opt:'coffee'},
   'Strain the mixture into serving bowls or cups and skim off any bubbles from the surface.',
-  'Cover directly with plastic wrap, pressed onto the pudding surface, and refrigerate at least 6 hours, preferably overnight, until set. For that glassy, unblemished top: press the wrap on while the pudding is still warm, try not to disturb it as it chills, then peel it off in one quick motion once set, before any condensation on the underside can drip back down.',
-  'Coffee version only: whisk the topping’s cream, milk, condensed milk and espresso powder until smooth, then pour over the fully set pudding just before serving.',
+  'Cover directly with plastic wrap, pressed onto the surface, and refrigerate at least 6 hours, preferably overnight, until set. For that glassy, unblemished top: press the wrap on while still warm, try not to disturb it as it chills, then peel it off in one quick motion once set, before any condensation on the underside can drip back down.',
+  {text:'Once fully set, whisk the topping’s cream, milk, condensed milk and espresso powder until smooth, then pour over just before serving.',opt:'coffee'},
   'If the texture turns out grainy, the starch likely did not fully gelatinise — try cornflour instead, or leave the starch out altogether. Too sweet? Cut the condensed milk back to 10-20g. Gelatin sheets and powdered gelatin swap 1:1 by weight.'
  ]},
 {id:'no-brainer-dinner',name:'No-Brainer Dinner',icon:'empty-plate',cuisine:'Korean',tags:['Main','Assembly','Rice'],kcal:2000,
@@ -1737,6 +1746,25 @@ const ASSUMED=['water','salt','pepper','ice'];
 const ALIAS={'scallion':'spring onion','spring onion':'scallion','cilantro':'coriander','coriander':'cilantro','chilli':'chili','chili':'chilli','eggplant':'aubergine','aubergine':'eggplant','zucchini':'courgette','courgette':'zucchini'};
 function isAssumed(n){ const b=norm(String(n).split(',')[0]); return ASSUMED.includes(b); }
 function isSection(n){ return /:\s*$/.test(String(n||'')); }
+/* Either/or recipes (Basque cheesecake's hojicha vs praline, the milk
+   pudding's flavours) tag both an ingredient row and, where the method
+   genuinely differs, a method step with the same `opt` key. A method step
+   is either a plain string (shown for every version) or {text,opt} (shown
+   only for that one) — these three helpers are the one place that knows
+   the difference, so ingredient and method code stay in sync. */
+function optOf(x){ return (x&&typeof x==='object')?x.opt:null; }
+function methodText(m){ return (m&&typeof m==='object')?m.text:m; }
+function recipeOptKeys(r){
+  const s=new Set();
+  (r.ingredients||[]).forEach(i=>{ if(i&&i.opt) s.add(i.opt); });
+  (r.method||[]).forEach(m=>{ const o=optOf(m); if(o) s.add(o); });
+  return [...s];
+}
+function optLabelFor(r,T,k){
+  if(T&&T.calcLabels&&T.calcLabels[k]) return T.calcLabels[k];
+  const o=r.calc&&r.calc.options&&r.calc.options.find(x=>x.k===k);
+  return o?o.label:k.charAt(0).toUpperCase()+k.slice(1);
+}
 function sing(s){ return String(s||'').replace(/\b(\w{3,})(?:ies)\b/g,'$1y').replace(/\b(\w{3,}?)(?:es|s)\b/g,'$1'); }
 /* Matching an ingredient against the fridge is the hottest code in the app: the
    home and fridge screens run it for every ingredient of all ~115 recipes, and
@@ -2150,16 +2178,15 @@ function renderRecipe(){
   const U = (k,en)=> (T && T.ui && T.ui[k]!=null) ? T.ui[k] : en;   /* page-chrome strings */
   const trTag = t=> (T && T.tagsJa && T.tagsJa[t]) || t;
   const mi=matchInfo(r);
-  /* Some recipes have either/or ingredient groups (tagged with .opt). Show only
-     the group that is currently selected, so the list reads as one clean recipe
-     rather than two interleaved ones. */
-  const optKeys=[...new Set(r.ingredients.filter(i=>i.opt).map(i=>i.opt))];
-  const optLabel=k=>{
-    if(T&&T.calcLabels&&T.calcLabels[k]) return T.calcLabels[k];
-    const o=r.calc&&r.calc.options&&r.calc.options.find(x=>x.k===k);
-    return o?o.label:k.charAt(0).toUpperCase()+k.slice(1);
-  };
+  /* Some recipes have either/or ingredient (and method) groups, tagged with
+     .opt. Show only the group that is currently selected, so the list reads
+     as one clean recipe rather than several interleaved ones. */
+  const optKeys=recipeOptKeys(r);
+  const optLabel=k=>optLabelFor(r,T,k);
   const curOpt=optKeys.length?(optKeys.includes(anchorOpt)?anchorOpt:optKeys[0]):null;
+  /* The table view is a full reference, not tied to whichever version is
+     selected above — a variant recipe gets one table per version, stacked. */
+  const grids=(optKeys.length?optKeys:[undefined]).map(k=>({key:k,grid:buildGrid(r,k)})).filter(g=>g.grid);
   const ings=r.ingredients.map((i,n)=>({i,n}))
     .filter(({i})=>!i.opt||i.opt===curOpt)
     .map(({i,n})=>{
@@ -2168,10 +2195,11 @@ function renderRecipe(){
       <span class="box"></span>
       <span class="qty">${free?'—':esc(fmt(i.qty*scale))+`<span class="unit">${esc(i.unit||'')}</span>`}</span>
       <span class="ing-name">${esc(trList('ingredients',n,i.name))}${!SHARE&&inFridge(i.name)?'<span class="have">in fridge</span>':''}</span></button></li>`;}).join('');
-  const steps=r.method.length?`<ol class="steps">${r.method.map((s,n)=>`
+  const methodShown=r.method.map((s,n)=>({s,n})).filter(({s})=>!optOf(s)||optOf(s)===curOpt);
+  const steps=methodShown.length?`<ol class="steps">${methodShown.map(({s,n},i)=>`
     <li><button class="tick" data-kind="step" data-n="${n}" aria-pressed="${ticked.step.has(n)}">
-      <span class="box"></span><span class="step-no">${String(n+1).padStart(2,'0')}</span>
-      <span class="step-text">${esc(trList('method',n,s))}</span></button></li>`).join('')}</ol>`
+      <span class="box"></span><span class="step-no">${String(i+1).padStart(2,'0')}</span>
+      <span class="step-text">${esc(trList('method',n,methodText(s)))}</span></button></li>`).join('')}</ol>`
     :`<p class="empty">${U('noMethod','No method written down yet. Hit Edit to add the steps.')}</p>`;
 
   pane.innerHTML=`<article class="card">
@@ -2205,11 +2233,11 @@ function renderRecipe(){
     </div>
     ${r.prep?`<div class="prep"><span class="prep-tag">${T?'前日に':'Start ahead'}</span> ${esc(tr('prep',r.prep))}</div>`:''}
     ${r.calc?calcHTML(r):''}
-    ${buildGrid(r)?`<div class="viewtoggle">
+    ${grids.length?`<div class="viewtoggle">
       <button class="ball" data-view="steps" aria-pressed="${!gridView}">${U('steps','Steps')}</button>
       <button class="ball" data-view="grid" aria-pressed="${gridView}">${U('table','Table')}</button>
     </div>`:''}
-    ${(gridView&&buildGrid(r))?gridHTML(r):`<div class="cols">
+    ${(gridView&&grids.length)?gridHTML(r,grids,optLabel):`<div class="cols">
       <section>
         <h3 class="section-title">${U('ingredients','Ingredients')}</h3><div class="section-rule"></div>
         ${optKeys.length>1?`<div class="ing-opt">
@@ -2625,12 +2653,16 @@ function stageLabel(step){
   }
   return v.toLowerCase();
 }
-function buildGrid(r){
+function buildGrid(r,opt){
   /* build-your-own meals and ice creams (combine · cook · chill · churn) have
      no real ingredient-by-stage structure — the word-match table just misleads */
   if((r.tags||[]).includes('Assembly')||(r.tags||[]).includes('Ice cream')) return null;
-  const ings=(r.ingredients||[]).filter(i=>i.name&&!isSection(i.name));
-  const steps=r.method||[];
+  /* `opt` restricts this one table to a single either/or version — its own
+     ingredients plus whatever's shared, matched only against that version's
+     own method steps. A recipe with no opt groups at all is called with
+     opt===undefined, which the !i.opt/!optOf(s) checks let straight through. */
+  const ings=(r.ingredients||[]).filter(i=>i.name&&!isSection(i.name)&&(!i.opt||i.opt===opt));
+  const steps=(r.method||[]).filter(s=>!optOf(s)||optOf(s)===opt).map(methodText);
   if(!ings.length||steps.length<2) return null;
   const head=n=>norm(String(n).split(',')[0]).split(' ').filter(w=>w.length>2);
   const at=ings.map(i=>{
@@ -2653,12 +2685,14 @@ function buildGrid(r){
   cols.push({label:stageLabel(steps[tail]),span:rows.length,final:true});
   return {rows,cols,unplaced:rows.filter(r2=>r2.step<0).length};
 }
-function gridHTML(r){
-  const g=buildGrid(r);
+function gridHTML(r,grids,optLabel){
   const jaIng=(recipeLang!=='en' && r.i18n && r.i18n[recipeLang] && r.i18n[recipeLang].ingredients)||null;
   const nm=ing=>{ if(!jaIng) return ing.name; const i=r.ingredients.indexOf(ing); return i>=0&&jaIng[i]!=null?jaIng[i]:ing.name; };
-  if(!g) return `<p class="empty">${jaIng?'このレシピは工程がきれいに分かれないため、ステップ表示のほうが分かりやすいです。':'This one does not fall into neat stages — the steps view is clearer for it.'}</p>`;
-  return `<div class="gridwrap"><table class="rgrid">
+  if(!grids||!grids.length) return `<p class="empty">${jaIng?'このレシピは工程がきれいに分かれないため、ステップ表示のほうが分かりやすいです。':'This one does not fall into neat stages — the steps view is clearer for it.'}</p>`;
+  /* One table per either/or version when there is more than one — the
+     table view is a full reference rather than following the "Made with"
+     picker, so all of them show at once, each under its own label. */
+  const one=g=>`<table class="rgrid">
     ${g.rows.map((row,n)=>`<tr>
       <td class="gi"><span class="qty">${row.ing.qty!=null?esc(fmt(row.ing.qty*scale))+'<span class="unit">'+esc(row.ing.unit||'')+'</span>':'—'}</span>
         <span class="gname">${esc(nm(row.ing))}</span></td>
@@ -2669,8 +2703,10 @@ function gridHTML(r){
       }).join('')}
     </tr>`).join('')}
   </table>
-  ${g.unplaced?`<p class="hint">${jaIng?`作り方で個別に触れていない材料が${g.unplaced}件 — 下にまとめています。`:`${g.unplaced} item${g.unplaced===1?'':'s'} the method never names by hand — listed at the bottom.`}</p>`:''}
-  </div>`;
+  ${g.unplaced?`<p class="hint">${jaIng?`作り方で個別に触れていない材料が${g.unplaced}件 — 下にまとめています。`:`${g.unplaced} item${g.unplaced===1?'':'s'} the method never names by hand — listed at the bottom.`}</p>`:''}`;
+  return `<div class="gridwrap">${grids.map(({key,grid},i)=>`
+    ${grids.length>1?`<h4 style="font-family:var(--mono);font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--rye);margin:${i?'22px':'0'} 0 8px;font-weight:400">${esc(optLabel(key))}</h4>`:''}
+    ${one(grid)}`).join('')}</div>`;
 }
 
 /* ============ editor ============ */
@@ -2703,7 +2739,7 @@ function renderEditor(){
     <button class="add-row" id="add-ing">+ Add ingredient</button>
     <p class="hint">Leave the amount blank for a free-text line like “sesame seeds, to garnish”. Specific names — jasmine rice rather than rice — match the fridge better.</p>
     <label class="field" style="margin-top:24px"><span>Method — one step per line</span>
-      <textarea id="f-method">${esc(d.method.join('\n'))}</textarea></label>
+      <textarea id="f-method">${esc(d.method.map(methodText).join('\n'))}</textarea></label>
     <div class="edit-actions">
       <button class="pill solid" id="save">Save recipe</button>
       <button class="pill" id="cancel">Cancel</button>
