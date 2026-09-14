@@ -2237,7 +2237,7 @@ function renderRecipe(){
       <button class="ball" data-view="steps" aria-pressed="${!gridView}">${U('steps','Steps')}</button>
       <button class="ball" data-view="grid" aria-pressed="${gridView}">${U('table','Table')}</button>
     </div>`:''}
-    ${(gridView&&grids.length)?gridHTML(r,grids,optLabel):`<div class="cols">
+    ${(gridView&&grids.length)?gridHTML(r,grids,optLabel,curOpt):`<div class="cols">
       <section>
         <h3 class="section-title">${U('ingredients','Ingredients')}</h3><div class="section-rule"></div>
         ${optKeys.length>1?`<div class="ing-opt">
@@ -2685,13 +2685,14 @@ function buildGrid(r,opt){
   cols.push({label:stageLabel(steps[tail]),span:rows.length,final:true});
   return {rows,cols,unplaced:rows.filter(r2=>r2.step<0).length};
 }
-function gridHTML(r,grids,optLabel){
+function gridHTML(r,grids,optLabel,curOpt){
   const jaIng=(recipeLang!=='en' && r.i18n && r.i18n[recipeLang] && r.i18n[recipeLang].ingredients)||null;
   const nm=ing=>{ if(!jaIng) return ing.name; const i=r.ingredients.indexOf(ing); return i>=0&&jaIng[i]!=null?jaIng[i]:ing.name; };
   if(!grids||!grids.length) return `<p class="empty">${jaIng?'このレシピは工程がきれいに分かれないため、ステップ表示のほうが分かりやすいです。':'This one does not fall into neat stages — the steps view is clearer for it.'}</p>`;
-  /* One table per either/or version when there is more than one — the
-     table view is a full reference rather than following the "Made with"
-     picker, so all of them show at once, each under its own label. */
+  /* One table per either/or version, same as the ingredients list — pick
+     whichever the "Made with" buttons last selected (shared with the
+     steps view via curOpt) rather than printing all of them at once. */
+  const chosen=grids.find(g=>g.key===curOpt)||grids[0];
   const one=g=>`<table class="rgrid">
     ${g.rows.map((row,n)=>`<tr>
       <td class="gi"><span class="qty">${row.ing.qty!=null?esc(fmt(row.ing.qty*scale))+'<span class="unit">'+esc(row.ing.unit||'')+'</span>':'—'}</span>
@@ -2704,9 +2705,13 @@ function gridHTML(r,grids,optLabel){
     </tr>`).join('')}
   </table>
   ${g.unplaced?`<p class="hint">${jaIng?`作り方で個別に触れていない材料が${g.unplaced}件 — 下にまとめています。`:`${g.unplaced} item${g.unplaced===1?'':'s'} the method never names by hand — listed at the bottom.`}</p>`:''}`;
-  return `<div class="gridwrap">${grids.map(({key,grid},i)=>`
-    ${grids.length>1?`<h4 style="font-family:var(--mono);font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--rye);margin:${i?'22px':'0'} 0 8px;font-weight:400">${esc(optLabel(key))}</h4>`:''}
-    ${one(grid)}`).join('')}</div>`;
+  return `<div class="gridwrap">
+    ${grids.length>1?`<div class="ing-opt">
+      <span class="ing-opt-label">Made with</span>
+      <div class="ing-opt-picks">${grids.map(({key})=>`
+        <button class="ball" data-iopt="${esc(key)}" aria-pressed="${key===chosen.key}">${esc(optLabel(key))}</button>`).join('')}</div>
+    </div>`:''}
+    ${one(chosen.grid)}</div>`;
 }
 
 /* ============ editor ============ */
