@@ -491,8 +491,19 @@ button.star-btn{flex:none;background:none;border:0;font-size:16px;line-height:1;
 .shelf-group{margin-top:26px}
 .shelf-group h4{font-family:var(--mono);font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--rye);margin:0 0 6px;font-weight:400}
 .items{list-style:none;margin:0;padding:0}
-.items li{display:flex;align-items:baseline;gap:10px;padding:8px 0;border-bottom:1px dotted var(--taupe)}
-.item-name{flex:1}
+.items li{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dotted var(--taupe)}
+/* the item's picture. The slot is always there, even when nothing matched, so
+   names stay in one column instead of stepping in and out as items change. */
+.item-ico{width:30px;height:30px;flex:none;display:block}
+.item-name{flex:1;min-width:8em}
+.item-acts{display:flex;align-items:center;gap:10px;margin-left:auto}
+/* Narrow screens: the picture plus the row's three controls leave the name too
+   little room and it breaks mid-word. Let the controls drop to their own line. */
+@media (max-width:680px){
+  .items li{flex-wrap:wrap}
+  .item-name{flex:1 1 0;min-width:0}
+  .item-acts{flex-basis:100%;margin-left:40px;justify-content:flex-start}
+}
 .item-qty{font-family:var(--mono);font-size:12.5px;color:var(--rye)}
 .chip{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;border:1.5px solid var(--taupe);border-radius:7px 5px 8px 5px/5px 8px 5px 7px;padding:2px 7px;color:var(--rye);white-space:nowrap}
 .chip.soon{border-color:var(--orange);color:var(--orange)}
@@ -757,7 +768,7 @@ async function sset(k,v){
 }
 
 /* Every illustration is a Half Baked Society original, background removed. */
-const ART = {"croissant": "icons/croissant.webp", "shortcake": "icons/shortcake.webp", "breadbag": "icons/breadbag.webp", "butter": "icons/butter.webp", "jar": "icons/jar.webp", "cakeslice": "icons/cakeslice.webp", "bun": "icons/bun.webp", "noodlebowl": "icons/noodlebowl.webp", "carrot": "icons/carrot.webp", "icedcoffee": "icons/icedcoffee.webp", "chickenrice": "icons/chickenrice.webp", "steak": "icons/steak.webp", "cabbage": "icons/cabbage.webp", "eggtart": "icons/eggtart.webp", "friedchicken": "icons/friedchicken.webp", "banh-xeo": "icons/banh-xeo.png", "basque-cheesecake": "icons/basque-cheesecake.png", "kkaenip-jeon": "icons/kkaenip-jeon.png", "pajeon": "icons/pajeon.png", "maeuntang": "icons/maeuntang.png", "soft-eggs": "icons/soft-eggs.png", "green-salad": "icons/green-salad.png", "brown-soup": "icons/brown-soup.png", "red-soup": "icons/red-soup.png", "beef-soup": "icons/beef-soup.png", "ice-cream": "icons/ice-cream.png", "empty-plate": "icons/empty-plate.png", "japaneseeggpudding": "icons/japaneseeggpudding.png", "__logo": "icons/logo.webp"};
+const ART = {"croissant": "icons/croissant.webp", "shortcake": "icons/shortcake.webp", "breadbag": "icons/breadbag.webp", "butter": "icons/butter.webp", "jar": "icons/jar.webp", "cakeslice": "icons/cakeslice.webp", "bun": "icons/bun.webp", "noodlebowl": "icons/noodlebowl.webp", "carrot": "icons/carrot.webp", "icedcoffee": "icons/icedcoffee.webp", "chickenrice": "icons/chickenrice.webp", "steak": "icons/steak.webp", "cabbage": "icons/cabbage.webp", "eggtart": "icons/eggtart.webp", "friedchicken": "icons/friedchicken.webp", "banh-xeo": "icons/banh-xeo.png", "basque-cheesecake": "icons/basque-cheesecake.png", "kkaenip-jeon": "icons/kkaenip-jeon.png", "pajeon": "icons/pajeon.png", "maeuntang": "icons/maeuntang.png", "soft-eggs": "icons/soft-eggs.png", "green-salad": "icons/green-salad.png", "brown-soup": "icons/brown-soup.png", "red-soup": "icons/red-soup.png", "beef-soup": "icons/beef-soup.png", "ice-cream": "icons/ice-cream.png", "empty-plate": "icons/empty-plate.png", "japaneseeggpudding": "icons/japaneseeggpudding.png", "pasta": "icons/pasta.png", "noodle-pack": "icons/noodle-pack.png", "noodle-cup": "icons/noodle-cup.png", "rice-bag": "icons/rice-bag.png", "pulses": "icons/pulses.png", "starch": "icons/starch.png", "fried-onion": "icons/fried-onion.png", "corn": "icons/corn.png", "cassava": "icons/cassava.png", "fish-fillet": "icons/fish-fillet.png", "potato": "icons/potato.png", "__logo": "icons/logo.webp"};
 const LOGO = ART.__logo;
 const ICONS=['croissant','breadbag','bun','shortcake','cakeslice','jar','butter','steak','icedcoffee','ice-cream','noodlebowl','chickenrice','friedchicken','cabbage','carrot','eggtart','soft-eggs','green-salad','brown-soup','red-soup','beef-soup','empty-plate','banh-xeo','basque-cheesecake','kkaenip-jeon','pajeon','maeuntang','japaneseeggpudding'].filter(n=>ART[n]);
 
@@ -795,6 +806,18 @@ function art(r){
   return `<img class="ico" src="${ART[n]||ART['empty-plate']}" alt=""${ICO_FALLBACK}>`;
 }
 function artByName(n){ return `<img class="ico" src="${ART[n]||ART['empty-plate']}" alt=""${ICO_FALLBACK}>`; }
+/* The pantry icons below are new names whose PNGs aren't drawn yet. Until each
+   file lands, degrade to the nearest existing artwork instead of an empty plate —
+   when the real file appears it simply takes over, no code change needed.
+   Only stand in where the existing art is genuinely close; pulses, starch,
+   fried onions and fish have no near neighbour, so they keep the neutral plate
+   rather than borrowing a picture that says the wrong thing. */
+const ICO_STANDIN={pasta:'noodlebowl','noodle-pack':'noodlebowl','noodle-cup':'noodlebowl',
+  'rice-bag':'breadbag',corn:'green-salad',cassava:'carrot',potato:'carrot'};
+function artStandIn(n){
+  const src=ART[n]||ART['empty-plate'], alt=ART[ICO_STANDIN[n]]||ART['empty-plate'];
+  return `<img class="ico" src="${src}" alt="" onerror="this.onerror=null;this.src='${alt}'">`;
+}
 function guessIcon(r){
   const t=(r.name+' '+(r.ingredients||[]).map(i=>i.name).join(' ')).toLowerCase();
   if(/ice.?cream|rice.?cream|gelato|sorbet|semifreddo|kulfi/.test(t)) return 'ice-cream';
@@ -820,44 +843,67 @@ function guessIcon(r){
    FSIS FoodKeeper dataset. A blank shelf means "doesn't really belong there".
    Anything the user sets by hand supersedes these and is remembered. */
 const FOOD=[
- {k:['chicken thigh','chicken leg','chicken breast','chicken'],life:{Fridge:2,Freezer:270},units:['x','kg','g'],shelf:'Fridge'},
- {k:['steak','beef','sirloin','ribeye','mince'],life:{Fridge:4,Freezer:300},units:['x','kg','g'],shelf:'Fridge'},
+ {k:['chicken thigh','chicken leg','chicken breast','chicken'],life:{Fridge:2,Freezer:270},units:['x','kg','g'],shelf:'Fridge',ic:'friedchicken'},
+ {k:['steak','beef','sirloin','ribeye','mince'],life:{Fridge:4,Freezer:300},units:['x','kg','g'],shelf:'Fridge',ic:'steak'},
  {k:['pork','bacon','sausage'],life:{Fridge:7,Freezer:60},units:['x','g'],shelf:'Fridge'},
- {k:['fish','salmon','cod','prawn','shrimp'],life:{Fridge:2,Freezer:180},units:['x','g'],shelf:'Fridge'},
- {k:['egg'],life:{Fridge:35},units:['x'],shelf:'Fridge'},
+ {k:['fish','salmon','cod','prawn','shrimp'],life:{Fridge:2,Freezer:180},units:['x','g'],shelf:'Fridge',ic:'fish-fillet'},
+ {k:['egg'],life:{Fridge:35},units:['x'],shelf:'Fridge',ic:'soft-eggs'},
  {k:['milk'],life:{Fridge:7},units:['ml','l'],shelf:'Fridge'},
- {k:['butter'],life:{Fridge:60,Freezer:270},units:['g','pack'],shelf:'Fridge'},
+ {k:['butter'],life:{Fridge:60,Freezer:270},units:['g','pack'],shelf:'Fridge',ic:'butter'},
  {k:['yogurt','yoghurt'],life:{Fridge:14},units:['g','pot'],shelf:'Fridge'},
  {k:['cream','creme fraiche','crème fraîche'],life:{Fridge:10},units:['ml','pot'],shelf:'Fridge'},
  {k:['cheese','parmesan','cheddar'],life:{Fridge:30,Freezer:180},units:['g','block'],shelf:'Fridge'},
  {k:['tofu'],life:{Fridge:5,Freezer:150},units:['pack','g'],shelf:'Fridge'},
- {k:['cabbage'],life:{Fridge:35},units:['whole','half','wedge'],shelf:'Fridge'},
- {k:['carrot'],life:{Fridge:25},units:['x','g','bag'],shelf:'Fridge'},
+ {k:['cabbage'],life:{Fridge:35},units:['whole','half','wedge'],shelf:'Fridge',ic:'cabbage'},
+ {k:['carrot'],life:{Fridge:25},units:['x','g','bag'],shelf:'Fridge',ic:'carrot'},
  {k:['onion','shallot'],life:{Cupboard:30,Fridge:60},units:['x','bag'],shelf:'Cupboard'},
  {k:['garlic'],life:{Cupboard:90},units:['bulb','clove'],shelf:'Cupboard'},
  {k:['ginger'],life:{Fridge:21,Freezer:120},units:['piece','g'],shelf:'Fridge'},
  {k:['tomato'],life:{Fridge:6,Cupboard:4},units:['x','g','punnet'],shelf:'Fridge'},
  {k:['cucumber'],life:{Fridge:7},units:['whole','half'],shelf:'Fridge'},
- {k:['lettuce','salad leaves','spinach','kale','greens'],life:{Fridge:7},units:['bag','head'],shelf:'Fridge'},
+ {k:['lettuce','salad leaves','spinach','kale','greens'],life:{Fridge:7},units:['bag','head'],shelf:'Fridge',ic:'green-salad'},
  {k:['coriander','cilantro','parsley','chive','basil','mint','shiso','dill'],life:{Fridge:7},units:['bunch','pack'],shelf:'Fridge'},
  {k:['scallion','spring onion'],life:{Fridge:10},units:['bunch','x'],shelf:'Fridge'},
  {k:['chilli','chili','jalapeno','jalapeño'],life:{Fridge:14},units:['x','pack'],shelf:'Fridge'},
  {k:['lime','lemon'],life:{Fridge:21,Cupboard:7},units:['x'],shelf:'Fridge'},
  {k:['mushroom'],life:{Fridge:7},units:['g','punnet'],shelf:'Fridge'},
- {k:['potato'],life:{Cupboard:60},units:['kg','x','bag'],shelf:'Cupboard'},
- {k:['bread','loaf','baguette','bun'],life:{Cupboard:4,Freezer:90},units:['loaf','x'],shelf:'Cupboard'},
- {k:['rice'],life:{Cupboard:720},units:['kg','g','bag'],shelf:'Cupboard'},
- {k:['noodle','pasta','somen','spaghetti'],life:{Cupboard:720},units:['pack','g'],shelf:'Cupboard'},
+ {k:['potato'],life:{Cupboard:60},units:['kg','x','bag'],shelf:'Cupboard',ic:'potato'},
+ {k:['bread','loaf','baguette','bun'],life:{Cupboard:4,Freezer:90},units:['loaf','x'],shelf:'Cupboard',ic:'breadbag'},
+ {k:['rice'],life:{Cupboard:720},units:['kg','g','bag'],shelf:'Cupboard',ic:'rice-bag'},
+ /* Dry noodles split three ways so the shelf reads at a glance. Watch the
+    matcher when adding keywords (foodInfo): a keyword equal to the name's LAST
+    word scores 2 and beats everything else, so bare 'noodles' owns anything
+    ending in it — which is why the cup entry uses 'ramen cup' / 'noodles cup'
+    rather than 'cup', and why 'soup noodles' is deliberately absent. Before
+    this, "Beef Soup Noodles" matched `beef` and was filed as 4-day fridge meat. */
+ {k:['noodle','noodles','somen','vermicelli','glass noodles','rice noodles','sweet potato noodles',
+     'instant noodles','instant noodle','ramyun','ramen','chapagetti','jjapaghetti','mian','pho','banh pho','udon','soba'],
+  life:{Cupboard:720},units:['pack','portion','g'],shelf:'Cupboard',ic:'noodle-pack'},
+ {k:['ramen cup','ramyun cup','noodles cup','noodle cup','cup noodles','pot noodle','noodle bowl','rice noodle bowl'],
+  life:{Cupboard:365},units:['portion','x'],shelf:'Cupboard',ic:'noodle-cup'},
+ {k:['pasta','spaghetti','orzo','penne','paccheri','fusilli','rigatoni','macaroni','tagliatelle','linguine','lasagne','lasagne sheets'],
+  life:{Cupboard:720},units:['pack','g'],shelf:'Cupboard',ic:'pasta'},
+ {k:['chickpea','chickpeas','lentil','lentils','bean','beans','mung bean','mung beans','split mung beans','butter beans'],
+  life:{Cupboard:720},units:['g','kg','bag','tin'],shelf:'Cupboard',ic:'pulses'},
+ {k:['bulgur','bulgur wheat','couscous','quinoa','barley','oats','polenta'],
+  life:{Cupboard:540},units:['g','kg','bag'],shelf:'Cupboard',ic:'rice-bag'},
+ {k:['tapioca starch','potato starch','corn starch','cornflour','cornstarch','starch'],
+  life:{Cupboard:720},units:['g','bag'],shelf:'Cupboard',ic:'starch'},
+ {k:['fried onions','crispy onions','fried shallots','crispy shallots'],
+  life:{Cupboard:180},units:['g','tub'],shelf:'Cupboard',ic:'fried-onion'},
+ {k:['corn','sweetcorn','corn on the cob'],life:{Fridge:5,Freezer:300},units:['x','g'],shelf:'Fridge',ic:'corn'},
+ {k:['cassava','yuca'],life:{Fridge:7,Freezer:300},units:['g','kg'],shelf:'Fridge',ic:'cassava'},
+ {k:['fish cake','fish tofu','fish tofy','surimi'],life:{Fridge:5,Freezer:180},units:['g','pack'],shelf:'Fridge',ic:'fish-fillet'},
  {k:['flour'],life:{Cupboard:240},units:['kg','bag'],shelf:'Cupboard'},
  {k:['sugar'],life:{Cupboard:720},units:['kg','bag'],shelf:'Cupboard'},
  {k:['oil','olive oil','sunflower oil'],life:{Cupboard:365},units:['bottle','ml'],shelf:'Cupboard'},
- {k:['soy sauce','soy','fish sauce','vinegar','mirin','sake','shaoxing'],life:{Cupboard:365},units:['bottle','ml'],shelf:'Cupboard'},
- {k:['ice cream','gelato','sorbet','frozen yogurt','frozen yoghurt'],life:{Freezer:180},units:['tub','ml','l'],shelf:'Freezer'},
- {k:['miso'],life:{Fridge:365},units:['tub','g'],shelf:'Fridge'},
- {k:['curry paste'],life:{Fridge:90,Cupboard:180},units:['jar','tin','g'],shelf:'Fridge'},
+ {k:['soy sauce','soy','fish sauce','vinegar','mirin','sake','shaoxing'],life:{Cupboard:365},units:['bottle','ml'],shelf:'Cupboard',ic:'jar'},
+ {k:['ice cream','gelato','sorbet','frozen yogurt','frozen yoghurt'],life:{Freezer:180},units:['tub','ml','l'],shelf:'Freezer',ic:'ice-cream'},
+ {k:['miso'],life:{Fridge:365},units:['tub','g'],shelf:'Fridge',ic:'jar'},
+ {k:['curry paste'],life:{Fridge:90,Cupboard:180},units:['jar','tin','g'],shelf:'Fridge',ic:'jar'},
  {k:['coconut milk'],life:{Cupboard:365,Fridge:4},units:['tin','ml'],shelf:'Cupboard'},
  {k:['stock','broth'],life:{Cupboard:365,Fridge:4},units:['carton','ml'],shelf:'Cupboard'},
- {k:['jam','honey','marmalade'],life:{Cupboard:365},units:['jar'],shelf:'Cupboard'},
+ {k:['jam','honey','marmalade'],life:{Cupboard:365},units:['jar'],shelf:'Cupboard',ic:'jar'},
  {k:['condensed milk'],life:{Cupboard:365,Fridge:5},units:['tin'],shelf:'Cupboard'},
 ];
 const GENERIC_UNITS=['x','g','kg','ml','pack'];
@@ -906,6 +952,10 @@ function sugDate(name,shelf){
 }
 function unitsFor(name){ const f=foodInfo(name); return f?f.units.concat(GENERIC_UNITS.filter(u=>!f.units.includes(u))):GENERIC_UNITS; }
 function shelfFor(name){ const f=foodInfo(name); return f?f.shelf:'Fridge'; }
+/* The picture for a fridge/pantry item, from the same keyword match that gives
+   it a shelf and a use-by. Null when nothing matches, so the row just keeps its
+   empty slot rather than claiming a jar of something is a cabbage. */
+function foodIcon(name){ const f=foodInfo(name); return (f&&f.ic)||null; }
 
 /* ============ seed recipes ============ */
 /* Elanne Boake recipe index — imported "to try". Each carries its real `cuisine`
@@ -2971,13 +3021,14 @@ function renderFridge(){
     if(!items.length) return '';
     return `<div class="shelf-group"><h4>${s}</h4><ul class="items">${items.map(f=>{
       const sitting=!f.until&&!f.staple&&f.addedAt&&dayDiff(f.addedAt)<=-10;
-      return `<li><button class="item-edit item-name" data-edit="${esc(f.id)}" title="Edit">${esc(f.name)}</button>
+      return `<li><span class="item-ico">${foodIcon(f.name)?artStandIn(foodIcon(f.name)):''}</span>
+        <button class="item-edit item-name" data-edit="${esc(f.id)}" title="Edit">${esc(f.name)}</button>
         ${f.qty?`<span class="item-qty">${esc(f.qty)}</span>`:''}
         ${f.opened?'<span class="chip">opened</span>':''}
         ${f.staple?'<span class="chip">staple</span>':(useByChip(f.until)||(sitting?`<span class="chip">in for ${-dayDiff(f.addedAt)} days</span>`:''))}
-        ${s==='Cupboard'?'':`<button class="link-btn low" data-opened="${esc(f.id)}">${f.opened?'seal again':'mark opened'}</button>`}
+        <span class="item-acts">${s==='Cupboard'?'':`<button class="link-btn low" data-opened="${esc(f.id)}">${f.opened?'seal again':'mark opened'}</button>`}
         <button class="link-btn low" data-low="${esc(f.name)}">running low</button>
-        <button class="row-x" data-remove="${esc(f.id)}" aria-label="Remove ${esc(f.name)}">×</button></li>`;}).join('')}</ul></div>`;
+        <button class="row-x" data-remove="${esc(f.id)}" aria-label="Remove ${esc(f.name)}">×</button></span></li>`;}).join('')}</ul></div>`;
   }).join('');
 
   const cook=recipes.map(r=>({r,mi:matchInfo(r),urg:usedItems(r).filter(f=>urgent.includes(f)).length}))
