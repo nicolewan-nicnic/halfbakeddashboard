@@ -444,6 +444,19 @@ button.star-btn{flex:none;background:none;border:0;font-size:16px;line-height:1;
 .g-row input[type=checkbox]{accent-color:var(--sage);transform:translateY(2px)}
 .g-row.done .g-name{opacity:.45;text-decoration:line-through}
 .g-name{flex:1;min-width:140px}
+.pk-row{display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px dotted var(--taupe);flex-wrap:wrap}
+.pk-name{flex:1;min-width:8em}
+.pk-who{font-family:var(--mono);font-size:12px;color:var(--rye)}
+.pk-who .empty{font-size:12px}
+/* Covered means nobody else needs to think about it — say so by stepping the
+   whole row back rather than by adding another badge to read. */
+.pk-row.covered .pk-name{opacity:.62}
+.pk-packed{font-family:var(--mono);font-size:12px;color:var(--rye);display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.pk-packed input{accent-color:var(--sage)}
+@media (max-width:680px){
+  .pk-name{flex:1 1 100%;min-width:0}
+  .pk-row .item-acts{flex-basis:100%;margin-left:0}
+}
 .putaway{width:100%;background:var(--beige);border-radius:var(--wob2);padding:12px 14px;margin-top:6px}
 .putaway select{padding:7px 9px;background:var(--ivory);border:2.5px solid var(--crumb);border-radius:var(--wob3)}
 .plan-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:14px}
@@ -632,6 +645,7 @@ window.addEventListener('error',function(e){
         <button class="fridge-btn" id="fridge-btn"></button>
         <button class="fridge-btn" id="grocery-btn"></button>
         <button class="fridge-btn" id="plan-btn"></button>
+        <button class="fridge-btn" id="pack-btn"></button>
         <button class="fridge-btn" id="settings-btn"></button>
       </div>
         <input type="file" id="import-file" accept="application/json" hidden>
@@ -682,6 +696,7 @@ const S = {
   staples:   'hbs:shop.staples',         /* items you always like to add, by store */
   prices:    'hbs:shop.priceoverrides',  /* your own corrections to a shop's listed prices */
   prefs:     'hbs:foodprefs',
+  packshared:'hbs:pack.shared',          /* the trip kit everyone shares — what the group needs and who is bringing it */
   meta:      'hbs:meta'
 };
 const LEGACY='recipe-ledger:v1';
@@ -768,7 +783,7 @@ async function sset(k,v){
 }
 
 /* Every illustration is a Half Baked Society original, background removed. */
-const ART = {"croissant": "icons/croissant.webp", "shortcake": "icons/shortcake.webp", "breadbag": "icons/breadbag.webp", "butter": "icons/butter.webp", "jar": "icons/jar.webp", "cakeslice": "icons/cakeslice.webp", "bun": "icons/bun.webp", "noodlebowl": "icons/noodlebowl.webp", "carrot": "icons/carrot.webp", "icedcoffee": "icons/icedcoffee.webp", "chickenrice": "icons/chickenrice.webp", "steak": "icons/steak.webp", "cabbage": "icons/cabbage.webp", "eggtart": "icons/eggtart.webp", "friedchicken": "icons/friedchicken.webp", "banh-xeo": "icons/banh-xeo.png", "basque-cheesecake": "icons/basque-cheesecake.png", "kkaenip-jeon": "icons/kkaenip-jeon.png", "pajeon": "icons/pajeon.png", "maeuntang": "icons/maeuntang.png", "soft-eggs": "icons/soft-eggs.png", "green-salad": "icons/green-salad.png", "brown-soup": "icons/brown-soup.png", "red-soup": "icons/red-soup.png", "beef-soup": "icons/beef-soup.png", "ice-cream": "icons/ice-cream.png", "empty-plate": "icons/empty-plate.png", "japaneseeggpudding": "icons/japaneseeggpudding.png", "pasta": "icons/pasta.png", "noodle-pack": "icons/noodle-pack.png", "noodle-cup": "icons/noodle-cup.png", "rice-bag": "icons/rice-bag.png", "pulses": "icons/pulses.png", "starch": "icons/starch.png", "fried-onion": "icons/fried-onion.png", "corn": "icons/corn.png", "cassava": "icons/cassava.png", "fish-fillet": "icons/fish-fillet.png", "potato": "icons/potato.png", "__logo": "icons/logo.webp"};
+const ART = {"croissant": "icons/croissant.webp", "shortcake": "icons/shortcake.webp", "breadbag": "icons/breadbag.webp", "butter": "icons/butter.webp", "jar": "icons/jar.webp", "cakeslice": "icons/cakeslice.webp", "bun": "icons/bun.webp", "noodlebowl": "icons/noodlebowl.webp", "carrot": "icons/carrot.webp", "icedcoffee": "icons/icedcoffee.webp", "chickenrice": "icons/chickenrice.webp", "steak": "icons/steak.webp", "cabbage": "icons/cabbage.webp", "eggtart": "icons/eggtart.webp", "friedchicken": "icons/friedchicken.webp", "banh-xeo": "icons/banh-xeo.png", "basque-cheesecake": "icons/basque-cheesecake.png", "kkaenip-jeon": "icons/kkaenip-jeon.png", "pajeon": "icons/pajeon.png", "maeuntang": "icons/maeuntang.png", "soft-eggs": "icons/soft-eggs.png", "green-salad": "icons/green-salad.png", "brown-soup": "icons/brown-soup.png", "red-soup": "icons/red-soup.png", "beef-soup": "icons/beef-soup.png", "ice-cream": "icons/ice-cream.png", "empty-plate": "icons/empty-plate.png", "japaneseeggpudding": "icons/japaneseeggpudding.png", "pasta": "icons/pasta.png", "noodle-pack": "icons/noodle-pack.png", "noodle-cup": "icons/noodle-cup.png", "rice-bag": "icons/rice-bag.png", "pulses": "icons/pulses.png", "starch": "icons/starch.png", "fried-onion": "icons/fried-onion.png", "corn": "icons/corn.png", "cassava": "icons/cassava.png", "fish-fillet": "icons/fish-fillet.png", "potato": "icons/potato.png", "packing-box": "icons/packing-box.png", "__logo": "icons/logo.webp"};
 const LOGO = ART.__logo;
 const ICONS=['croissant','breadbag','bun','shortcake','cakeslice','jar','butter','steak','icedcoffee','ice-cream','noodlebowl','chickenrice','friedchicken','cabbage','carrot','eggtart','soft-eggs','green-salad','brown-soup','red-soup','beef-soup','empty-plate','banh-xeo','basque-cheesecake','kkaenip-jeon','pajeon','maeuntang','japaneseeggpudding'].filter(n=>ART[n]);
 
@@ -805,19 +820,20 @@ function art(r){
   const n=(r && (r.icon||guessedIcon(r)))||'empty-plate';
   return `<img class="ico" src="${ART[n]||ART['empty-plate']}" alt=""${ICO_FALLBACK}>`;
 }
-function artByName(n){ return `<img class="ico" src="${ART[n]||ART['empty-plate']}" alt=""${ICO_FALLBACK}>`; }
-/* The pantry icons below are new names whose PNGs aren't drawn yet. Until each
+/* Some icon names below are new and their PNGs aren't drawn yet. Until each
    file lands, degrade to the nearest existing artwork instead of an empty plate —
    when the real file appears it simply takes over, no code change needed.
    Only stand in where the existing art is genuinely close; pulses, starch,
    fried onions and fish have no near neighbour, so they keep the neutral plate
    rather than borrowing a picture that says the wrong thing. */
 const ICO_STANDIN={pasta:'noodlebowl','noodle-pack':'noodlebowl','noodle-cup':'noodlebowl',
-  'rice-bag':'breadbag',corn:'green-salad',cassava:'carrot',potato:'carrot'};
+  'rice-bag':'breadbag',corn:'green-salad',cassava:'carrot',potato:'carrot',
+  'packing-box':'breadbag'};
 function artStandIn(n){
   const src=ART[n]||ART['empty-plate'], alt=ART[ICO_STANDIN[n]]||ART['empty-plate'];
   return `<img class="ico" src="${src}" alt="" onerror="this.onerror=null;this.src='${alt}'">`;
 }
+function artByName(n){ return artStandIn(n); }
 function guessIcon(r){
   const t=(r.name+' '+(r.ingredients||[]).map(i=>i.name).join(' ')).toLowerCase();
   if(/ice.?cream|rice.?cream|gelato|sorbet|semifreddo|kulfi/.test(t)) return 'ice-cream';
@@ -1512,6 +1528,7 @@ function seed(){return [
 /* ============ state ============ */
 let mine=[], overrides={}, removed=[], recipes=[];
 let fridge=[], grocery=[], plan={}, todos=[], menu=[];
+let packShared=[], packMine=[], packWho='';
 let currentId=null, scale=1, editing=false, draft=null;
 let mode='home', cookOff=false, editItem=null, putAway=null, pickDay=null;
 let formDate='', photoReview=null, photoBusy=false, armed=null, pasteBusy=false, pasteText='';
@@ -1609,6 +1626,8 @@ const saveFridge=()=>sset(S.fridge,fridge), saveGrocery=()=>sset(S.grocery,groce
       saveStaples=()=>sset(S.staples,shopStaples),
       savePriceOverrides=()=>sset(S.prices,priceOverrides),
       saveMenu=()=>sset(S.menu,menu),
+      savePackShared=()=>sset(S.packshared,packShared),
+      savePackMine=()=>packWho?sset(packMineKey(packWho),packMine):Promise.resolve(),
       saveNbdFav=()=>sset(S.nbdfav,nbdFav), saveNbdRecent=()=>sset(S.nbdrecent,nbdRecent),
       saveCooked=()=>sset(S.cooked,cookedIds);
 function madeIt(id){ return cookedIds.includes(id); }
@@ -1973,6 +1992,9 @@ function renderNav(){
   set('#fridge-btn','cabbage','The fridge', fridge.length+' item'+(fridge.length===1?'':'s'));
   set('#grocery-btn','breadbag','Grocery list', gN?gN+' to get':'empty');
   set('#plan-btn','chickenrice','Meal plan', planned?planned+' planned':'nothing yet');
+  const pkShort=packOutstanding();
+  set('#pack-btn','packing-box','Packing',
+      packShared.length ? (pkShort?pkShort+' still to claim':'all covered') : 'nothing yet');
   set('#settings-btn','jar','Settings', API_BASE?(apiDown?'offline':'synced'):'this device');
   /* same defensiveness as the plan count above — one malformed basket must not
      stop the whole nav from rendering */
@@ -1990,7 +2012,7 @@ function renderTabbar(){
   if(SHARE){ tb.innerHTML=''; renderMoreSheet(); return; }
   const wide = window.matchMedia('(min-width:960px)').matches;
   const isOn=m=> m==='recipes' ? ['recipes','recipe','paste'].includes(mode)
-              : m==='more'    ? ['grocery','recipes','recipe','paste','settings'].includes(mode)
+              : m==='more'    ? ['grocery','recipes','recipe','paste','settings','pack'].includes(mode)
               : mode===m;
   const tab=(m,icon,label)=>`<button class="tb" type="button" data-m="${m}" aria-current="${isOn(m)}">
     ${icon?`<span class="thumb">${artByName(icon)}</span>`:'<span class="dots" aria-hidden="true">···</span>'}
@@ -1998,7 +2020,8 @@ function renderTabbar(){
   tb.innerHTML = wide
     ? tab('home','croissant','Home')+tab('shop','bun','Deliveroo')+tab('recipes','cakeslice','Recipes')
       + tab('fridge','cabbage','Fridge')+tab('grocery','breadbag','Grocery')
-      + tab('plan','chickenrice','Plan')+tab('settings','jar','Settings')
+      + tab('plan','chickenrice','Plan')+tab('pack','packing-box','Packing')
+      + tab('settings','jar','Settings')
     : tab('home','croissant','Home')+tab('shop','bun','Deliveroo')
       + tab('fridge','cabbage','Fridge')+tab('plan','chickenrice','Plan')+tab('more','','More');
   tb.querySelectorAll('.tb').forEach(b=>b.onclick=()=>{
@@ -2049,6 +2072,7 @@ function renderMoreSheet(){
       <h4>More</h4>
       ${row('recipes','cakeslice','Recipes', recipes.length+' recipes')}
       ${row('grocery','breadbag','Grocery list', gN?gN+' to get':'empty')}
+      ${row('pack','packing-box','Packing', packShared.length?(packOutstanding()?packOutstanding()+' still to claim':'all covered'):'nothing yet')}
       ${row('settings','jar','Settings', API_BASE?(apiDown?'offline':'synced'):'this device')}
     </div>`;
   $('#more-bd').onclick=closeMoreSheet;
@@ -3000,6 +3024,212 @@ function learnDate(name,shelf,pickedISO){
   const b=norm(String(name).split(',')[0]); if(!b) return;
   foodPrefs[b]=foodPrefs[b]||{}; foodPrefs[b][shelf]=days;
   savePrefs();
+}
+
+/* ============ packing list ============ */
+/* Two lists, deliberately kept apart.
+
+   "Between us" is the group kit: things the trip needs a certain NUMBER of, not
+   one each. Two rice cookers between eight people, not eight rice cookers. You
+   claim one, and everybody else can see at a glance that it is covered and that
+   they can leave theirs at home.
+
+   "Your bag" is yours alone. Putting your contact lens solution on it does not
+   put it on anyone else's screen, which is the entire reason the two lists are
+   separate rather than one list with a flag. */
+
+function slugWho(w){
+  /* api/kv.js only accepts hbs:[a-z0-9._-]+ as a key, so a person's name has to
+     come down to that before it can name their private list. */
+  const s=String(w||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+  return s||'someone';
+}
+const packMineKey=w=>'hbs:pack.mine.'+slugWho(w);
+const packNeed=i=>Math.max(1,+i.need||1);
+const packClaimed=i=>(i.claims||[]).reduce((a,c)=>a+Math.max(0,+c.qty||0),0);
+const packShort=i=>Math.max(0,packNeed(i)-packClaimed(i));
+const packMyClaim=i=>(i.claims||[]).find(c=>c.who===packWho)||null;
+function packOutstanding(){ return packShared.reduce((a,i)=>a+packShort(i),0); }
+
+/* Everyone on the trip writes to the same group list, so a claim made on one
+   phone must not wipe one made on another a few seconds earlier. Re-read the
+   list immediately before writing and apply the change to that fresh copy.
+   Unconditionally: sget already falls back to this device's own copy when the
+   database is unreachable, and skipping the re-read there would drop the
+   protection at exactly the moment the app is least reliable. */
+async function packWrite(mutate){
+  try{ const fresh=await sget(S.packshared); if(Array.isArray(fresh)) packShared=fresh; }catch(e){}
+  packShared=mutate(packShared)||packShared;
+  await savePackShared();
+}
+function packFind(list,id){ return list.find(i=>i.id===id); }
+
+async function setPackWho(name){
+  const next=String(name||'').trim();
+  if(!next) return;
+  const prev=packWho;
+  if(prev===next) return;
+  packWho=next;
+  try{ localStorage.setItem('hbs:pack.who',next); }catch(e){}
+  if(prev){
+    /* A rename must not strand the bag under the old key or leave claims
+       credited to a name nobody answers to any more. */
+    await savePackMine();
+    await sset(packMineKey(prev),null);
+    await packWrite(list=>{ list.forEach(i=>(i.claims||[]).forEach(c=>{ if(c.who===prev) c.who=next; })); return list; });
+  } else {
+    packMine=(await sget(packMineKey(next)))||[];
+  }
+}
+
+function renderPack(){
+  const named=!!packWho;
+  const short=packOutstanding();
+  const mineOpen=packMine.filter(x=>!x.done), mineDone=packMine.filter(x=>x.done);
+
+  const sharedRow=i=>{
+    const need=packNeed(i), got=packClaimed(i), mine=packMyClaim(i), covered=got>=need;
+    const bringing=(i.claims||[]).filter(c=>+c.qty>0)
+      .map(c=>esc(c.who)+((+c.qty)>1?' ×'+(+c.qty):'')+(c.packed?' ✓':'')).join(', ');
+    return `<div class="pk-row${covered?' covered':''}">
+      <span class="pk-name">${esc(i.name)}</span>
+      <span class="chip">${got} of ${need}${covered?' · covered':''}</span>
+      <span class="pk-who">${bringing||'<span class="empty">nobody yet</span>'}</span>
+      <span class="item-acts">
+        ${named?(mine
+          ? `<label class="pk-packed"><input type="checkbox" data-pkpacked="${esc(i.id)}"${mine.packed?' checked':''}> packed</label>
+             <button class="link-btn low" data-pkdrop="${esc(i.id)}">not me</button>`
+          : `<button class="pill" style="padding:3px 10px;font-size:12px" data-pkclaim="${esc(i.id)}">${covered?'bring a spare':'I’ll bring one'}</button>`)
+        :''}
+        <button class="row-x" data-pkx="${esc(i.id)}" aria-label="Remove ${esc(i.name)}">×</button>
+      </span></div>`;
+  };
+  const mineRow=x=>`<div class="g-row ${x.done?'done':''}">
+      <input type="checkbox"${x.done?' checked':''} data-pmtick="${esc(x.id)}">
+      <span class="g-name">${esc(x.name)}</span>
+      <button class="row-x" data-pmx="${esc(x.id)}" aria-label="Remove">×</button>
+    </div>`;
+
+  pane.innerHTML=`<article class="card">
+    <div class="card-head">
+      <div style="flex:1;min-width:180px"><h2>Packing</h2>
+        <p class="blurb">Two lists. The group kit is shared out between everyone, so one rice cooker covers the lot of you. Your own bag is yours alone — nothing you put on it appears on anybody else's screen.</p></div>
+      <div class="head-actions"><button class="pill back-only" id="back">← Back</button></div>
+    </div>
+
+    <h3 class="section-title" style="margin-top:20px">Who’s packing</h3>
+    <div class="section-rule"></div>
+    <div class="add-item" style="grid-template-columns:1fr auto;margin-top:12px">
+      <label><span class="picker-label">Your name — it shows next to anything you claim</span>
+        <input id="pk-who" value="${esc(packWho)}" placeholder="Nicole" autocomplete="off"></label>
+      <button class="pill${named?'':' solid'}" id="pk-who-save" style="padding:10px 16px;align-self:end">${named?'Change':'Save'}</button>
+    </div>
+    ${named?'':'<p class="empty" style="margin-top:4px">Add a name before claiming anything or starting your own bag.</p>'}
+
+    <h3 class="section-title" style="margin-top:26px">Between us</h3>
+    <div class="section-rule"></div>
+    <p class="blurb" style="margin-top:8px">${packShared.length
+      ? (short?(short===1?'One thing still needs someone to bring it.':`${short} things still need someone to bring them.`):'Everything on the group list is covered.')
+      : 'Things the group needs a certain number of, rather than one each.'}</p>
+    ${named?`<div class="add-item" style="grid-template-columns:1fr 110px auto;margin-top:12px">
+      <label><span class="picker-label">Item</span><input id="pk-name" placeholder="Rice cooker" autocomplete="off"></label>
+      <label><span class="picker-label">How many</span><input id="pk-need" type="number" min="1" value="1"></label>
+      <button class="pill solid" id="pk-add" style="padding:10px 16px;align-self:end">Add</button>
+    </div>`:''}
+    ${packShared.length?packShared.map(sharedRow).join(''):'<p class="empty" style="margin-top:12px">Nothing shared yet.</p>'}
+
+    <h3 class="section-title" style="margin-top:28px">Your bag</h3>
+    <div class="section-rule"></div>
+    <p class="blurb" style="margin-top:8px">Only you see this list${named?', '+esc(packWho):''}.</p>
+    ${named?`<div class="add-item" style="grid-template-columns:1fr auto;margin-top:12px">
+      <label><span class="picker-label">Item</span><input id="pm-name" placeholder="Swimming things" autocomplete="off"></label>
+      <button class="pill solid" id="pm-add" style="padding:10px 16px;align-self:end">Add</button>
+    </div>
+    ${mineOpen.length?mineOpen.map(mineRow).join(''):'<p class="empty" style="margin-top:12px">Nothing in your bag yet.</p>'}
+    ${mineDone.length?`<h4 class="section-title" style="margin-top:20px;font-size:13px">Packed</h4>${mineDone.map(mineRow).join('')}`:''}`
+    :''}
+  </article>`;
+
+  const back=$('#back'); if(back) back.onclick=()=>{ mode='home'; render(); };
+
+  const saveWho=async()=>{
+    const v=$('#pk-who').value.trim();
+    if(!v){ $('#pk-who').focus(); return; }
+    await setPackWho(v); render(); toast('Packing as '+v);
+  };
+  $('#pk-who-save').onclick=saveWho;
+  $('#pk-who').onkeydown=e=>{ if(e.key==='Enter') saveWho(); };
+
+  const addShared=async()=>{
+    const name=$('#pk-name').value.trim(); if(!name){ $('#pk-name').focus(); return; }
+    const need=Math.max(1,parseInt($('#pk-need').value,10)||1);
+    const dup=packShared.find(i=>norm(i.name)===norm(name));
+    if(dup){ toast('“'+name+'” is already on the group list'); $('#pk-name').value=''; $('#pk-name').focus(); return; }
+    await packWrite(list=>{ list.push({id:'pk'+Date.now()+Math.random().toString(36).slice(2,6),name,need,claims:[]}); return list; });
+    render(); const n=$('#pk-name'); if(n){ n.value=''; n.focus(); }
+  };
+  if($('#pk-add')){
+    $('#pk-add').onclick=addShared;
+    $('#pk-name').onkeydown=e=>{ if(e.key==='Enter') addShared(); };
+    $('#pk-need').onkeydown=e=>{ if(e.key==='Enter') addShared(); };
+  }
+
+  pane.querySelectorAll('[data-pkclaim]').forEach(b=>b.onclick=async()=>{
+    const id=b.dataset.pkclaim;
+    await packWrite(list=>{
+      const i=packFind(list,id); if(!i) return list;
+      i.claims=i.claims||[];
+      const mine=i.claims.find(c=>c.who===packWho);
+      if(mine) mine.qty=(+mine.qty||0)+1; else i.claims.push({who:packWho,qty:1,packed:false});
+      return list;
+    });
+    render();
+  });
+  pane.querySelectorAll('[data-pkdrop]').forEach(b=>b.onclick=async()=>{
+    const id=b.dataset.pkdrop;
+    await packWrite(list=>{
+      const i=packFind(list,id); if(!i) return list;
+      i.claims=(i.claims||[]).filter(c=>c.who!==packWho);
+      return list;
+    });
+    render();
+  });
+  pane.querySelectorAll('[data-pkpacked]').forEach(el=>el.onchange=async()=>{
+    const id=el.dataset.pkpacked, on=el.checked;
+    await packWrite(list=>{
+      const i=packFind(list,id); if(!i) return list;
+      const mine=(i.claims||[]).find(c=>c.who===packWho); if(mine) mine.packed=on;
+      return list;
+    });
+    render();
+  });
+  pane.querySelectorAll('[data-pkx]').forEach(b=>b.onclick=async()=>{
+    const id=b.dataset.pkx, it=packFind(packShared,id);
+    /* Removing something somebody else has already promised to bring is worth a
+       beat of hesitation — they may already have it in the car. */
+    if(it&&packClaimed(it)&&!packMyClaim(it)
+       &&!confirm('“'+it.name+'” is already claimed by '+(it.claims||[]).map(c=>c.who).join(', ')+'. Remove it anyway?')) return;
+    await packWrite(list=>list.filter(i=>i.id!==id));
+    render(); toast('Removed from the group list');
+  });
+
+  const addMine=async()=>{
+    const name=$('#pm-name').value.trim(); if(!name){ $('#pm-name').focus(); return; }
+    packMine.push({id:'pm'+Date.now()+Math.random().toString(36).slice(2,6),name,done:false});
+    await savePackMine(); render(); const n=$('#pm-name'); if(n){ n.value=''; n.focus(); }
+  };
+  if($('#pm-add')){
+    $('#pm-add').onclick=addMine;
+    $('#pm-name').onkeydown=e=>{ if(e.key==='Enter') addMine(); };
+  }
+  pane.querySelectorAll('[data-pmtick]').forEach(el=>el.onchange=async()=>{
+    const x=packMine.find(m=>m.id===el.dataset.pmtick); if(x) x.done=el.checked;
+    await savePackMine(); render();
+  });
+  pane.querySelectorAll('[data-pmx]').forEach(b=>b.onclick=async()=>{
+    packMine=packMine.filter(m=>m.id!==b.dataset.pmx);
+    await savePackMine(); render(); toast('Removed', true);
+  });
 }
 
 /* ============ fridge view ============ */
@@ -4937,7 +5167,7 @@ function openRecipe(id){
    Each section gets a real URL (#/fridge, #/recipe/nuoc-cham …) so pages are
    bookmarkable, shareable and the browser Back button behaves. Kept in one
    file so there is a single copy of the app to maintain. */
-const ROUTES=['home','recipes','fridge','grocery','plan','shop','settings'];
+const ROUTES=['home','recipes','fridge','grocery','plan','shop','settings','pack'];
 let routing=false;                    /* guards against hashchange feedback loops */
 let booting=true;                     /* true until saved data has hydrated; keeps
                                         syncHash from rewriting a deep link to #/
@@ -5003,6 +5233,7 @@ function render(){
 function renderBody(){
   if(mode==='fridge'&&!SHARE){ renderFridge(); return; }
   if(mode==='grocery'&&!SHARE){ renderGrocery(); return; }
+  if(mode==='pack'&&!SHARE){ renderPack(); return; }
   if(mode==='plan'&&!SHARE){ renderPlan(); return; }
   if(mode==='paste'&&!SHARE){ renderPaste(); return; }
   if(mode==='nbd'&&!SHARE){ renderNbd(); return; }
@@ -5150,6 +5381,13 @@ async function doReset(){
      eleven sequential round-trips were the reason startup felt slow. */
   /* In share mode fetch ONLY the three recipe keys. The fridge, grocery list,
      meal plan, baskets and purchase history are never requested at all. */
+  /* The packing stores hang off a name held on this device, so they can't go in
+     the fixed list below — but they can still be in flight at the same time. */
+  let packLoad=Promise.resolve([null,null]);
+  if(!SHARE){
+    try{ packWho=(localStorage.getItem('hbs:pack.who')||'').trim(); }catch(e){ packWho=''; }
+    packLoad=Promise.all([sget(S.packshared), packWho?sget(packMineKey(packWho)):Promise.resolve(null)]);
+  }
   const [_mine,_over,_rem,_fri,_gro,_pl,_td,_bk,_hs,_pr,_mn,_nf,_nr,_ck,_pa,_so,_st,_po,meta] = SHARE
     ? [...await Promise.all([sget(S.mine), sget(S.overrides), sget(S.removed)]),
        null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]
@@ -5178,6 +5416,9 @@ async function doReset(){
   shopOrders  = Array.isArray(_so) ? _so : [];
   shopStaples = _st || {};
   priceOverrides = _po || {};
+  const [_pks,_pkm]=await packLoad;
+  packShared = Array.isArray(_pks) ? _pks : [];
+  packMine   = Array.isArray(_pkm) ? _pkm : [];
 
   /* one-time lift from the old single-blob store into the split stores */
   if(!meta && !API_BASE){

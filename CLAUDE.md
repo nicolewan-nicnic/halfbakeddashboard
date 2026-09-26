@@ -68,6 +68,27 @@ to Made (manual, per the spec). `art()` falls back to `empty-plate` for a `sourc
 recipe `guessIcon` can't place. `link` is a new PATCHABLE recipe field with an editor
 input and an "Open the original ↗" button on the recipe page.
 
+### Packing list
+Two stores, deliberately separate, because the whole point is that one list is
+everyone's and the other is nobody else's business.
+- `hbs:pack.shared` (`packShared`) — the group kit: `{id, name, need, claims:[{who,
+  qty, packed}]}`. `need` is how many the GROUP needs, not how many each person
+  brings. An item is covered when `packClaimed(i) >= packNeed(i)`.
+- `hbs:pack.mine.<slug>` (`packMine`) — one key per person, holding only
+  `{id, name, done}`. Nothing here is ever rendered on anyone else's screen.
+- `packWho` is the person's name, held in **localStorage** (`hbs:pack.who`), not
+  the shared store — it identifies the device, not the trip. `slugWho()` exists
+  because `api/kv.js` only accepts `hbs:[a-z0-9._-]+` as a key.
+
+**Every shared-list write goes through `packWrite(mutate)`**, which re-reads
+`hbs:pack.shared` immediately before applying the change. This is the one store
+several people write to at once; a plain read-modify-write loses whichever claim
+landed second. Do not add a write path that calls `savePackShared()` directly.
+
+Renaming yourself (`setPackWho`) moves the private bag to the new key, clears the
+old one, and rewrites `who` on your existing claims — otherwise the bag is
+stranded and the claims are credited to a name nobody answers to.
+
 ### No-Brainer Dinner
 One catalogue meal — the seed recipe `no-brainer-dinner`. Every combination is a
 planned **instance** in `plan[iso]` (`tmpl:'nbd'`), never a new catalogue meal.
@@ -202,6 +223,13 @@ a small picture in a visible square.
 - **Photo intake / recipe paste need a server.** They POST to `/api/ai`, which adds
   `x-api-key` from `ANTHROPIC_API_KEY` (env) and forwards to Anthropic — the key never
   reaches the browser. Without a server (`API_BASE=''`) the feature can't work.
+- **Pantry and packing icons not yet drawn.** `ART` names `pasta`, `noodle-pack`,
+  `noodle-cup`, `rice-bag`, `pulses`, `starch`, `fried-onion`, `corn`, `cassava`,
+  `fish-fillet`, `potato` and `packing-box`, none of which exist on disk yet.
+  `ICO_STANDIN` degrades each to the nearest existing artwork until its file
+  lands (noodles → noodle bowl, rice and packing → bread bag, cassava → carrot);
+  the four with no near neighbour keep `empty-plate`. Dropping the real 512x512
+  transparent PNG into `icons/` is the whole change — no code edit needed.
 - **`icons/beef-soup.png` is unused** — no recipe references it. It's a beef and radish
   soup, waiting for a matching recipe.
 - **`icons/ice-cream.png` and `icons/empty-plate.png` are referenced but not yet on
