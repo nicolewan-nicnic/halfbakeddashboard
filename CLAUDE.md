@@ -158,6 +158,24 @@ anything that throws mid-render silently disables everything bound after it.
 Cleared when a recipe opens; does not survive a refresh. If the visible ingredient
 rows change (the variant toggle), clear it or ticks land on the wrong lines.
 
+**A box that repaints as you type must be `type="text" inputmode="decimal"`.**
+`render()` rebuilds the pane, so the input is destroyed and recreated on every
+keystroke; focus and the caret both have to be put back. A **number** input has
+no caret to put back — `selectionStart` reads `null` and `setSelectionRange`
+throws `InvalidStateError`, which was also aborting the rest of the repaint once
+per keystroke. The caret landed at the start, so each new character went in
+front of the last: typing 1, 2, 5 into the cheesecake scaler left **521**.
+`caretOf()` / `refocusEl()` are the only way these should be restored. The
+affected fields are `#a-have`, `#c-dry`, `#e-air`, `#e-start` and the four tin
+planner boxes. Don't switch one back to `type="number"`.
+
+**Don't clamp a value while it is being typed, and don't repaint from `onblur`
+mid-render.** Clamping each keystroke meant the first digit of 120 snapped to the
+50 floor and the rest piled onto that, so the box could never reach the number
+you wanted — range is applied in `onblur` instead. And a blur handler that
+repaints recurses, because the repaint itself destroys the focused element and
+fires blur: guard with `leftTheField()`.
+
 **An ingredient's stored name must not state a count.**
 The Basque cheesecake's egg line used to read "Egg, about 6 large, weighed out of
 the shell". The 300 g scales; the words do not, so a double batch still claimed

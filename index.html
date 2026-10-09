@@ -1790,6 +1790,25 @@ function toast(m,undoable){
   if(undoable){ const b=$('#toast-undo'); if(b) b.onclick=()=>{ t.classList.remove('show'); doUndo(); }; }
   clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'), undoable?7000:2200);
 }
+/* Putting the caret back after a repaint.
+
+   render() rebuilds the pane, so a box you are typing in is destroyed and
+   recreated on every keystroke. Focus has to go back, and so does the caret —
+   land it at the start and the next character goes in FRONT of what is already
+   there. Typing 1500 into the cheesecake scaler used to leave 1000.
+
+   A number input has no caret to put back: selectionStart reads null and
+   setSelectionRange throws InvalidStateError, which was also aborting the rest
+   of the repaint on every keystroke. So every box that repaints as you type is
+   a text input with inputmode="decimal" — same keypad on a phone, but a caret
+   that can be read and restored. Don't change one back to type="number". */
+function caretOf(el){ try{ return el?el.selectionStart:null; }catch(e){ return null; } }
+function refocusEl(el,pos){
+  if(!el) return;
+  el.focus();
+  try{ const p=(pos==null?el.value.length:Math.min(pos,el.value.length)); el.setSelectionRange(p,p); }
+  catch(e){}        /* a type that has no selection — focus alone is the best available */
+}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function copyText(t){
   return navigator.clipboard.writeText(t).then(()=>true).catch(()=>{
@@ -2456,7 +2475,7 @@ function renderRecipe(){
   });
   try{ wireCalc(r); }catch(e){ console.error('calculator failed to wire',e); }
   if(refocus){ const el=$('#'+refocus); refocus=null;
-    if(el){ el.focus(); if(el.setSelectionRange) el.setSelectionRange(el.value.length,el.value.length); } }
+    refocusEl(el,refocusCaret); refocusCaret=null; }
 }
 
 /* ============ batter calculator ============ */
@@ -2480,7 +2499,7 @@ function calcHTML(r){
     </div>
     <div class="calc-row">
       <label class="calc-in"><span class="picker-label">or set the dry mix</span>
-        <div class="unitrow"><input id="c-dry" type="number" min="10" step="10" value="${dry}"><span class="calc-unit">g</span></div></label>
+        <div class="unitrow"><input id="c-dry" type="text" inputmode="decimal" value="${dry}" aria-label="Dry weight, grams"><span class="calc-unit">g</span></div></label>
       <span class="calc-sync">the ingredients below follow this</span>
     </div>
     <div class="calc-row">
@@ -2505,10 +2524,11 @@ function wireCalc(r){
   const c=r.calc, per=c.dryPerCrepe||36;
   const d=$('#c-dry');
   if(d){
-    d.oninput=()=>{ if(!d.value) return;
-      const v=Math.min(5000,Math.max(10,Number(d.value)||10));
-      scale=v/c.dry; refocus='c-dry'; render(); };
-    d.onblur=()=>{ if(!d.value) render(); };
+    d.oninput=()=>{ const v=Number(d.value); if(!(v>0)) return;
+      scale=v/c.dry; refocus='c-dry'; refocusCaret=caretOf(d); render(); };
+    d.onblur=()=>{ if(!leftTheField()) return;
+      const v=Number(d.value), ok=Math.min(5000,Math.max(10,v>0?v:10));
+      scale=ok/c.dry; render(); };
   }
   pane.querySelectorAll('[data-crepes]').forEach(b=>b.onclick=()=>{
     scale=(Math.round(Number(b.dataset.crepes)*per/5)*5)/c.dry; render(); });
@@ -2602,10 +2622,10 @@ function tinPlannerHTML(r,total){
             <option value="tray"   ${t.shape==='tray'?'selected':''}>${L('tray','Tray')}</option>
           </select>
           ${t.shape==='tray'
-            ? `<input type="number" min="1" step="0.5" value="${t.l||20}" data-tl="${i}" aria-label="Length cm"><span class="calc-unit">×</span>
-               <input type="number" min="1" step="0.5" value="${t.w||10}" data-tw="${i}" aria-label="Width cm"><span class="calc-unit">cm</span>`
-            : `<input type="number" min="1" step="0.5" value="${t.d||20}" data-td="${i}" aria-label="Size cm"><span class="calc-unit">cm</span>`}
-          <span class="calc-unit">×</span><input type="number" min="1" step="1" value="${t.n||1}" data-tn="${i}" aria-label="How many" style="width:52px">
+            ? `<input type="text" inputmode="decimal" value="${t.l||20}" data-tl="${i}" aria-label="Length cm"><span class="calc-unit">×</span>
+               <input type="text" inputmode="decimal" value="${t.w||10}" data-tw="${i}" aria-label="Width cm"><span class="calc-unit">cm</span>`
+            : `<input type="text" inputmode="decimal" value="${t.d||20}" data-td="${i}" aria-label="Size cm"><span class="calc-unit">cm</span>`}
+          <span class="calc-unit">×</span><input type="text" inputmode="decimal" value="${t.n||1}" data-tn="${i}" aria-label="How many" style="width:52px">
           ${tins.length>1?`<button class="link-btn" data-trm="${i}">${L('remove','remove')}</button>`:''}
         </div>
         ${row&&row.area?`<div class="tinrow-out ${note.cls}">
@@ -2659,7 +2679,7 @@ function anchorHTML(r){
       <span class="calc-rule">${L('follows','everything below follows what you actually have')}</span></div>
     <div class="calc-row">
       <label class="calc-in"><span class="picker-label">${CL?L('inTub',''):esc(c.name)+' in the tub'}</span>
-        <div class="unitrow"><input id="a-have" type="number" min="50" step="50" value="${have}"><span class="calc-unit">g</span></div></label>
+        <div class="unitrow"><input id="a-have" type="text" inputmode="decimal" value="${have}" aria-label="Cream cheese in the tub, grams"><span class="calc-unit">g</span></div></label>
       <div class="calc-presets">${[500,750,1000,1200,1500].map(v=>`
         <button class="ball" data-anchor="${v}" aria-pressed="${have===v}">${v>=1000?(v/1000)+'kg':v+'g'}</button>`).join('')}</div>
     </div>
@@ -2694,9 +2714,10 @@ function wireAnchor(r){
     render();
   });
   const el=$('#a-have');
-  if(el){ el.oninput=()=>{ if(!el.value) return; const v=Number(el.value);
-    if(v>0){ scale=v/c.base; refocus='a-have'; render(); } };
-    el.onblur=()=>{ if(!el.value) render(); }; }
+  if(el){ el.oninput=()=>{ const v=Number(el.value);
+      if(!(v>0)) return;                    /* empty, mid-edit, or not a number yet */
+      scale=v/c.base; refocus='a-have'; refocusCaret=caretOf(el); render(); };
+    el.onblur=()=>{ if(leftTheField()) render(); }; }   /* snap back to the canonical number */
 
   /* --- tin planner --- */
   if(!tins) tins=defaultTins(r);
@@ -2712,10 +2733,11 @@ function wireAnchor(r){
   const num=(sel,key)=>pane.querySelectorAll(sel).forEach(inp=>{
     inp.oninput=()=>{ const i=Number(inp.dataset[key.attr]); const v=Number(inp.value);
       if(!(v>0)) return;
+      const pos=caretOf(inp);
       tins=tins.map((x,j)=>j===i?{...x,[key.field]:v}:x);
       refocus=null; render();
-      const again=pane.querySelector(sel.replace(']','="'+i+'"]'));
-      if(again){ again.focus(); again.setSelectionRange(again.value.length,again.value.length); } };
+      refocusEl(pane.querySelector(sel.replace(']','="'+i+'"]')),pos); };
+    inp.onblur=()=>{ if(leftTheField()) render(); };
   });
   num('[data-td]',{attr:'td',field:'d'});
   num('[data-tl]',{attr:'tl',field:'l'});
@@ -2749,12 +2771,12 @@ function eggHTML(r){
       <div class="calc-presets">
         <button class="ball" data-estart="4" aria-pressed="${eggStart===4}">the fridge · 4°C</button>
         <button class="ball" data-estart="20" aria-pressed="${eggStart!==4}">room temperature</button>
-        ${eggStart!==4?`<span class="unitrow"><input id="e-start" type="number" min="5" max="35" step="1" value="${eggStart}"><span class="calc-unit">°C</span></span>`:''}
+        ${eggStart!==4?`<span class="unitrow"><input id="e-start" type="text" inputmode="decimal" value="${eggStart}" aria-label="Starting temperature"><span class="calc-unit">°C</span></span>`:''}
       </div>
     </div>
     <div class="calc-row">
       <label class="calc-in"><span class="picker-label">Air fryer set to</span>
-        <div class="unitrow"><input id="e-air" type="number" min="50" max="200" step="5" value="${air}"><span class="calc-unit">°C</span></div></label>
+        <div class="unitrow"><input id="e-air" type="text" inputmode="decimal" value="${air}" aria-label="Air fryer temperature"><span class="calc-unit">°C</span></div></label>
       <div class="calc-presets">${[70,75,80,120].map(v=>`<button class="ball" data-eair="${v}" aria-pressed="${air===v}">${v}°</button>`).join('')}</div>
     </div>
     <div class="calc-row">
@@ -2778,15 +2800,23 @@ function eggHTML(r){
 }
 function wireEgg(r){
   const re=()=>{ const el=pane.querySelector('.calc'); if(!el) return;
-    const keep=document.activeElement&&document.activeElement.id;
+    const act=document.activeElement, keep=act&&act.id, pos=caretOf(act);
     el.outerHTML=eggHTML(r); wireEgg(r); shapeBalls();
-    if(keep){ const n=$('#'+keep); if(n){ n.focus(); if(n.setSelectionRange) n.setSelectionRange(n.value.length,n.value.length); } } };
+    if(keep) refocusEl($('#'+keep),pos); };
   pane.querySelectorAll('[data-estart]').forEach(b=>b.onclick=()=>{ eggStart=Number(b.dataset.estart); re(); });
   pane.querySelectorAll('[data-eair]').forEach(b=>b.onclick=()=>{ eggAir=Number(b.dataset.eair); re(); });
   pane.querySelectorAll('[data-etarget]').forEach(b=>b.onclick=()=>{ eggTarget=Number(b.dataset.etarget); re(); });
   pane.querySelectorAll('[data-esize]').forEach(b=>b.onclick=()=>{ eggSize=Number(b.dataset.esize); re(); });
-  const a=$('#e-air'); if(a) a.oninput=()=>{ const v=Number(a.value); if(v>0){ eggAir=v; re(); } };
-  const s=$('#e-start'); if(s) s.oninput=()=>{ const v=Number(s.value); if(v>0){ eggStart=v; re(); } };
+  /* Range is applied on the way out, not on the way in. Clamping each keystroke
+     meant the first digit of 120 became the 50 floor and the rest piled onto
+     that — the box could never reach the number you wanted. */
+  const live=(el,set,lo,hi)=>{ if(!el) return;
+    el.oninput=()=>{ const v=Number(el.value); if(v>0){ set(v); re(); } };
+    el.onblur=()=>{ if(!leftTheField()) return;
+      const v=Number(el.value); set(Math.min(hi,Math.max(lo,v>0?v:lo))); re(); };
+  };
+  live($('#e-air'), v=>{eggAir=v;}, 50, 200);
+  live($('#e-start'), v=>{eggStart=v;}, 5, 35);
 }
 
 
@@ -5251,13 +5281,19 @@ function shapeBalls(){
     b.classList.toggle('rect', (b.textContent||'').replace(/\s+/g,' ').trim().length>=5);
   });
 }
+let rendering=false;
+/* True only while render() is rebuilding the pane. A field's onblur fires as
+   its element is destroyed mid-repaint, and a blur handler that repaints would
+   otherwise recurse into a second, pointless render on every keystroke. */
+function leftTheField(){ return !rendering; }
 function render(){
   armed=null;
   fridgeCacheClear();       /* fridge-match caches live for exactly one repaint */
   syncHash();
   renderNav();
   renderTabbar();
-  renderBody();
+  rendering=true;
+  try{ renderBody(); }finally{ rendering=false; }
   shapeBalls();
 }
 function renderBody(){
