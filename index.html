@@ -1082,7 +1082,7 @@ function seed(){return [
  ingredients:[{qty:1000,unit:'g',name:'Cream cheese, at least 32% fat',step:2},
   {qty:40,unit:'g',name:'Cornflour',step:2},{qty:5,unit:'g',name:'Vanilla paste, or 1 pod scraped',step:2},
   {qty:2,unit:'g',name:'Salt',step:2},
-  {qty:300,unit:'g',name:'Egg, about 6 large, weighed out of the shell',step:4},
+  {qty:300,unit:'g',name:'Egg, weighed out of the shell',step:4,eachG:50},
   {qty:30,unit:'g',name:'Hojicha powder',opt:'hojicha',step:3},
   {qty:230,unit:'g',name:'Sugar',opt:'hojicha',step:2},
   {qty:330,unit:'g',name:'Double cream',opt:'hojicha',step:4},
@@ -1127,7 +1127,8 @@ function seed(){return [
      inTub:'クリームチーズの分量', madeWith:'種類',
      tinKeepDepth:'cm 型・深さを保つ', eggAbout:'g 卵・Lサイズ約{n}個',
      doubleCream:'g 生クリーム（乳脂肪分48%）', cornflour:'g コーンスターチ', batter:'kg 生地',
-     hint:'卵は個数ではなく重さで量ってください。Lサイズ6個で殻を除いて約{g} g、殻の重さは思うより差があります。焼き時間は深さが同じなら変わりません。',
+     hint:'卵は個数ではなく重さで量ってください。殻を除いて{g} g{c}。殻の重さは思うより差があります。焼き時間は深さが同じなら変わりません。',
+     eggCountClause:'、Lサイズ約{n}個', eggPlain:'g 卵',
      ing:{'hojicha powder':'ほうじ茶パウダー','sugar':'グラニュー糖','black sesame praline':'黒ごまプラリネ'},
      tinsTitle:'型・容器', builtFor:'このレシピは深さ約 {d} cm 向けです',
      tmodeEven:'すべて同じ深さ', tmodeFirst:'最初の型を満たして残りを次へ',
@@ -2304,7 +2305,7 @@ function renderRecipe(){
     return `<li><button class="tick ${free?'freeform':''}" data-kind="ing" data-n="${n}" aria-pressed="${ticked.ing.has(n)}">
       <span class="box"></span>
       <span class="qty">${free?'—':esc(fmt(i.qty*scale))+`<span class="unit">${esc(i.unit||'')}</span>`}</span>
-      <span class="ing-name">${esc(trList('ingredients',n,i.name))}${!SHARE&&inFridge(i.name)?'<span class="have">in fridge</span>':''}</span></button></li>`;
+      <span class="ing-name">${esc(ingLabel(i,trList('ingredients',n,i.name)))}${!SHARE&&inFridge(i.name)?'<span class="have">in fridge</span>':''}</span></button></li>`;
   };
   /* Consecutive ingredients sharing a step (they're consecutive because the
      list above is sorted by step) draw as one group boxed in that step's
@@ -2617,6 +2618,24 @@ function tinPlannerHTML(r,total){
     </div>
   </div>`;
 }
+/* 300 g of egg is "about 6 large"; 310 g is "about 6-7". Returns '' below a
+   whole one, where naming a count would be sillier than saying nothing — the
+   advice is to weigh them anyway. Shared by the ingredient line and the scaler
+   so those two can never end up disagreeing on screen. */
+function aboutCount(g,per){
+  if(!per||!(g>0)) return '';
+  const n=g/per;
+  if(n<0.85) return '';
+  return (n%1<0.15||n%1>0.85) ? String(Math.round(n)) : Math.floor(n)+'\u2013'+Math.ceil(n);
+}
+/* An ingredient whose amount is a weight can't carry its own count in the
+   stored name — that text is fixed, and the scaler isn't. `eachG` says what one
+   of them weighs, and the count is worked out from the scaled quantity at
+   render time. */
+function ingLabel(i,name){
+  const n=i&&i.eachG?aboutCount((i.qty||0)*scale,i.eachG):'';
+  return n ? name+', about '+n+' '+(i.eachLabel||'large') : name;
+}
 function anchorHTML(r){
   const c=r.calc, CL=calcLang(r);
   const L=(k,en)=> (CL && CL[k]!=null) ? CL[k] : en;
@@ -2627,8 +2646,12 @@ function anchorHTML(r){
   const cf=opt.cornstarch||40, cr=opt.cream||300;
   const total=Math.round((c.sharedG-40-300+cf+cr+optW)*scale);
   const tin=c.tin*Math.sqrt(scale);
-  const eggG=Math.round(c.eggG*scale), eggN=eggG/50;
-  const eggAboutN=eggN%1<0.15||eggN%1>0.85?Math.round(eggN):Math.floor(eggN)+'–'+Math.ceil(eggN);
+  const eggG=Math.round(c.eggG*scale), eggAboutN=aboutCount(eggG,50);
+  /* Below one whole egg there is no count worth naming, so the clause drops out
+     of the sentence entirely rather than printing "about 0 large". */
+  const eggClause=eggAboutN
+    ? (CL ? L('eggCountClause','').replace('{n}',eggAboutN) : ` is roughly ${eggAboutN} large`)
+    : '';
   const jaTop=(recipeLang!=='en' && r.i18n && r.i18n[recipeLang]) || null;
   const optLbl=o=>(jaTop && jaTop.calcLabels && jaTop.calcLabels[o.k]) || o.label;
   return `<div class="calc">
@@ -2647,14 +2670,18 @@ function anchorHTML(r){
     </div>
     <div class="calc-out">
       <div class="co total"><b>${tin.toFixed(0)}</b><span>${L('tinKeepDepth','cm tin, to keep the depth')}</span></div>
-      <div class="co"><b>${eggG}</b><span>${CL?L('eggAbout','').replace('{n}',eggAboutN):`g egg · about ${eggAboutN} large`}</span></div>
+      <div class="co"><b>${eggG}</b><span>${eggAboutN
+        ? (CL?L('eggAbout','').replace('{n}',eggAboutN):`g egg · about ${eggAboutN} large`)
+        : (CL?L('eggPlain','g \u5375'):'g egg')}</span></div>
       ${opt.items.map(([n,g])=>`<div class="co"><b>${Math.round(g*scale)}</b><span>g ${esc(iname(n))}</span></div>`).join('')}
       <div class="co"><b>${Math.round(cr*scale)}</b><span>${L('doubleCream','g double cream')}</span></div>
       <div class="co"><b>${Math.round(cf*scale)}</b><span>${L('cornflour','g cornflour')}</span></div>
       <div class="co"><b>${(total/1000).toFixed(2)}</b><span>${L('batter','kg of batter')}</span></div>
     </div>
     ${tinPlannerHTML(r,total)}
-    <p class="hint" style="margin-top:8px">${CL?L('hint','').replace('{g}',c.eggG):`Weigh the eggs rather than counting them — six large is about ${c.eggG} g out of the shell, and shell weights vary more than you would think. Bake time stays about the same as long as the depth does.`}</p>
+    <p class="hint" style="margin-top:8px">${CL
+      ? L('hint','').replace('{g}',eggG).replace('{c}',eggClause)
+      : `Weigh the eggs rather than counting them — ${eggG} g out of the shell${eggClause}, and shell weights vary more than you would think. Bake time stays about the same as long as the depth does.`}</p>
   </div>`;
 }
 function wireAnchor(r){
@@ -2836,7 +2863,8 @@ function buildGrid(r,opt){
 }
 function gridHTML(r,grids,optLabel,curOpt){
   const jaIng=(recipeLang!=='en' && r.i18n && r.i18n[recipeLang] && r.i18n[recipeLang].ingredients)||null;
-  const nm=ing=>{ if(!jaIng) return ing.name; const i=r.ingredients.indexOf(ing); return i>=0&&jaIng[i]!=null?jaIng[i]:ing.name; };
+  const nm=ing=>{ const i=r.ingredients.indexOf(ing);
+    return ingLabel(ing, (jaIng&&i>=0&&jaIng[i]!=null)?jaIng[i]:ing.name); };
   if(!grids||!grids.length) return `<p class="empty">${jaIng?'このレシピは工程がきれいに分かれないため、ステップ表示のほうが分かりやすいです。':'This one does not fall into neat stages — the steps view is clearer for it.'}</p>`;
   /* One table per either/or version, same as the ingredients list — pick
      whichever the "Made with" buttons last selected (shared with the
@@ -2924,7 +2952,7 @@ function renderEditor(){
    ride on the row element itself, so they also survive adding, removing and
    reordering rows; a row added by hand simply has neither. */
 function rowHtml(i){
-  return `<div class="edit-row"${i.opt!=null?` data-opt="${esc(i.opt)}"`:''}${i.step!=null?` data-step="${i.step}"`:''}>
+  return `<div class="edit-row"${i.opt!=null?` data-opt="${esc(i.opt)}"`:''}${i.step!=null?` data-step="${i.step}"`:''}${i.eachG!=null?` data-eachg="${i.eachG}"`:''}${i.eachLabel!=null?` data-eachlabel="${esc(i.eachLabel)}"`:''}>
     <input class="num qty-input" type="number" step="any" value="${i.qty??''}" placeholder="Amt" aria-label="Amount">
     <input class="unit-input" value="${esc(i.unit||'')}" placeholder="Unit" aria-label="Unit">
     <input class="ing-input" value="${esc(i.name||'')}" placeholder="Ingredient" aria-label="Ingredient">
@@ -2937,6 +2965,8 @@ function collect(){
     const ing={qty:q===''?null:Number(q),unit:row.querySelector('.unit-input').value.trim(),name:row.querySelector('.ing-input').value.trim()};
     if(row.dataset.opt!=null) ing.opt=row.dataset.opt;                 /* see rowHtml — neither has a field */
     if(row.dataset.step!=null) ing.step=Number(row.dataset.step);      /* in the form, so they ride the row */
+    if(row.dataset.eachg!=null) ing.eachG=Number(row.dataset.eachg);
+    if(row.dataset.eachlabel!=null) ing.eachLabel=row.dataset.eachlabel;
     return ing;
   }).filter(i=>i.name);
   return {name:$('#f-name').value.trim()||'Untitled recipe',

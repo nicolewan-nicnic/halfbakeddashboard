@@ -158,6 +158,21 @@ anything that throws mid-render silently disables everything bound after it.
 Cleared when a recipe opens; does not survive a refresh. If the visible ingredient
 rows change (the variant toggle), clear it or ticks land on the wrong lines.
 
+**An ingredient's stored name must not state a count.**
+The Basque cheesecake's egg line used to read "Egg, about 6 large, weighed out of
+the shell". The 300 g scales; the words do not, so a double batch still claimed
+six. A weight-measured ingredient carries `eachG` (what one of them weighs) and
+`ingLabel()` works the count out from the scaled quantity at render time, in the
+list and the table alike. `aboutCount()` returns a range ("6-7") between whole
+numbers and '' below one, so the clause drops out rather than printing "about 0".
+The scaler's hint and its egg tile use the same helper — they cannot disagree.
+
+**A new ingredient key needs a line in `rowHtml` AND `collect`.**
+The editor rebuilds each ingredient from three inputs, so any key without a form
+field (`opt`, `step`, `eachG`, `eachLabel`) is dropped on save unless it rides
+the row as a data attribute. This has already silently eaten `opt` and `step`
+once.
+
 **Recipe ingredients can have an `opt` key.**
 Used for either/or groups (Basque cheesecake: hojicha vs black sesame praline). Rows
 tagged with `opt` only show when that option is selected, and the selection is shared
